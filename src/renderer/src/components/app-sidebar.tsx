@@ -3,6 +3,7 @@
 import * as React from "react"
 import {
   AudioWaveform,
+  Calendar,
   Command,
   Frame,
   GalleryVerticalEnd,
@@ -15,15 +16,14 @@ import {
   Search,
 } from "lucide-react"
 
+import { cn } from "@/lib/utils"
 import { NavProjects } from "@/components/nav-projects"
-import { InputGroup } from "@/components/ui/input-group"
-import { NavUser } from "@/components/nav-user"
 import { TeamSwitcher } from "@/components/team-switcher"
-import { Kbd } from "@/components/ui/kbd"
+import { TrafficLights } from "@/components/traffic-lights"
+import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarHeader,
   SidebarMenu,
@@ -31,14 +31,20 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 // Quick actions data
 const quickActions = [
   {
+    title: "Search",
+    icon: Search,
+    kbd: "⌘ K",
+  },
+  {
     title: "New",
     icon: Plus,
-    kbd: "⌘N",
+    kbd: "⌘ N",
   },
 ]
 
@@ -48,6 +54,11 @@ const mainNav = [
     title: "Home",
     url: "#",
     icon: Home,
+  },
+  {
+    title: "Today",
+    url: "#",
+    icon: Calendar,
   },
   {
     title: "Inbox",
@@ -63,14 +74,9 @@ const mainNav = [
 
 // This is sample data.
 const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
   teams: [
     {
-      name: "Acme Inc",
+      name: "Kaan",
       logo: GalleryVerticalEnd,
       plan: "Enterprise",
     },
@@ -104,36 +110,42 @@ const data = {
   ],
 }
 
+function SidebarHeaderContent({ teams }: { teams: typeof data.teams }) {
+  const { state } = useSidebar()
+  const isCollapsed = state === "collapsed"
+
+  return (
+    <SidebarHeader>
+      {/* Drag region + Traffic lights for macOS */}
+      <div
+        className={cn(
+          "drag-region flex items-center h-8 shrink-0 transition-all duration-200",
+          isCollapsed ? "justify-center px-0" : "justify-start px-2"
+        )}
+      >
+        <TrafficLights compact={isCollapsed} />
+      </div>
+      <TeamSwitcher teams={teams} />
+    </SidebarHeader>
+  )
+}
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
-        <TeamSwitcher teams={data.teams} />
-      </SidebarHeader>
+      <SidebarHeaderContent teams={data.teams} />
       <SidebarContent>
         {/* Quick Actions: Search & New */}
         <SidebarGroup>
           <SidebarMenu>
-            {/* Search Input */}
-            <SidebarMenuItem>
-              <InputGroup className="h-8 w-full border-none shadow-none bg-transparent hover:bg-sidebar-accent rounded-md p-2 gap-2 overflow-hidden">
-                <Search className="size-4 shrink-0 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground min-w-0"
-                />
-                <Kbd>⌘K</Kbd>
-              </InputGroup>
-            </SidebarMenuItem>
-
-            {/* New Button */}
             {quickActions.map((action) => (
               <SidebarMenuItem key={action.title}>
                 <SidebarMenuButton tooltip={action.title}>
                   <action.icon />
                   <span>{action.title}</span>
-                  <Kbd className="ml-auto">{action.kbd}</Kbd>
+                  <KbdGroup className="ml-auto">
+                    <Kbd>{action.kbd}</Kbd>
+                  </KbdGroup>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
@@ -160,9 +172,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         <NavProjects projects={data.projects} />
       </SidebarContent>
-      <SidebarFooter>
-        <NavUser user={data.user} />
-      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )

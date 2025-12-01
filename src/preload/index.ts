@@ -1,8 +1,13 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
-const api = {}
+const api = {
+  // Window controls for custom traffic lights
+  windowMinimize: (): void => ipcRenderer.send('window-minimize'),
+  windowMaximize: (): void => ipcRenderer.send('window-maximize'),
+  windowClose: (): void => ipcRenderer.send('window-close')
+}
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise
