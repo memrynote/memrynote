@@ -15,5 +15,16 @@
     "hooks": "@/lib/hooks",
     "ui": "@/components/ui"
   },
-  "iconLibrary": "lucide"
+  "iconLibrary": "lucide",
+  "registries": {
+        "@alpine": "https://alpine-registry.vercel.app/r/{name}.json",
+        "@tailark": "https://tailark.com/r/{name}.json",
+        "@magicui": "https://magicui.dev/r/{name}.json",
+        "@shadcn-form": "https://www.shadcn-form.com/r/{name}.json",
+        "@kokonutui": "https://kokonutui.com/r/{name}.json",
+        "@diceui": "https://diceui.com/r/{name}.json",
+        "@basecn": "https://basecn.dev/r/{name}.json",
+        "@animateui": "https://animate-ui.com/r/{name}.json",
+        "@fancycomponents": "https://fancycomponents.dev/r/{name}.json"
+  }
 }
