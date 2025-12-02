@@ -5,19 +5,15 @@ import {
   AudioWaveform,
   Calendar,
   Command,
-  Frame,
   GalleryVerticalEnd,
   Home,
   Inbox,
   ListTodo,
-  Map,
-  PieChart,
   Plus,
   Search,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { NavProjects } from "@/components/nav-projects"
 import { TeamSwitcher } from "@/components/team-switcher"
 import { TrafficLights } from "@/components/traffic-lights"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
@@ -33,6 +29,8 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { FileTree } from "@/components/file-tree"
+import { TreeDataItem } from "@/types"
 
 // Quick actions data
 const quickActions = [
@@ -91,24 +89,71 @@ const data = {
       plan: "Free",
     },
   ],
-  projects: [
-    {
-      name: "Design Engineering",
-      url: "#",
-      icon: Frame,
-    },
-    {
-      name: "Sales & Marketing",
-      url: "#",
-      icon: PieChart,
-    },
-    {
-      name: "Travel",
-      url: "#",
-      icon: Map,
-    },
-  ],
 }
+
+
+const treeData: TreeDataItem[] = [
+  {
+    id: "1",
+    name: "Documents",
+    type: "folder",
+    isOpen: true,
+    children: [
+      {
+        id: "2",
+        name: "Projects",
+        type: "folder",
+        isOpen: true,
+        children: [
+          {
+            id: "3",
+            name: "Project A",
+            type: "file",
+          },
+          {
+            id: "4",
+            name: "Project B",
+            type: "file",
+          },
+        ],
+      },
+      {
+        id: "5",
+        name: "Notes",
+        type: "folder",
+        children: [
+          {
+            id: "6",
+            name: "Meeting Notes",
+            type: "file",
+          },
+          {
+            id: "7",
+            name: "Ideas",
+            type: "file",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "8",
+    name: "Archive",
+    type: "folder",
+    children: [
+      {
+        id: "9",
+        name: "Old Files",
+        type: "file",
+      },
+    ],
+  },
+  {
+    id: "10",
+    name: "Quick Notes.txt",
+    type: "file",
+  },
+]
 
 function SidebarHeaderContent({ teams }: { teams: typeof data.teams }) {
   const { state } = useSidebar()
@@ -170,7 +215,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenu>
         </SidebarGroup>
 
-        <NavProjects projects={data.projects} />
+        {/* File Tree */}
+        <SidebarGroup>
+          <FileTree data={treeData} />
+        </SidebarGroup>
       </SidebarContent>
       <SidebarRail />
     </Sidebar>
