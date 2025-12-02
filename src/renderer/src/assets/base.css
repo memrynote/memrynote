@@ -74,11 +74,11 @@
 
 :root {
   --sidebar: #fafafa;
-  --sidebar-foreground: #57596a;
+  --sidebar-foreground: #5E6062;
   --sidebar-primary: #18181b;
   --sidebar-primary-foreground: #fafafa;
   --sidebar-accent: #f4f4f5;
-  --sidebar-accent-foreground: #57596a;
+  --sidebar-accent-foreground: #000000;
   --sidebar-border: #e4e4e7;
   --sidebar-ring: #3b82f6;
 }

@@ -155,7 +155,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         {/* File Tree */}
         <SidebarGroup className="flex-1 overflow-auto">
-          <SidebarGroupLabel>Files</SidebarGroupLabel>
+          <SidebarGroupLabel>Collections</SidebarGroupLabel>
           <SidebarMenu>
             <FileTree />
           </SidebarMenu>

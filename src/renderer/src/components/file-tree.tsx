@@ -10,12 +10,12 @@ import {
     TreeProvider,
     TreeView,
     type MoveOperation,
+    type IconChangeOperation,
 } from "@/components/kibo-ui/tree";
 import { FileCode, FileJson, FileText } from "lucide-react";
 
 export default function FileTree() {
     const handleMove = (operation: MoveOperation) => {
-
         console.log("Move operation:", {
             draggedId: operation.draggedId,
             targetId: operation.targetId,
@@ -30,11 +30,27 @@ export default function FileTree() {
         // }
     };
 
+    const handleIconChange = (operation: IconChangeOperation) => {
+        console.log("Icon change:", {
+            nodeId: operation.nodeId,
+            iconName: operation.iconName,
+            hasChildren: operation.hasChildren,
+        });
+
+        // Backend'e gönderilecek payload:
+        // {
+        //   nodeId: operation.nodeId,
+        //   iconName: operation.iconName, // null ise ikon temizlendi
+        //   hasChildren: operation.hasChildren, // true ise klasör, child'lara da uygulanmalı
+        // }
+    };
+
     return (
         <TreeProvider
             // defaultExpandedIds={["src", "components", "ui"]}
             onSelectionChange={(ids) => console.log("Selected:", ids)}
             onMove={handleMove}
+            onIconChange={handleIconChange}
             draggable={true}
             animateExpand={false}
             multiSelect={true}
@@ -143,27 +159,6 @@ export default function FileTree() {
                             </TreeNodeContent>
                         </TreeNode>
                     </TreeNodeContent>
-                </TreeNode>
-                <TreeNode nodeId="package.json">
-                    <TreeNodeTrigger>
-                        <TreeExpander />
-                        <TreeIcon icon={<FileJson className="h-4 w-4" />} />
-                        <TreeLabel>package.json</TreeLabel>
-                    </TreeNodeTrigger>
-                </TreeNode>
-                <TreeNode nodeId="tsconfig.json">
-                    <TreeNodeTrigger>
-                        <TreeExpander />
-                        <TreeIcon icon={<FileJson className="h-4 w-4" />} />
-                        <TreeLabel>tsconfig.json</TreeLabel>
-                    </TreeNodeTrigger>
-                </TreeNode>
-                <TreeNode isLast nodeId="README.md">
-                    <TreeNodeTrigger>
-                        <TreeExpander />
-                        <TreeIcon icon={<FileText className="h-4 w-4" />} />
-                        <TreeLabel>README.md</TreeLabel>
-                    </TreeNodeTrigger>
                 </TreeNode>
             </TreeView>
         </TreeProvider>

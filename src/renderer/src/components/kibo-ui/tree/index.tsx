@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, File, Folder, FolderOpen } from "lucide-react";
+import { ChevronRight, File, Folder, FolderOpen, Palette } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   type ComponentProps,
@@ -15,11 +15,21 @@ import {
   useState,
 } from "react";
 import { cn } from "@/lib/utils";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { IconPicker, getIconByName } from "@/components/icon-picker";
 
 type NodeInfo = {
   nodeId: string;
   parentId: string | null;
   hasChildren: boolean;
+  customIcon?: string;
+  inheritedIcon?: string;
 };
 
 export type DropPosition = "before" | "after" | "inside";
@@ -36,6 +46,12 @@ export type MoveOperation = {
   position: DropPosition;
 };
 
+export type IconChangeOperation = {
+  nodeId: string;
+  iconName: string | null;
+  hasChildren: boolean;
+};
+
 type TreeContextType = {
   expandedIds: Set<string>;
   selectedIds: string[];
@@ -44,7 +60,7 @@ type TreeContextType = {
   toggleExpanded: (nodeId: string) => void;
   handleSelection: (nodeId: string, ctrlKey: boolean) => void;
   setFocusedId: (nodeId: string | null) => void;
-  registerNode: (nodeId: string, parentId: string | null, hasChildren: boolean) => void;
+  registerNode: (nodeId: string, parentId: string | null, hasChildren: boolean, customIcon?: string, inheritedIcon?: string) => void;
   unregisterNode: (nodeId: string) => void;
   getVisibleNodes: () => string[];
   getNodeInfo: (nodeId: string) => NodeInfo | undefined;
@@ -52,8 +68,11 @@ type TreeContextType = {
   collapseNode: (nodeId: string) => void;
   setDragState: (state: Partial<DragState>) => void;
   handleDrop: () => void;
+  setNodeIcon: (nodeId: string, iconName: string | null) => void;
+  getEffectiveIcon: (nodeId: string) => string | undefined;
   draggable?: boolean;
   onMove?: (operation: MoveOperation) => void;
+  onIconChange?: (operation: IconChangeOperation) => void;
   showLines?: boolean;
   showIcons?: boolean;
   selectable?: boolean;
@@ -80,6 +99,10 @@ type TreeNodeContextType = {
   parentPath: boolean[];
   hasChildren: boolean;
   setHasChildren: (value: boolean) => void;
+  customIcon?: string;
+  inheritedIcon?: string;
+  setCustomIcon: (iconName: string | undefined) => void;
+  setInheritedIcon: (iconName: string | undefined) => void;
 };
 
 const TreeNodeContext = createContext<TreeNodeContextType | undefined>(
@@ -105,6 +128,7 @@ export type TreeProviderProps = {
   onSelectionChange?: (selectedIds: string[]) => void;
   draggable?: boolean;
   onMove?: (operation: MoveOperation) => void;
+  onIconChange?: (operation: IconChangeOperation) => void;
   indent?: number;
   animateExpand?: boolean;
   className?: string;
@@ -121,6 +145,7 @@ export const TreeProvider = ({
   onSelectionChange,
   draggable = false,
   onMove,
+  onIconChange,
   indent = 20,
   animateExpand = true,
   className,
@@ -139,6 +164,8 @@ export const TreeProvider = ({
   });
   const nodesRef = useRef<Map<string, NodeInfo>>(new Map());
   const nodeOrderRef = useRef<string[]>([]);
+  // İkon state'i için re-render tetiklemek için
+  const [iconVersion, setIconVersion] = useState(0);
 
   const isControlled =
     selectedIds !== undefined && onSelectionChange !== undefined;
@@ -166,8 +193,8 @@ export const TreeProvider = ({
     });
   }, [dragState, onMove]);
 
-  const registerNode = useCallback((nodeId: string, parentId: string | null, hasChildren: boolean) => {
-    nodesRef.current.set(nodeId, { nodeId, parentId, hasChildren });
+  const registerNode = useCallback((nodeId: string, parentId: string | null, hasChildren: boolean, customIcon?: string, inheritedIcon?: string) => {
+    nodesRef.current.set(nodeId, { nodeId, parentId, hasChildren, customIcon, inheritedIcon });
     if (!nodeOrderRef.current.includes(nodeId)) {
       nodeOrderRef.current.push(nodeId);
     }
@@ -177,6 +204,56 @@ export const TreeProvider = ({
     nodesRef.current.delete(nodeId);
     nodeOrderRef.current = nodeOrderRef.current.filter(id => id !== nodeId);
   }, []);
+
+  // Node'a ikon atama ve child'lara inheritance
+  const setNodeIcon = useCallback((nodeId: string, iconName: string | null) => {
+    const nodeInfo = nodesRef.current.get(nodeId);
+    if (!nodeInfo) return;
+
+    // Node'un kendi ikonunu güncelle
+    nodeInfo.customIcon = iconName || undefined;
+    nodesRef.current.set(nodeId, nodeInfo);
+
+    // Eğer bu bir klasörse, tüm child'lara inheritedIcon olarak yay
+    if (nodeInfo.hasChildren) {
+      const updateChildrenInheritedIcon = (parentId: string, inheritedIcon: string | undefined) => {
+        for (const [childId, childInfo] of nodesRef.current.entries()) {
+          if (childInfo.parentId === parentId) {
+            // Child'ın kendi customIcon'u yoksa inherited'ı güncelle
+            childInfo.inheritedIcon = inheritedIcon;
+            nodesRef.current.set(childId, childInfo);
+            // Recursive olarak alt child'ları da güncelle
+            if (childInfo.hasChildren) {
+              // Child'ın kendi customIcon'u varsa, onun child'larına kendi ikonunu yay
+              // Yoksa parent'tan gelen inherited'ı yay
+              const iconToPass = childInfo.customIcon || inheritedIcon;
+              updateChildrenInheritedIcon(childId, iconToPass);
+            }
+          }
+        }
+      };
+      updateChildrenInheritedIcon(nodeId, iconName || undefined);
+    }
+
+    // Re-render tetikle
+    setIconVersion(v => v + 1);
+
+    // Callback'i çağır
+    if (onIconChange) {
+      onIconChange({
+        nodeId,
+        iconName,
+        hasChildren: nodeInfo.hasChildren,
+      });
+    }
+  }, [onIconChange]);
+
+  // Bir node için efektif ikonu al (customIcon > inheritedIcon > undefined)
+  const getEffectiveIcon = useCallback((nodeId: string): string | undefined => {
+    const nodeInfo = nodesRef.current.get(nodeId);
+    if (!nodeInfo) return undefined;
+    return nodeInfo.customIcon || nodeInfo.inheritedIcon;
+  }, [iconVersion]); // iconVersion dependency ile güncel kalır
 
   const getNodeInfo = useCallback((nodeId: string) => {
     return nodesRef.current.get(nodeId);
@@ -276,8 +353,11 @@ export const TreeProvider = ({
         collapseNode,
         setDragState,
         handleDrop,
+        setNodeIcon,
+        getEffectiveIcon,
         draggable,
         onMove,
+        onIconChange,
         showLines,
         showIcons,
         selectable,
@@ -312,6 +392,8 @@ export type TreeNodeProps = HTMLAttributes<HTMLDivElement> & {
   isLast?: boolean;
   parentPath?: boolean[];
   children?: ReactNode;
+  customIcon?: string;
+  inheritedIcon?: string;
 };
 
 export const TreeNode = ({
@@ -322,6 +404,8 @@ export const TreeNode = ({
   children,
   className,
   onClick,
+  customIcon: initialCustomIcon,
+  inheritedIcon: initialInheritedIcon,
   ...props
 }: TreeNodeProps) => {
   const generatedId = useId();
@@ -330,12 +414,23 @@ export const TreeNode = ({
   const parentContext = useContext(TreeNodeContext);
   const parentId = parentContext?.nodeId ?? null;
   const [hasChildren, setHasChildren] = useState(false);
+  const [customIcon, setCustomIcon] = useState<string | undefined>(initialCustomIcon);
+  const [inheritedIcon, setInheritedIcon] = useState<string | undefined>(initialInheritedIcon);
+
+  // Parent'tan inherited icon'u al
+  useEffect(() => {
+    if (parentContext?.customIcon) {
+      setInheritedIcon(parentContext.customIcon);
+    } else if (parentContext?.inheritedIcon) {
+      setInheritedIcon(parentContext.inheritedIcon);
+    }
+  }, [parentContext?.customIcon, parentContext?.inheritedIcon]);
 
   // Register this node with the tree
   useEffect(() => {
-    registerNode(nodeId, parentId, hasChildren);
+    registerNode(nodeId, parentId, hasChildren, customIcon, inheritedIcon);
     return () => unregisterNode(nodeId);
-  }, [nodeId, parentId, hasChildren, registerNode, unregisterNode]);
+  }, [nodeId, parentId, hasChildren, customIcon, inheritedIcon, registerNode, unregisterNode]);
 
   // Build the parent path - mark positions where the parent was the last child
   const currentPath = level === 0 ? [] : [...parentPath];
@@ -359,6 +454,10 @@ export const TreeNode = ({
         parentPath: currentPath,
         hasChildren,
         setHasChildren,
+        customIcon,
+        inheritedIcon,
+        setCustomIcon,
+        setInheritedIcon,
       }}
     >
       <div className={cn("select-none", className)} {...props}>
@@ -391,10 +490,16 @@ export const TreeNodeTrigger = ({
     dragState,
     setDragState,
     handleDrop,
+    setNodeIcon,
+    getEffectiveIcon,
   } = useTree();
-  const { nodeId, level, hasChildren, parentId } = useTreeNode();
+  const { nodeId, level, hasChildren, parentId, customIcon } = useTreeNode();
   const isSelected = selectedIds.includes(nodeId);
   const triggerRef = useRef<HTMLDivElement>(null);
+
+  // Icon Picker state
+  const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
+  const [iconPickerPosition, setIconPickerPosition] = useState<{ x: number; y: number } | undefined>();
 
   const isDragging = dragState.draggedId === nodeId;
   const isDropTarget = dragState.dropTargetId === nodeId;
@@ -519,65 +624,123 @@ export const TreeNodeTrigger = ({
     handleDrop();
   }, [handleDrop]);
 
+  // Icon picker handlers
+  const handleSetIconClick = useCallback((e: React.MouseEvent) => {
+    // Context menu'nun kapanmasını bekle, sonra icon picker'ı aç
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setIconPickerPosition({ x: rect.right + 8, y: rect.top });
+    } else {
+      setIconPickerPosition({ x: e.clientX, y: e.clientY });
+    }
+    // Kısa bir gecikme ile aç (context menu kapanması için)
+    setTimeout(() => {
+      setIsIconPickerOpen(true);
+    }, 100);
+  }, []);
+
+  const handleIconSelect = useCallback((iconName: string) => {
+    setNodeIcon(nodeId, iconName || null);
+    setIsIconPickerOpen(false);
+  }, [nodeId, setNodeIcon]);
+
+  const handleIconPickerClose = useCallback(() => {
+    setIsIconPickerOpen(false);
+  }, []);
+
+  const effectiveIcon = getEffectiveIcon(nodeId);
+
   return (
-    <motion.div
-      ref={triggerRef}
-      tabIndex={0}
-      data-tree-node-id={nodeId}
-      draggable={draggable}
-      className={cn(
-        "group relative flex cursor-pointer items-center rounded-md px-3 py-1 outline-none",
-        "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-        "focus:bg-sidebar-accent focus:text-sidebar-accent-foreground",
-        isSelected && "bg-sidebar-accent text-sidebar-accent-foreground",
-        isDragging && "opacity-50",
-        draggable && "cursor-grab active:cursor-grabbing",
-        className
-      )}
-      onClick={(e) => {
-        setFocusedId(nodeId);
-        toggleExpanded(nodeId);
-        handleSelection(nodeId, e.ctrlKey || e.metaKey);
-        onClick?.(e);
-      }}
-      onFocus={() => setFocusedId(nodeId)}
-      onKeyDown={handleKeyDown}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDropEvent}
-      style={{ paddingLeft: level * (indent ?? 0) + 8 }}
-      whileTap={{ scale: 0.98, transition: { duration: 0.1 } }}
-      {...props}
-    >
-      {/* Drop indicator - before */}
-      {isDropTarget && dropPosition === "before" && (
-        <div
-          className="absolute left-2 right-2 -top-0.5 h-0.5 rounded-full bg-primary"
-          aria-hidden="true"
-        />
-      )}
+    <>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <motion.div
+            ref={triggerRef}
+            tabIndex={0}
+            data-tree-node-id={nodeId}
+            draggable={draggable}
+            className={cn(
+              "group relative flex cursor-pointer items-center rounded-md px-3 py-1 outline-none",
+              "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              "focus:bg-sidebar-accent focus:text-sidebar-accent-foreground",
+              isSelected && "bg-sidebar-accent text-sidebar-accent-foreground",
+              isDragging && "opacity-50",
+              draggable && "cursor-grab active:cursor-grabbing",
+              className
+            )}
+            onClick={(e) => {
+              setFocusedId(nodeId);
+              toggleExpanded(nodeId);
+              handleSelection(nodeId, e.ctrlKey || e.metaKey);
+              onClick?.(e);
+            }}
+            onFocus={() => setFocusedId(nodeId)}
+            onKeyDown={handleKeyDown}
+            onDragStartCapture={handleDragStart as unknown as React.DragEventHandler}
+            onDragEndCapture={handleDragEnd}
+            onDragOverCapture={handleDragOver as unknown as React.DragEventHandler}
+            onDragLeaveCapture={handleDragLeave as unknown as React.DragEventHandler}
+            onDropCapture={handleDropEvent as unknown as React.DragEventHandler}
+            style={{ paddingLeft: level * (indent ?? 0) + 8 }}
+            whileTap={{ scale: 0.98, transition: { duration: 0.1 } }}
+            {...props}
+          >
+            {/* Drop indicator - before */}
+            {isDropTarget && dropPosition === "before" && (
+              <div
+                className="absolute left-2 right-2 -top-0.5 h-0.5 rounded-full bg-primary"
+                aria-hidden="true"
+              />
+            )}
 
-      {/* Drop indicator - after */}
-      {isDropTarget && dropPosition === "after" && (
-        <div
-          className="absolute left-2 right-2 -bottom-0.5 h-0.5 rounded-full bg-primary"
-          aria-hidden="true"
-        />
-      )}
+            {/* Drop indicator - after */}
+            {isDropTarget && dropPosition === "after" && (
+              <div
+                className="absolute left-2 right-2 -bottom-0.5 h-0.5 rounded-full bg-primary"
+                aria-hidden="true"
+              />
+            )}
 
-      {/* Drop indicator - inside (for folders) */}
-      {isDropTarget && dropPosition === "inside" && (
-        <div
-          className="absolute inset-0 rounded-md border-2 border-primary border-dashed bg-primary/10"
-          aria-hidden="true"
-        />
-      )}
+            {/* Drop indicator - inside (for folders) */}
+            {isDropTarget && dropPosition === "inside" && (
+              <div
+                className="absolute inset-0 rounded-md border-2 border-primary border-dashed bg-primary/10"
+                aria-hidden="true"
+              />
+            )}
 
-      <TreeLines />
-      {children as ReactNode}
-    </motion.div>
+            <TreeLines />
+            {children as ReactNode}
+          </motion.div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={handleSetIconClick}>
+            <Palette className="mr-2 h-4 w-4" />
+            Set Icon
+          </ContextMenuItem>
+          {effectiveIcon && (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                onClick={() => setNodeIcon(nodeId, null)}
+                className="text-destructive focus:text-destructive"
+              >
+                Clear Icon
+              </ContextMenuItem>
+            </>
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
+
+      {/* Icon Picker Popover */}
+      <IconPicker
+        isOpen={isIconPickerOpen}
+        onClose={handleIconPickerClose}
+        onSelect={handleIconSelect}
+        position={iconPickerPosition}
+        currentIcon={customIcon}
+      />
+    </>
   );
 };
 
@@ -735,24 +898,43 @@ export const TreeExpander = ({
 export type TreeIconProps = ComponentProps<typeof motion.div> & {
   icon?: ReactNode;
   hasChildren?: boolean;
+  iconName?: string;
 };
 
 export const TreeIcon = ({
   icon,
   hasChildren = false,
+  iconName,
   className,
   ...props
 }: TreeIconProps) => {
-  const { showIcons, expandedIds } = useTree();
-  const { nodeId } = useTreeNode();
+  const { showIcons, expandedIds, getEffectiveIcon } = useTree();
+  const { nodeId, customIcon, inheritedIcon } = useTreeNode();
   const isExpanded = expandedIds.has(nodeId);
 
   if (!showIcons) {
     return null;
   }
 
-  const getDefaultIcon = () =>
-    hasChildren ? (
+  // Öncelik: prop olarak verilen iconName > customIcon > inheritedIcon > getEffectiveIcon > default
+  const effectiveIconName = iconName || customIcon || inheritedIcon || getEffectiveIcon(nodeId);
+
+  const getIconComponent = () => {
+    // Eğer bir ikon adı varsa, lucide'dan al
+    if (effectiveIconName) {
+      const IconComponent = getIconByName(effectiveIconName);
+      if (IconComponent) {
+        return <IconComponent className="h-4 w-4" />;
+      }
+    }
+
+    // Prop olarak verilen icon varsa onu kullan
+    if (icon) {
+      return icon;
+    }
+
+    // Default ikonlar
+    return hasChildren ? (
       isExpanded ? (
         <FolderOpen className="h-4 w-4" />
       ) : (
@@ -761,6 +943,7 @@ export const TreeIcon = ({
     ) : (
       <File className="h-4 w-4" />
     );
+  };
 
   return (
     <motion.div
@@ -772,7 +955,7 @@ export const TreeIcon = ({
       whileHover={{ scale: 1.1 }}
       {...props}
     >
-      {icon || getDefaultIcon()}
+      {getIconComponent()}
     </motion.div>
   );
 };
