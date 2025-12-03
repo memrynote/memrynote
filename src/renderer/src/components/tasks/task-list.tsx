@@ -6,13 +6,13 @@ import { QuickAddInput } from "@/components/tasks/quick-add-input"
 import { TaskEmptyState } from "@/components/tasks/task-empty-state"
 import { cn } from "@/lib/utils"
 import {
-  groupTasksByDueDate,
-  groupTasksByStatus,
-  groupTasksByCompletion,
-  dueDateGroupConfig,
-  completionGroupConfig,
-  type TaskGroupByDate,
-  type TaskGroupByCompletion,
+    groupTasksByDueDate,
+    groupTasksByStatus,
+    groupTasksByCompletion,
+    dueDateGroupConfig,
+    completionGroupConfig,
+    type TaskGroupByDate,
+    type TaskGroupByCompletion,
 } from "@/lib/task-utils"
 import type { Task } from "@/data/sample-tasks"
 import type { Project } from "@/data/tasks-data"
@@ -22,14 +22,22 @@ import type { Project } from "@/data/tasks-data"
 // ============================================================================
 
 interface TaskListProps {
-  tasks: Task[]
-  projects: Project[]
-  selectedId: string
-  selectedType: "view" | "project"
-  onToggleComplete: (taskId: string) => void
-  onTaskClick?: (taskId: string) => void
-  onQuickAdd: (title: string) => void
-  className?: string
+    tasks: Task[]
+    projects: Project[]
+    selectedId: string
+    selectedType: "view" | "project"
+    onToggleComplete: (taskId: string) => void
+    onTaskClick?: (taskId: string) => void
+    onQuickAdd: (
+        title: string,
+        parsedData?: {
+            dueDate: Date | null
+            priority: import("@/data/sample-tasks").Priority
+            projectId: string | null
+        }
+    ) => void
+    onOpenModal?: (prefillTitle: string) => void
+    className?: string
 }
 
 // ============================================================================
@@ -37,53 +45,53 @@ interface TaskListProps {
 // ============================================================================
 
 interface TaskListByDueDateProps {
-  tasks: Task[]
-  projects: Project[]
-  showProjectBadge: boolean
-  onToggleComplete: (taskId: string) => void
-  onTaskClick?: (taskId: string) => void
+    tasks: Task[]
+    projects: Project[]
+    showProjectBadge: boolean
+    onToggleComplete: (taskId: string) => void
+    onTaskClick?: (taskId: string) => void
 }
 
 const TaskListByDueDate = ({
-  tasks,
-  projects,
-  showProjectBadge,
-  onToggleComplete,
-  onTaskClick,
+    tasks,
+    projects,
+    showProjectBadge,
+    onToggleComplete,
+    onTaskClick,
 }: TaskListByDueDateProps): React.JSX.Element => {
-  const groupedTasks = useMemo(() => groupTasksByDueDate(tasks), [tasks])
+    const groupedTasks = useMemo(() => groupTasksByDueDate(tasks), [tasks])
 
-  const groupOrder: (keyof TaskGroupByDate)[] = [
-    "overdue",
-    "today",
-    "tomorrow",
-    "upcoming",
-    "later",
-    "noDueDate",
-  ]
+    const groupOrder: (keyof TaskGroupByDate)[] = [
+        "overdue",
+        "today",
+        "tomorrow",
+        "upcoming",
+        "later",
+        "noDueDate",
+    ]
 
-  return (
-    <>
-      {groupOrder.map((groupKey) => {
-        const config = dueDateGroupConfig[groupKey]
-        const tasksInGroup = groupedTasks[groupKey]
+    return (
+        <>
+            {groupOrder.map((groupKey) => {
+                const config = dueDateGroupConfig[groupKey]
+                const tasksInGroup = groupedTasks[groupKey]
 
-        return (
-          <TaskGroup
-            key={groupKey}
-            label={config.label}
-            tasks={tasksInGroup}
-            projects={projects}
-            accentColor={config.accentColor}
-            isMuted={config.isMuted}
-            showProjectBadge={showProjectBadge}
-            onToggleComplete={onToggleComplete}
-            onTaskClick={onTaskClick}
-          />
-        )
-      })}
-    </>
-  )
+                return (
+                    <TaskGroup
+                        key={groupKey}
+                        label={config.label}
+                        tasks={tasksInGroup}
+                        projects={projects}
+                        accentColor={config.accentColor}
+                        isMuted={config.isMuted}
+                        showProjectBadge={showProjectBadge}
+                        onToggleComplete={onToggleComplete}
+                        onTaskClick={onTaskClick}
+                    />
+                )
+            })}
+        </>
+    )
 }
 
 // ============================================================================
@@ -91,44 +99,44 @@ const TaskListByDueDate = ({
 // ============================================================================
 
 interface TaskListByCompletionProps {
-  tasks: Task[]
-  projects: Project[]
-  onToggleComplete: (taskId: string) => void
-  onTaskClick?: (taskId: string) => void
+    tasks: Task[]
+    projects: Project[]
+    onToggleComplete: (taskId: string) => void
+    onTaskClick?: (taskId: string) => void
 }
 
 const TaskListByCompletion = ({
-  tasks,
-  projects,
-  onToggleComplete,
-  onTaskClick,
+    tasks,
+    projects,
+    onToggleComplete,
+    onTaskClick,
 }: TaskListByCompletionProps): React.JSX.Element => {
-  const groupedTasks = useMemo(() => groupTasksByCompletion(tasks), [tasks])
+    const groupedTasks = useMemo(() => groupTasksByCompletion(tasks), [tasks])
 
-  const groupOrder: (keyof TaskGroupByCompletion)[] = ["today", "yesterday", "earlier"]
+    const groupOrder: (keyof TaskGroupByCompletion)[] = ["today", "yesterday", "earlier"]
 
-  return (
-    <>
-      {groupOrder.map((groupKey) => {
-        const config = completionGroupConfig[groupKey]
-        const tasksInGroup = groupedTasks[groupKey]
+    return (
+        <>
+            {groupOrder.map((groupKey) => {
+                const config = completionGroupConfig[groupKey]
+                const tasksInGroup = groupedTasks[groupKey]
 
-        return (
-          <TaskGroup
-            key={groupKey}
-            label={config.label}
-            tasks={tasksInGroup}
-            projects={projects}
-            accentColor={config.accentColor}
-            isMuted={config.isMuted}
-            showProjectBadge={true}
-            onToggleComplete={onToggleComplete}
-            onTaskClick={onTaskClick}
-          />
-        )
-      })}
-    </>
-  )
+                return (
+                    <TaskGroup
+                        key={groupKey}
+                        label={config.label}
+                        tasks={tasksInGroup}
+                        projects={projects}
+                        accentColor={config.accentColor}
+                        isMuted={config.isMuted}
+                        showProjectBadge={true}
+                        onToggleComplete={onToggleComplete}
+                        onTaskClick={onTaskClick}
+                    />
+                )
+            })}
+        </>
+    )
 }
 
 // ============================================================================
@@ -136,37 +144,37 @@ const TaskListByCompletion = ({
 // ============================================================================
 
 interface TaskListByStatusProps {
-  tasks: Task[]
-  project: Project
-  onToggleComplete: (taskId: string) => void
-  onTaskClick?: (taskId: string) => void
+    tasks: Task[]
+    project: Project
+    onToggleComplete: (taskId: string) => void
+    onTaskClick?: (taskId: string) => void
 }
 
 const TaskListByStatus = ({
-  tasks,
-  project,
-  onToggleComplete,
-  onTaskClick,
+    tasks,
+    project,
+    onToggleComplete,
+    onTaskClick,
 }: TaskListByStatusProps): React.JSX.Element => {
-  const groupedTasks = useMemo(
-    () => groupTasksByStatus(tasks, project.statuses),
-    [tasks, project.statuses]
-  )
+    const groupedTasks = useMemo(
+        () => groupTasksByStatus(tasks, project.statuses),
+        [tasks, project.statuses]
+    )
 
-  return (
-    <>
-      {groupedTasks.map((group) => (
-        <StatusTaskGroup
-          key={group.status.id}
-          status={group.status}
-          tasks={group.tasks}
-          project={project}
-          onToggleComplete={onToggleComplete}
-          onTaskClick={onTaskClick}
-        />
-      ))}
-    </>
-  )
+    return (
+        <>
+            {groupedTasks.map((group) => (
+                <StatusTaskGroup
+                    key={group.status.id}
+                    status={group.status}
+                    tasks={group.tasks}
+                    project={project}
+                    onToggleComplete={onToggleComplete}
+                    onTaskClick={onTaskClick}
+                />
+            ))}
+        </>
+    )
 }
 
 // ============================================================================
@@ -174,103 +182,106 @@ const TaskListByStatus = ({
 // ============================================================================
 
 export const TaskList = ({
-  tasks,
-  projects,
-  selectedId,
-  selectedType,
-  onToggleComplete,
-  onTaskClick,
-  onQuickAdd,
-  className,
+    tasks,
+    projects,
+    selectedId,
+    selectedType,
+    onToggleComplete,
+    onTaskClick,
+    onQuickAdd,
+    onOpenModal,
+    className,
 }: TaskListProps): React.JSX.Element => {
-  // Determine if we should show the quick add input
-  // Hide for "completed" view since you can't add completed tasks
-  const showQuickAdd = selectedId !== "completed"
+    // Determine if we should show the quick add input
+    // Hide for "completed" view since you can't add completed tasks
+    const showQuickAdd = selectedId !== "completed"
 
-  // Determine empty state variant
-  const getEmptyStateVariant = (): "all" | "today" | "upcoming" | "completed" | "project" => {
-    if (selectedType === "project") return "project"
-    if (selectedId === "all") return "all"
-    if (selectedId === "today") return "today"
-    if (selectedId === "upcoming") return "upcoming"
-    if (selectedId === "completed") return "completed"
-    return "all"
-  }
-
-  // Get selected project for project view
-  const selectedProject = selectedType === "project"
-    ? projects.find((p) => p.id === selectedId)
-    : null
-
-  // Check if empty
-  const isEmpty = tasks.length === 0
-
-  // Render content based on selection
-  const renderContent = (): React.JSX.Element => {
-    if (isEmpty) {
-      return (
-        <TaskEmptyState
-          variant={getEmptyStateVariant()}
-          projectName={selectedProject?.name}
-          onAddTask={() => onQuickAdd("New Task")}
-        />
-      )
+    // Determine empty state variant
+    const getEmptyStateVariant = (): "all" | "today" | "upcoming" | "completed" | "project" => {
+        if (selectedType === "project") return "project"
+        if (selectedId === "all") return "all"
+        if (selectedId === "today") return "today"
+        if (selectedId === "upcoming") return "upcoming"
+        if (selectedId === "completed") return "completed"
+        return "all"
     }
 
-    // Project view - group by status
-    if (selectedType === "project" && selectedProject) {
-      return (
-        <TaskListByStatus
-          tasks={tasks}
-          project={selectedProject}
-          onToggleComplete={onToggleComplete}
-          onTaskClick={onTaskClick}
-        />
-      )
-    }
+    // Get selected project for project view
+    const selectedProject = selectedType === "project"
+        ? projects.find((p) => p.id === selectedId)
+        : null
 
-    // Completed view - group by completion date
-    if (selectedId === "completed") {
-      return (
-        <TaskListByCompletion
-          tasks={tasks}
-          projects={projects}
-          onToggleComplete={onToggleComplete}
-          onTaskClick={onTaskClick}
-        />
-      )
-    }
+    // Check if empty
+    const isEmpty = tasks.length === 0
 
-    // Views (All, Today, Upcoming) - group by due date
-    return (
-      <TaskListByDueDate
-        tasks={tasks}
-        projects={projects}
-        showProjectBadge={true}
-        onToggleComplete={onToggleComplete}
-        onTaskClick={onTaskClick}
-      />
-    )
-  }
+    // Render content based on selection
+    const renderContent = (): React.JSX.Element => {
+        if (isEmpty) {
+            return (
+                <TaskEmptyState
+                    variant={getEmptyStateVariant()}
+                    projectName={selectedProject?.name}
+                    onAddTask={() => onQuickAdd("New Task")}
+                />
+            )
+        }
 
-  return (
-    <ScrollArea className={cn("flex-1", className)}>
-      <div className="p-4">
-        {/* Quick Add Input */}
-        {showQuickAdd && (
-          <div className="mb-4">
-            <QuickAddInput
-              onAdd={onQuickAdd}
-              placeholder="Add task..."
+        // Project view - group by status
+        if (selectedType === "project" && selectedProject) {
+            return (
+                <TaskListByStatus
+                    tasks={tasks}
+                    project={selectedProject}
+                    onToggleComplete={onToggleComplete}
+                    onTaskClick={onTaskClick}
+                />
+            )
+        }
+
+        // Completed view - group by completion date
+        if (selectedId === "completed") {
+            return (
+                <TaskListByCompletion
+                    tasks={tasks}
+                    projects={projects}
+                    onToggleComplete={onToggleComplete}
+                    onTaskClick={onTaskClick}
+                />
+            )
+        }
+
+        // Views (All, Today, Upcoming) - group by due date
+        return (
+            <TaskListByDueDate
+                tasks={tasks}
+                projects={projects}
+                showProjectBadge={true}
+                onToggleComplete={onToggleComplete}
+                onTaskClick={onTaskClick}
             />
-          </div>
-        )}
+        )
+    }
 
-        {/* Task Groups */}
-        {renderContent()}
-      </div>
-    </ScrollArea>
-  )
+    return (
+        <ScrollArea className={cn("flex-1", className)}>
+            <div className="p-4">
+                {/* Quick Add Input */}
+                {showQuickAdd && (
+                    <div className="mb-4">
+                        <QuickAddInput
+                            onAdd={onQuickAdd}
+                            onOpenModal={onOpenModal}
+                            projects={projects}
+                            placeholder="Add task... (use !today !!high #project for quick options)"
+                        />
+                    </div>
+                )}
+
+                {/* Task Groups */}
+                {renderContent()}
+            </div>
+        </ScrollArea>
+    )
 }
 
 export default TaskList
