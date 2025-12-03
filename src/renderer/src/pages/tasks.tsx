@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ProjectModal } from "@/components/tasks/project-modal"
 import { DeleteProjectDialog, type DeleteTasksOption } from "@/components/tasks/delete-project-dialog"
 import { TaskList } from "@/components/tasks/task-list"
+import { AddTaskModal } from "@/components/tasks/add-task-modal"
 import { getIconByName } from "@/components/icon-picker"
 import { cn } from "@/lib/utils"
 import {
@@ -36,7 +37,8 @@ import {
     type Project,
     type ViewMode,
 } from "@/data/tasks-data"
-import { sampleTasks, createDefaultTask, type Task } from "@/data/sample-tasks"
+import { sampleTasks, createDefaultTask, type Task, type Priority } from "@/data/sample-tasks"
+import { addDays } from "@/lib/task-utils"
 
 // ============================================================================
 // TYPES
@@ -534,6 +536,8 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
     const [editingProject, setEditingProject] = useState<Project | null>(null)
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
     const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
+    const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false)
+    const [addTaskPrefillTitle, setAddTaskPrefillTitle] = useState("")
 
     // ========== DERIVED STATE ==========
 
@@ -713,63 +717,87 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
     }
 
     const handleAddTask = (): void => {
-        // Determine project and status for new task
-        let projectId = "personal"
-        let statusId = "p-todo"
-        let dueDate: Date | null = null
-
-        if (selectedType === "project" && selectedProject) {
-            projectId = selectedProject.id
-            const defaultStatus = getDefaultTodoStatus(selectedProject)
-            statusId = defaultStatus?.id || selectedProject.statuses[0]?.id || "p-todo"
-        } else {
-            const personalProject = projectsWithCounts.find((p) => p.isDefault)
-            if (personalProject) {
-                const defaultStatus = getDefaultTodoStatus(personalProject)
-                statusId = defaultStatus?.id || "p-todo"
-            }
-
-            // Set due date based on view
-            if (selectedId === "today") {
-                dueDate = startOfDay(new Date())
-            } else if (selectedId === "upcoming") {
-                dueDate = startOfDay(new Date())
-                dueDate.setDate(dueDate.getDate() + 1) // tomorrow
-            }
-        }
-
-        const newTask = createDefaultTask(projectId, statusId, "New Task", dueDate)
-        setTasks((prev) => [...prev, newTask])
+        // Open the add task modal
+        setAddTaskPrefillTitle("")
+        setIsAddTaskModalOpen(true)
     }
 
+    const handleOpenAddTaskModal = useCallback((prefillTitle: string): void => {
+        setAddTaskPrefillTitle(prefillTitle)
+        setIsAddTaskModalOpen(true)
+    }, [])
+
+    const handleAddTaskModalClose = (): void => {
+        setIsAddTaskModalOpen(false)
+        setAddTaskPrefillTitle("")
+    }
+
+    const handleAddTaskFromModal = useCallback((newTask: Task): void => {
+        setTasks((prev) => [...prev, newTask])
+    }, [])
+
+    // Get default project and due date for the modal based on current selection
+    const modalDefaultProjectId = useMemo(() => {
+        if (selectedType === "project" && selectedProject) {
+            return selectedProject.id
+        }
+        return "personal"
+    }, [selectedType, selectedProject])
+
+    const modalDefaultDueDate = useMemo((): Date | null => {
+        if (selectedId === "today") {
+            return startOfDay(new Date())
+        }
+        if (selectedId === "upcoming") {
+            return addDays(startOfDay(new Date()), 1) // tomorrow
+        }
+        return null
+    }, [selectedId])
+
     const handleQuickAdd = useCallback(
-        (title: string): void => {
-            // Determine project and status for new task
-            let projectId = "personal"
-            let statusId = "p-todo"
-            let dueDate: Date | null = null
+        (
+            title: string,
+            parsedData?: {
+                dueDate: Date | null
+                priority: Priority
+                projectId: string | null
+            }
+        ): void => {
+            // Use parsed data if available, otherwise use context defaults
+            let projectId = parsedData?.projectId || "personal"
+            let dueDate = parsedData?.dueDate || null
+            const priority = parsedData?.priority || "none"
 
-            if (selectedType === "project" && selectedProject) {
-                projectId = selectedProject.id
-                const defaultStatus = getDefaultTodoStatus(selectedProject)
-                statusId = defaultStatus?.id || selectedProject.statuses[0]?.id || "p-todo"
-            } else {
-                const personalProject = projectsWithCounts.find((p) => p.isDefault)
-                if (personalProject) {
-                    const defaultStatus = getDefaultTodoStatus(personalProject)
-                    statusId = defaultStatus?.id || "p-todo"
+            // If no project was parsed, use context default
+            if (!parsedData?.projectId) {
+                if (selectedType === "project" && selectedProject) {
+                    projectId = selectedProject.id
+                } else {
+                    const personalProject = projectsWithCounts.find((p) => p.isDefault)
+                    if (personalProject) {
+                        projectId = personalProject.id
+                    }
                 }
+            }
 
-                // Set due date based on view
+            // If no due date was parsed, use context default
+            if (!parsedData?.dueDate) {
                 if (selectedId === "today") {
                     dueDate = startOfDay(new Date())
                 } else if (selectedId === "upcoming") {
-                    dueDate = startOfDay(new Date())
-                    dueDate.setDate(dueDate.getDate() + 1) // tomorrow
+                    dueDate = addDays(startOfDay(new Date()), 1) // tomorrow
                 }
             }
 
+            // Find the project and get default status
+            const project = projectsWithCounts.find((p) => p.id === projectId)
+            const defaultStatus = project ? getDefaultTodoStatus(project) : null
+            const statusId = defaultStatus?.id || project?.statuses[0]?.id || "p-todo"
+
             const newTask = createDefaultTask(projectId, statusId, title, dueDate)
+            // Apply priority from parsed data
+            newTask.priority = priority
+
             setTasks((prev) => [...prev, newTask])
         },
         [selectedId, selectedType, selectedProject, projectsWithCounts]
@@ -856,6 +884,7 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
                             onToggleComplete={handleToggleComplete}
                             onTaskClick={handleTaskClick}
                             onQuickAdd={handleQuickAdd}
+                            onOpenModal={handleOpenAddTaskModal}
                         />
                     )}
 
@@ -888,6 +917,17 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
                 onClose={handleDeleteDialogClose}
                 onConfirm={handleDeleteConfirm}
                 project={projectToDelete}
+            />
+
+            {/* Add Task Modal */}
+            <AddTaskModal
+                isOpen={isAddTaskModalOpen}
+                onClose={handleAddTaskModalClose}
+                onAddTask={handleAddTaskFromModal}
+                projects={projectsWithCounts}
+                defaultProjectId={modalDefaultProjectId}
+                defaultDueDate={modalDefaultDueDate}
+                prefillTitle={addTaskPrefillTitle}
             />
         </>
     )
