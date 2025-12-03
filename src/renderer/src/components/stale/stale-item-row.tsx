@@ -1,0 +1,148 @@
+import { Link, FileText, Image, Mic } from "lucide-react"
+
+import { Checkbox } from "@/components/ui/checkbox"
+import { QuickActions } from "@/components/quick-actions"
+import { AgeIndicator } from "@/components/stale/age-indicator"
+import { formatTimestamp } from "@/lib/inbox-utils"
+import { cn } from "@/lib/utils"
+import type { InboxItem, InboxItemType } from "@/types"
+
+// Icon component based on item type
+const TypeIcon = ({ type }: { type: InboxItemType }): React.JSX.Element => {
+  const iconClass = "size-4 text-[var(--muted-foreground)]"
+
+  switch (type) {
+    case "link":
+      return <Link className={iconClass} aria-hidden="true" />
+    case "note":
+      return <FileText className={iconClass} aria-hidden="true" />
+    case "image":
+      return <Image className={iconClass} aria-hidden="true" />
+    case "voice":
+      return <Mic className={iconClass} aria-hidden="true" />
+  }
+}
+
+interface StaleItemRowProps {
+  item: InboxItem
+  isFocused: boolean
+  isSelected: boolean
+  isInBulkMode: boolean
+  isExiting?: boolean
+  onFile: (id: string) => void
+  onPreview: (id: string) => void
+  onDelete: (id: string) => void
+  onFocus: (id: string) => void
+  onSelectionToggle: (id: string, shiftKey: boolean) => void
+}
+
+/**
+ * Row component for stale items - includes age indicator below the title
+ */
+export const StaleItemRow = ({
+  item,
+  isFocused,
+  isSelected,
+  isInBulkMode,
+  isExiting = false,
+  onFile,
+  onPreview,
+  onDelete,
+  onFocus,
+  onSelectionToggle,
+}: StaleItemRowProps): React.JSX.Element => {
+  const handleClick = (): void => {
+    onFocus(item.id)
+  }
+
+  const handleCheckboxClick = (e: React.MouseEvent): void => {
+    e.stopPropagation()
+    onSelectionToggle(item.id, e.shiftKey)
+  }
+
+  const handleCheckboxChange = (_checked: boolean | "indeterminate"): void => {
+    // Handled in handleCheckboxClick for shift-key support
+  }
+
+  return (
+    <div
+      className={cn(
+        "group relative flex flex-col gap-0.5 py-2 px-2 rounded-md cursor-pointer",
+        "transition-all duration-200 ease-out",
+        // Exit animation
+        isExiting
+          ? "opacity-0 scale-95 -translate-y-1 motion-reduce:opacity-0 motion-reduce:scale-100 motion-reduce:translate-y-0"
+          : "opacity-100 scale-100 translate-y-0",
+        // Selection/focus states
+        isSelected
+          ? "bg-[var(--primary)]/10 ring-1 ring-[var(--primary)]/30"
+          : isFocused
+            ? "bg-amber-500/10 ring-2 ring-amber-500/30 ring-offset-1 ring-offset-[var(--background)]"
+            : "hover:bg-amber-500/5"
+      )}
+      role="listitem"
+      tabIndex={isFocused ? 0 : -1}
+      aria-label={`${item.type}: ${item.title}`}
+      aria-selected={isSelected}
+      onClick={handleClick}
+      data-item-id={item.id}
+    >
+      {/* Top row: checkbox, icon, title, timestamp */}
+      <div className="flex items-center gap-3">
+        {/* Checkbox */}
+        <Checkbox
+          id={`stale-item-${item.id}`}
+          checked={isSelected}
+          onCheckedChange={handleCheckboxChange}
+          className={cn(
+            "shrink-0 transition-opacity duration-150",
+            isSelected
+              ? "opacity-100"
+              : isInBulkMode
+                ? "opacity-80"
+                : isFocused
+                  ? "opacity-100"
+                  : "opacity-60 group-hover:opacity-100"
+          )}
+          aria-label={`Select ${item.title}`}
+          onClick={handleCheckboxClick}
+        />
+
+        {/* Type Icon */}
+        <TypeIcon type={item.type} />
+
+        {/* Title */}
+        <span className="flex-1 text-sm text-[var(--foreground)] truncate min-w-0">
+          {item.title}
+        </span>
+
+        {/* Timestamp - hidden on hover when actions show (unless in bulk mode) */}
+        <span className={cn(
+          "shrink-0 text-xs text-[var(--muted-foreground)] tabular-nums transition-opacity duration-100",
+          isInBulkMode ? "" : "group-hover:hidden"
+        )}>
+          {formatTimestamp(item.timestamp, "OLDER")}
+        </span>
+
+        {/* Quick Actions - visible on hover (hidden in bulk mode) */}
+        {!isInBulkMode && (
+          <div className="hidden group-hover:flex shrink-0 transition-opacity duration-100 ease-out">
+            <QuickActions
+              itemId={item.id}
+              onFile={onFile}
+              onPreview={onPreview}
+              onDelete={onDelete}
+              variant="row"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Bottom row: Age indicator */}
+      <div className="ml-11">
+        <AgeIndicator item={item} />
+      </div>
+    </div>
+  )
+}
+

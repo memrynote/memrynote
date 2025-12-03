@@ -72,6 +72,17 @@
     /* ===== QUEUE LIST ===== */
     --queue-bg: #EAE8E1;
     --queue-number-bg: #D4D1C5;
+
+    /* ===== ANIMATION TOKENS ===== */
+    --duration-instant: 100ms;   /* Hover states, micro-feedback */
+    --duration-fast: 150ms;      /* Small transitions, appears/disappears */
+    --duration-normal: 200ms;    /* Most interactions */
+    --duration-slow: 300ms;      /* Panel slides, larger movements */
+    --duration-deliberate: 400ms; /* Empty state entrance, significant changes */
+
+    --ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);    /* Elements entering */
+    --ease-in: cubic-bezier(0.4, 0.0, 1, 1);       /* Elements leaving */
+    --ease-in-out: cubic-bezier(0.4, 0.0, 0.2, 1); /* Elements moving/transforming */
   }
 
   .dark {
@@ -143,6 +154,17 @@
     /* ===== QUEUE LIST - Dark Mode ===== */
     --queue-bg: #252420;
     --queue-number-bg: #3A3935;
+
+    /* ===== ANIMATION TOKENS (Same in dark mode) ===== */
+    --duration-instant: 100ms;
+    --duration-fast: 150ms;
+    --duration-normal: 200ms;
+    --duration-slow: 300ms;
+    --duration-deliberate: 400ms;
+
+    --ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);
+    --ease-in: cubic-bezier(0.4, 0.0, 1, 1);
+    --ease-in-out: cubic-bezier(0.4, 0.0, 0.2, 1);
   }
 }
 
@@ -197,17 +219,223 @@
     letter-spacing: 0.05em;
   }
 
-  /* Animation Utilities */
+  /* ===== ANIMATION UTILITIES ===== */
+
+  /* Card transition */
   .transition-card {
-    transition: transform 150ms ease, box-shadow 150ms ease;
+    transition: transform var(--duration-fast) var(--ease-out),
+                box-shadow var(--duration-fast) var(--ease-out);
   }
 
+  /* Hover lift effect */
   .hover-lift:hover {
     transform: translateY(-2px);
   }
 
+  /* Press/active effect */
   .press-effect:active {
+    transform: scale(0.98);
+  }
+
+  /* Quick action reveal (slide from right) */
+  .quick-actions-reveal {
+    opacity: 0;
+    transform: translateX(8px);
+    transition: opacity var(--duration-instant) var(--ease-out),
+                transform var(--duration-instant) var(--ease-out);
+  }
+
+  .group:hover .quick-actions-reveal,
+  .group:focus-within .quick-actions-reveal {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* Item removal animation - List View */
+  .item-removing {
+    animation: item-remove var(--duration-normal) var(--ease-in) forwards;
+  }
+
+  /* Item removal animation - Card View */
+  .card-removing {
+    animation: card-remove var(--duration-normal) var(--ease-in) forwards;
+  }
+
+  /* Tag pill enter animation */
+  .tag-enter {
+    animation: tag-pop-in var(--duration-normal) var(--ease-out);
+  }
+
+  /* Tag pill exit animation */
+  .tag-exit {
+    animation: tag-pop-out var(--duration-fast) var(--ease-in) forwards;
+  }
+
+  /* Bulk action bar slide up */
+  .slide-up-enter {
+    animation: slide-up var(--duration-normal) var(--ease-out);
+  }
+
+  /* Empty state stagger entrance */
+  .stagger-1 { animation-delay: 0ms; }
+  .stagger-2 { animation-delay: 100ms; }
+  .stagger-3 { animation-delay: 200ms; }
+  .stagger-4 { animation-delay: 300ms; }
+
+  /* Fade in with translate (for staggered entrance) */
+  .fade-in-up {
+    opacity: 0;
+    transform: translateY(10px);
+    animation: fade-in-up var(--duration-normal) var(--ease-out) forwards;
+  }
+
+  /* Count pulse animation */
+  .count-pulse {
+    animation: count-pulse var(--duration-fast) var(--ease-out);
+  }
+
+  /* Dropdown highlight transition */
+  .dropdown-highlight {
+    transition: background-color var(--duration-instant) var(--ease-out);
+  }
+}
+
+/* ===== KEYFRAME ANIMATIONS ===== */
+
+/* Item removal - compresses height for smooth list reflow */
+@keyframes item-remove {
+  0% {
+    opacity: 1;
+    max-height: 60px;
+    margin-bottom: 2px;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 0;
+    max-height: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
     transform: scale(0.95);
+  }
+}
+
+/* Card removal - shrink and fade */
+@keyframes card-remove {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* Tag pill pop in */
+@keyframes tag-pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Tag pill pop out */
+@keyframes tag-pop-out {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8);
+    width: 0;
+    padding: 0;
+    margin: 0;
+  }
+}
+
+/* Slide up from bottom */
+@keyframes slide-up {
+  0% {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade in with upward movement */
+@keyframes fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Count number pulse */
+@keyframes count-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* Checkmark draw animation (SVG) */
+@keyframes draw-check {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ===== REDUCED MOTION SUPPORT ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Keep opacity transitions for essential feedback */
+  .item-removing,
+  .card-removing {
+    animation: none;
+    opacity: 0;
+  }
+
+  .tag-enter,
+  .tag-exit {
+    animation: none;
+  }
+
+  .fade-in-up {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .quick-actions-reveal {
+    transition: none;
+    opacity: 1;
+    transform: none;
   }
 }
 
