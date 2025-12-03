@@ -31,6 +31,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import FileTree from "@/components/file-tree"
+import type { AppPage } from "@/App"
 
 // Quick actions data with soft utility colors
 const quickActions = [
@@ -49,33 +50,37 @@ const quickActions = [
 ]
 
 // Main navigation data with soft accent colors
-const mainNav = [
-  {
-    title: "Inbox",
-    url: "#",
-    icon: Inbox,
-    iconColor: "text-accent-cyan",
-  },
-  {
-    title: "Home",
-    url: "#",
-    icon: Home,
-    iconColor: "text-accent-green",
-  },
-  {
-    title: "Today",
-    url: "#",
-    icon: Calendar,
-    iconColor: "text-accent-orange",
-  },
-
-  {
-    title: "Tasks",
-    url: "#",
-    icon: ListTodo,
-    iconColor: "text-accent-purple",
-  },
-]
+const mainNav: {
+  title: string
+  page: AppPage
+  icon: typeof Inbox
+  iconColor: string
+}[] = [
+    {
+      title: "Inbox",
+      page: "inbox",
+      icon: Inbox,
+      iconColor: "text-accent-cyan",
+    },
+    {
+      title: "Home",
+      page: "home",
+      icon: Home,
+      iconColor: "text-accent-green",
+    },
+    {
+      title: "Today",
+      page: "today",
+      icon: Calendar,
+      iconColor: "text-accent-orange",
+    },
+    {
+      title: "Tasks",
+      page: "tasks",
+      icon: ListTodo,
+      iconColor: "text-accent-purple",
+    },
+  ]
 
 // This is sample data.
 const data = {
@@ -120,7 +125,17 @@ function SidebarHeaderContent({ teams }: { teams: typeof data.teams }) {
   )
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
+  currentPage: AppPage
+  onNavigate: (page: AppPage) => void
+}
+
+export function AppSidebar({ currentPage, onNavigate, ...props }: AppSidebarProps) {
+  const handleNavClick = (page: AppPage) => (e: React.MouseEvent) => {
+    e.preventDefault()
+    onNavigate(page)
+  }
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeaderContent teams={data.teams} />
@@ -149,11 +164,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenu>
             {mainNav.map((item) => (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton tooltip={item.title} asChild>
-                  <a href={item.url}>
-                    <item.icon className={cn("size-4", item.iconColor)} />
-                    <span>{item.title}</span>
-                  </a>
+                <SidebarMenuButton
+                  tooltip={item.title}
+                  isActive={currentPage === item.page}
+                  onClick={handleNavClick(item.page)}
+                >
+                  <item.icon className={cn("size-4", item.iconColor)} />
+                  <span>{item.title}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
