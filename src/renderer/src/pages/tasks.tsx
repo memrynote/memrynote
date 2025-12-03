@@ -17,8 +17,17 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ProjectModal } from "@/components/tasks/project-modal"
 import { DeleteProjectDialog, type DeleteTasksOption } from "@/components/tasks/delete-project-dialog"
+import { TaskList } from "@/components/tasks/task-list"
 import { getIconByName } from "@/components/icon-picker"
 import { cn } from "@/lib/utils"
+import {
+    getFilteredTasks,
+    getTaskCounts,
+    formatTaskSubtitle,
+    getDefaultTodoStatus,
+    getDefaultDoneStatus,
+    startOfDay,
+} from "@/lib/task-utils"
 import {
     taskViews,
     initialProjects,
@@ -27,6 +36,7 @@ import {
     type Project,
     type ViewMode,
 } from "@/data/tasks-data"
+import { sampleTasks, createDefaultTask, type Task } from "@/data/sample-tasks"
 
 // ============================================================================
 // TYPES
@@ -42,6 +52,7 @@ interface TasksLeftColumnProps {
     selectedId: string
     selectedType: SelectionType
     projects: Project[]
+    viewCounts: Record<string, number>
     onSelectView: (id: string) => void
     onSelectProject: (id: string) => void
     onNewProject: () => void
@@ -51,6 +62,7 @@ interface TasksLeftColumnProps {
 interface TasksViewsSectionProps {
     selectedId: string
     selectedType: SelectionType
+    viewCounts: Record<string, number>
     onSelect: (id: string) => void
 }
 
@@ -254,6 +266,7 @@ const TasksProjectNavItem = ({
 const TasksViewsSection = ({
     selectedId,
     selectedType,
+    viewCounts,
     onSelect,
 }: TasksViewsSectionProps): React.JSX.Element => {
     return (
@@ -271,7 +284,7 @@ const TasksViewsSection = ({
                         id={view.id}
                         label={view.label}
                         icon={viewIconMap[view.icon]}
-                        count={view.count}
+                        count={viewCounts[view.id] || 0}
                         isSelected={selectedType === "view" && selectedId === view.id}
                         onSelect={onSelect}
                     />
@@ -356,6 +369,7 @@ const TasksLeftColumn = ({
     selectedId,
     selectedType,
     projects,
+    viewCounts,
     onSelectView,
     onSelectProject,
     onNewProject,
@@ -371,6 +385,7 @@ const TasksLeftColumn = ({
                     <TasksViewsSection
                         selectedId={selectedId}
                         selectedType={selectedType}
+                        viewCounts={viewCounts}
                         onSelect={onSelectView}
                     />
                     <TasksProjectsSection
@@ -504,6 +519,9 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
     // Projects state (lifted to page level)
     const [projects, setProjects] = useState<Project[]>(initialProjects)
 
+    // Tasks state
+    const [tasks, setTasks] = useState<Task[]>(sampleTasks)
+
     // Selection state - single selection model (either view OR project)
     const [selectedId, setSelectedId] = useState<string>("all")
     const [selectedType, setSelectedType] = useState<SelectionType>("view")
@@ -517,13 +535,39 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
     const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
 
+    // ========== DERIVED STATE ==========
+
+    // Calculate view counts dynamically
+    const viewCounts = useMemo(() => {
+        const counts: Record<string, number> = {}
+
+        taskViews.forEach((view) => {
+            const filtered = getFilteredTasks(tasks, view.id, "view", projects)
+            counts[view.id] = filtered.length
+        })
+
+        return counts
+    }, [tasks, projects])
+
+    // Update project task counts
+    const projectsWithCounts = useMemo(() => {
+        return projects.map((project) => {
+            const projectTasks = tasks.filter((t) => t.projectId === project.id)
+            const incompleteTasks = projectTasks.filter((t) => {
+                const status = project.statuses.find((s) => s.id === t.statusId)
+                return status?.type !== "done"
+            })
+            return { ...project, taskCount: incompleteTasks.length }
+        })
+    }, [projects, tasks])
+
     // Derived: get the selected project (if any)
     const selectedProject = useMemo(() => {
         if (selectedType === "project") {
-            return projects.find((p) => p.id === selectedId) || null
+            return projectsWithCounts.find((p) => p.id === selectedId) || null
         }
         return null
-    }, [selectedId, selectedType, projects])
+    }, [selectedId, selectedType, projectsWithCounts])
 
     // Derived: available views based on selection
     const availableViews = useMemo((): ViewMode[] => {
@@ -540,6 +584,16 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
         }
     }, [availableViews, activeView])
 
+    // Derived: filtered tasks for current selection
+    const filteredTasks = useMemo(() => {
+        return getFilteredTasks(tasks, selectedId, selectedType, projectsWithCounts)
+    }, [tasks, selectedId, selectedType, projectsWithCounts])
+
+    // Derived: task counts for header
+    const taskCounts = useMemo(() => {
+        return getTaskCounts(tasks, selectedId, selectedType, projectsWithCounts)
+    }, [tasks, selectedId, selectedType, projectsWithCounts])
+
     // Derived: title for content header
     const headerTitle = useMemo(() => {
         if (selectedType === "view") {
@@ -551,26 +605,8 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
 
     // Derived: subtitle for content header
     const headerSubtitle = useMemo(() => {
-        if (selectedType === "view") {
-            const view = taskViews.find((v) => v.id === selectedId)
-            const count = view?.count || 0
-
-            if (selectedId === "today") {
-                return `${count} tasks due`
-            }
-
-            const dueToday = selectedId === "all" ? 3 : Math.min(2, count)
-            return `${count} tasks${dueToday > 0 ? ` · ${dueToday} due today` : ""}`
-        }
-
-        if (selectedProject) {
-            const count = selectedProject.taskCount
-            const dueToday = Math.min(2, count)
-            return `${count} tasks${dueToday > 0 ? ` · ${dueToday} due today` : ""}`
-        }
-
-        return "0 tasks"
-    }, [selectedId, selectedType, selectedProject])
+        return formatTaskSubtitle(taskCounts, selectedId, selectedType)
+    }, [taskCounts, selectedId, selectedType])
 
     // ========== HANDLERS ==========
 
@@ -631,6 +667,26 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
         (option: DeleteTasksOption): void => {
             if (!projectToDelete) return
 
+            if (option === "move") {
+                // Move tasks to Personal project
+                const personalProject = projects.find((p) => p.isDefault)
+                if (personalProject) {
+                    const defaultStatus = getDefaultTodoStatus(personalProject)
+                    if (defaultStatus) {
+                        setTasks((prev) =>
+                            prev.map((task) =>
+                                task.projectId === projectToDelete.id
+                                    ? { ...task, projectId: personalProject.id, statusId: defaultStatus.id }
+                                    : task
+                            )
+                        )
+                    }
+                }
+            } else {
+                // Delete all tasks in project
+                setTasks((prev) => prev.filter((t) => t.projectId !== projectToDelete.id))
+            }
+
             // Remove project
             setProjects((prev) => prev.filter((p) => p.id !== projectToDelete.id))
 
@@ -640,15 +696,10 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
                 setSelectedType("view")
             }
 
-            // In a real app, we would handle tasks based on `option`:
-            // - "move": Move tasks to Personal project
-            // - "delete": Delete all tasks
-            console.log(`Deleted project "${projectToDelete.name}" with option: ${option}`)
-
             setIsDeleteDialogOpen(false)
             setProjectToDelete(null)
         },
-        [projectToDelete, selectedId]
+        [projectToDelete, selectedId, projects]
     )
 
     const handleProjectSettings = (): void => {
@@ -662,8 +713,109 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
     }
 
     const handleAddTask = (): void => {
-        console.log("Add task clicked")
+        // Determine project and status for new task
+        let projectId = "personal"
+        let statusId = "p-todo"
+        let dueDate: Date | null = null
+
+        if (selectedType === "project" && selectedProject) {
+            projectId = selectedProject.id
+            const defaultStatus = getDefaultTodoStatus(selectedProject)
+            statusId = defaultStatus?.id || selectedProject.statuses[0]?.id || "p-todo"
+        } else {
+            const personalProject = projectsWithCounts.find((p) => p.isDefault)
+            if (personalProject) {
+                const defaultStatus = getDefaultTodoStatus(personalProject)
+                statusId = defaultStatus?.id || "p-todo"
+            }
+
+            // Set due date based on view
+            if (selectedId === "today") {
+                dueDate = startOfDay(new Date())
+            } else if (selectedId === "upcoming") {
+                dueDate = startOfDay(new Date())
+                dueDate.setDate(dueDate.getDate() + 1) // tomorrow
+            }
+        }
+
+        const newTask = createDefaultTask(projectId, statusId, "New Task", dueDate)
+        setTasks((prev) => [...prev, newTask])
     }
+
+    const handleQuickAdd = useCallback(
+        (title: string): void => {
+            // Determine project and status for new task
+            let projectId = "personal"
+            let statusId = "p-todo"
+            let dueDate: Date | null = null
+
+            if (selectedType === "project" && selectedProject) {
+                projectId = selectedProject.id
+                const defaultStatus = getDefaultTodoStatus(selectedProject)
+                statusId = defaultStatus?.id || selectedProject.statuses[0]?.id || "p-todo"
+            } else {
+                const personalProject = projectsWithCounts.find((p) => p.isDefault)
+                if (personalProject) {
+                    const defaultStatus = getDefaultTodoStatus(personalProject)
+                    statusId = defaultStatus?.id || "p-todo"
+                }
+
+                // Set due date based on view
+                if (selectedId === "today") {
+                    dueDate = startOfDay(new Date())
+                } else if (selectedId === "upcoming") {
+                    dueDate = startOfDay(new Date())
+                    dueDate.setDate(dueDate.getDate() + 1) // tomorrow
+                }
+            }
+
+            const newTask = createDefaultTask(projectId, statusId, title, dueDate)
+            setTasks((prev) => [...prev, newTask])
+        },
+        [selectedId, selectedType, selectedProject, projectsWithCounts]
+    )
+
+    const handleToggleComplete = useCallback(
+        (taskId: string): void => {
+            setTasks((prev) =>
+                prev.map((task) => {
+                    if (task.id !== taskId) return task
+
+                    // Find the project and its statuses
+                    const project = projectsWithCounts.find((p) => p.id === task.projectId)
+                    if (!project) return task
+
+                    const currentStatus = project.statuses.find((s) => s.id === task.statusId)
+                    if (!currentStatus) return task
+
+                    // Toggle between todo and done
+                    if (currentStatus.type === "done") {
+                        // Move back to first todo status
+                        const todoStatus = getDefaultTodoStatus(project)
+                        return {
+                            ...task,
+                            statusId: todoStatus?.id || task.statusId,
+                            completedAt: null,
+                        }
+                    } else {
+                        // Move to first done status
+                        const doneStatus = getDefaultDoneStatus(project)
+                        return {
+                            ...task,
+                            statusId: doneStatus?.id || task.statusId,
+                            completedAt: new Date(),
+                        }
+                    }
+                })
+            )
+        },
+        [projectsWithCounts]
+    )
+
+    const handleTaskClick = useCallback((taskId: string): void => {
+        console.log("Task clicked:", taskId)
+        // Future: Open task detail panel
+    }, [])
 
     return (
         <>
@@ -672,7 +824,8 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
                 <TasksLeftColumn
                     selectedId={selectedId}
                     selectedType={selectedType}
-                    projects={projects}
+                    projects={projectsWithCounts}
+                    viewCounts={viewCounts}
                     onSelectView={handleSelectView}
                     onSelectProject={handleSelectProject}
                     onNewProject={handleNewProject}
@@ -693,15 +846,30 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
                         onProjectSettings={handleProjectSettings}
                     />
 
-                    {/* Content Body - Placeholder */}
-                    <div className="flex flex-1 items-center justify-center p-6">
-                        <div className="text-center">
-                            <p className="text-lg text-text-secondary">
-                                Showing tasks for: <span className="font-medium">{headerTitle}</span>
-                            </p>
-                            <p className="mt-2 text-sm text-text-tertiary">(placeholder content)</p>
+                    {/* Content Body - Task List */}
+                    {activeView === "list" && (
+                        <TaskList
+                            tasks={filteredTasks}
+                            projects={projectsWithCounts}
+                            selectedId={selectedId}
+                            selectedType={selectedType}
+                            onToggleComplete={handleToggleComplete}
+                            onTaskClick={handleTaskClick}
+                            onQuickAdd={handleQuickAdd}
+                        />
+                    )}
+
+                    {/* Placeholder for Kanban and Calendar views */}
+                    {activeView !== "list" && (
+                        <div className="flex flex-1 items-center justify-center p-6">
+                            <div className="text-center">
+                                <p className="text-lg text-text-secondary">
+                                    {activeView === "kanban" ? "Kanban" : "Calendar"} view
+                                </p>
+                                <p className="mt-2 text-sm text-text-tertiary">(coming soon)</p>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </main>
             </div>
 
