@@ -14,6 +14,7 @@ interface PrioritySelectProps {
   value: Priority
   onChange: (value: Priority) => void
   className?: string
+  compact?: boolean
 }
 
 // ============================================================================
@@ -43,16 +44,19 @@ const priorityOptions: PriorityOption[] = [
 const PriorityDot = ({
   color,
   className,
+  compact = false,
 }: {
   color: string | null
   className?: string
+  compact?: boolean
 }): React.JSX.Element => {
   if (!color) {
     // Empty circle for "none"
     return (
       <span
         className={cn(
-          "size-3 shrink-0 rounded-full border-2 border-muted-foreground/40",
+          "shrink-0 rounded-full border-2 border-muted-foreground/40",
+          compact ? "size-2" : "size-3",
           className
         )}
         aria-hidden="true"
@@ -62,7 +66,11 @@ const PriorityDot = ({
 
   return (
     <span
-      className={cn("size-3 shrink-0 rounded-full", className)}
+      className={cn(
+        "shrink-0 rounded-full",
+        compact ? "size-2" : "size-3",
+        className
+      )}
       style={{ backgroundColor: color }}
       aria-hidden="true"
     />
@@ -77,6 +85,7 @@ export const PrioritySelect = ({
   value,
   onChange,
   className,
+  compact = false,
 }: PrioritySelectProps): React.JSX.Element => {
   const [isOpen, setIsOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
@@ -172,13 +181,19 @@ export const PrioritySelect = ({
           role="combobox"
           aria-expanded={isOpen}
           aria-label="Select priority"
-          className={cn("w-full justify-between", className)}
+          className={cn(
+            "w-full justify-between",
+            compact && "h-9 text-sm",
+            className
+          )}
         >
           <div className="flex items-center gap-2">
-            <PriorityDot color={currentOption?.color || null} />
-            <span>{currentOption?.shortLabel || "None"}</span>
+            <PriorityDot color={currentOption?.color || null} compact={compact} />
+            <span className={cn(compact && "text-sm")}>
+              {currentOption?.shortLabel || "None"}
+            </span>
           </div>
-          <ChevronDown className="ml-2 size-4 shrink-0 opacity-50" />
+          <ChevronDown className={cn("ml-2 shrink-0 opacity-50", compact ? "size-3" : "size-4")} />
         </Button>
       </PopoverTrigger>
 

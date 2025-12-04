@@ -18,6 +18,7 @@ interface KanbanCardProps {
   isCompleted?: boolean
   isOverdue?: boolean
   onClick?: () => void
+  onDoubleClick?: () => void
 }
 
 // ============================================================================
@@ -46,6 +47,7 @@ export const KanbanCard = ({
   isCompleted = false,
   isOverdue = false,
   onClick,
+  onDoubleClick,
 }: KanbanCardProps): React.JSX.Element => {
   const cardRef = useRef<HTMLDivElement>(null)
 
@@ -79,7 +81,7 @@ export const KanbanCard = ({
   // Combine refs (sortable ref + our scroll ref)
   const setRefs = (node: HTMLDivElement | null): void => {
     setNodeRef(node)
-    ;(cardRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+      ; (cardRef as React.MutableRefObject<HTMLDivElement | null>).current = node
   }
 
   // Custom transition for smooth 200ms ease-out animation
@@ -98,8 +100,13 @@ export const KanbanCard = ({
     onClick?.()
   }
 
+  const handleDoubleClick = (): void => {
+    onDoubleClick?.()
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent): void => {
-    if (e.key === "Enter" || e.key === " ") {
+    // Only handle Space for click - Enter/E are handled at board level for quick edit
+    if (e.key === " ") {
       e.preventDefault()
       onClick?.()
     }
@@ -114,6 +121,7 @@ export const KanbanCard = ({
       role="option"
       tabIndex={isFocused ? 0 : -1}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}
       aria-label={`Task: ${task.title}`}
       aria-selected={isFocused || isSelected}
@@ -272,4 +280,3 @@ export const KanbanCardSkeleton = ({
 }
 
 export default KanbanCard
-

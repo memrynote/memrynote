@@ -6,11 +6,12 @@ import { Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { KanbanCard } from "./kanban-card"
+import { KanbanCardEdit } from "./kanban-card-edit"
 import { KanbanEmptyColumn } from "./kanban-empty-column"
 import { getIconByName } from "@/components/icon-picker"
 import { startOfDay, isBefore } from "@/lib/task-utils"
 import type { Task } from "@/data/sample-tasks"
-import type { StatusType } from "@/data/tasks-data"
+import type { Status, StatusType } from "@/data/tasks-data"
 
 // ============================================================================
 // TYPES
@@ -30,9 +31,14 @@ interface KanbanColumnProps {
   tasks: Task[]
   selectedTaskId: string | null
   focusedTaskId: string | null
+  editingTaskId: string | null
+  statuses: Status[]
   getTaskIsCompleted: (task: Task) => boolean
   onTaskClick: (taskId: string) => void
+  onTaskDoubleClick: (taskId: string) => void
   onQuickAdd: (title: string, columnId: string) => void
+  onEditSave: (taskId: string, updates: Partial<Task>) => void
+  onEditCancel: () => void
 }
 
 // ============================================================================
@@ -44,9 +50,14 @@ export const KanbanColumn = ({
   tasks,
   selectedTaskId,
   focusedTaskId,
+  editingTaskId,
+  statuses,
   getTaskIsCompleted,
   onTaskClick,
+  onTaskDoubleClick,
   onQuickAdd,
+  onEditSave,
+  onEditCancel,
 }: KanbanColumnProps): React.JSX.Element => {
   const [isAddingTask, setIsAddingTask] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState("")
@@ -159,7 +170,22 @@ export const KanbanColumn = ({
               tasks.map((task) => {
                 const isCompleted = getTaskIsCompleted(task)
                 const isOverdue = isTaskOverdue(task) && !isCompleted
+                const isEditing = editingTaskId === task.id
 
+                // Render edit form if this task is being edited
+                if (isEditing) {
+                  return (
+                    <KanbanCardEdit
+                      key={`edit-${task.id}`}
+                      task={task}
+                      statuses={statuses}
+                      onSave={onEditSave}
+                      onCancel={onEditCancel}
+                    />
+                  )
+                }
+
+                // Render normal card
                 return (
                   <KanbanCard
                     key={task.id}
@@ -169,6 +195,7 @@ export const KanbanColumn = ({
                     isCompleted={isCompleted}
                     isOverdue={isOverdue}
                     onClick={() => onTaskClick(task.id)}
+                    onDoubleClick={() => onTaskDoubleClick(task.id)}
                   />
                 )
               })
@@ -216,4 +243,3 @@ export const KanbanColumn = ({
 }
 
 export default KanbanColumn
-

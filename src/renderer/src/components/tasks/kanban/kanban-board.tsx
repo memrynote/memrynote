@@ -117,6 +117,7 @@ export const KanbanBoard = ({
 }: KanbanBoardProps): React.JSX.Element => {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null)
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
 
   // Generate columns based on view context
@@ -326,6 +327,48 @@ export const KanbanBoard = ({
     [columns, selectedProject, onQuickAdd]
   )
 
+  // ========================================================================
+  // QUICK EDIT HANDLERS
+  // ========================================================================
+
+  // Open quick edit for a task
+  const openQuickEdit = useCallback((taskId: string) => {
+    setEditingTaskId(taskId)
+  }, [])
+
+  // Handle save from quick edit form
+  const handleEditSave = useCallback(
+    (taskId: string, updates: Partial<Task>) => {
+      onUpdateTask(taskId, updates)
+      setEditingTaskId(null)
+    },
+    [onUpdateTask]
+  )
+
+  // Handle cancel from quick edit form
+  const handleEditCancel = useCallback(() => {
+    setEditingTaskId(null)
+    // Re-focus the board for keyboard navigation
+    if (boardRef.current) {
+      boardRef.current.focus()
+    }
+  }, [])
+
+  // Handle double-click on a card to open quick edit
+  const handleTaskDoubleClick = useCallback((taskId: string) => {
+    openQuickEdit(taskId)
+  }, [openQuickEdit])
+
+  // Get statuses for the current project (for quick edit form)
+  const currentStatuses = useMemo(() => {
+    if (selectedType === "project" && selectedProject) {
+      return selectedProject.statuses
+    }
+    // For "All Tasks" view, we don't have a single project's statuses
+    // Return empty array - the edit form will handle this
+    return []
+  }, [selectedType, selectedProject])
+
   // Determine if active task is completed/overdue for overlay
   const isActiveTaskCompleted = activeTask ? getTaskIsCompleted(activeTask) : false
   const isActiveTaskOverdue =
@@ -484,23 +527,34 @@ export const KanbanBoard = ({
     [focusedTaskId, tasks, columns, selectedType, projects, onUpdateTask]
   )
 
-  // Check if an input element is focused
-  const isInputFocused = useCallback((): boolean => {
-    const activeElement = document.activeElement
-    if (!activeElement) return false
-    const tagName = activeElement.tagName.toLowerCase()
-    return (
-      tagName === "input" ||
-      tagName === "textarea" ||
-      activeElement.getAttribute("contenteditable") === "true"
-    )
+  // Helpers to detect editable targets (skip shortcuts when typing)
+  const isEditableTarget = useCallback((target: EventTarget | null): boolean => {
+    if (!target || !(target instanceof HTMLElement)) return false
+    const tag = target.tagName.toLowerCase()
+    if (tag === "input" || tag === "textarea" || target.getAttribute("contenteditable") === "true") {
+      return true
+    }
+    // Also skip when inside any contenteditable ancestor
+    return !!target.closest("[contenteditable='true']")
   }, [])
 
-  // Keyboard handler for linear navigation
+  // Ensure a task is focused when a navigation key is pressed
+  const ensureFirstFocus = useCallback(() => {
+    const linearOrder = getLinearCardOrder()
+    if (linearOrder.length === 0) return false
+    if (!focusedTaskId) {
+      setFocusedTaskId(linearOrder[0].taskId)
+      return true
+    }
+    return false
+  }, [focusedTaskId, getLinearCardOrder])
+
+  // Keyboard handler for linear navigation (native event, used globally)
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      // Skip if typing in input
-      if (isInputFocused()) return
+    (e: KeyboardEvent) => {
+      // Skip if editing or an editable target is active
+      if (editingTaskId) return
+      if (isEditableTarget(e.target)) return
 
       // Handle Cmd/Ctrl + arrow keys for moving cards
       if (e.metaKey || e.ctrlKey) {
@@ -513,6 +567,23 @@ export const KanbanBoard = ({
             e.preventDefault()
             moveTaskToAdjacentColumn("previous")
             return
+        }
+      }
+
+      // If no card focused yet, ensure first card is focused on navigation keys
+      if (
+        !focusedTaskId &&
+        (e.key === "ArrowDown" ||
+          e.key === "ArrowUp" ||
+          e.key === "ArrowLeft" ||
+          e.key === "ArrowRight" ||
+          e.key === "j" ||
+          e.key === "k")
+      ) {
+        const focused = ensureFirstFocus()
+        if (focused) {
+          e.preventDefault()
+          return
         }
       }
 
@@ -542,12 +613,16 @@ export const KanbanBoard = ({
           navigateToColumn("next")
           break
 
-        // Actions
+        // Actions - Enter/E to quick edit, Shift+Enter/Shift+E to open full panel
         case "Enter":
         case "e":
           e.preventDefault()
           if (focusedTaskId) {
-            onTaskClick(focusedTaskId)
+            if (e.shiftKey) {
+              onTaskClick(focusedTaskId)
+            } else {
+              openQuickEdit(focusedTaskId)
+            }
           }
           break
 
@@ -568,12 +643,15 @@ export const KanbanBoard = ({
       }
     },
     [
-      isInputFocused,
+      editingTaskId,
+      isEditableTarget,
       focusedTaskId,
+      ensureFirstFocus,
       navigateNext,
       navigatePrevious,
       navigateToColumn,
       moveTaskToAdjacentColumn,
+      openQuickEdit,
       onTaskClick,
       onToggleComplete,
       onDeleteTask,
@@ -596,12 +674,13 @@ export const KanbanBoard = ({
     }
   }, [tasks, focusedTaskId, getLinearCardOrder])
 
-  // Focus the board container when component mounts to enable keyboard nav
+  // Global keyboard listener while Kanban is mounted
   useEffect(() => {
-    if (boardRef.current) {
-      boardRef.current.focus()
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
     }
-  }, [])
+  }, [handleKeyDown])
 
   return (
     <DndContext
@@ -615,25 +694,38 @@ export const KanbanBoard = ({
       <div
         ref={boardRef}
         tabIndex={0}
-        onKeyDown={handleKeyDown}
         className={cn("flex-1 outline-none", className)}
         role="grid"
         aria-label="Kanban board. Use arrow keys to navigate cards."
       >
         <ScrollArea className="h-full">
           <div className="flex h-full gap-4 p-6">
-            {columns.map((column) => (
-              <KanbanColumn
-                key={column.id}
-                column={column}
-                tasks={columnTasks[column.id] || []}
-                selectedTaskId={selectedTaskId}
-                focusedTaskId={focusedTaskId}
-                getTaskIsCompleted={getTaskIsCompleted}
-                onTaskClick={onTaskClick}
-                onQuickAdd={handleColumnQuickAdd}
-              />
-            ))}
+            {columns.map((column) => {
+              // Get the statuses for this column's context
+              // For project view: use the selected project's statuses
+              // For all tasks view: get the task's project statuses
+              const columnStatuses = column.type === "status" && selectedProject
+                ? selectedProject.statuses
+                : []
+
+              return (
+                <KanbanColumn
+                  key={column.id}
+                  column={column}
+                  tasks={columnTasks[column.id] || []}
+                  selectedTaskId={selectedTaskId}
+                  focusedTaskId={focusedTaskId}
+                  editingTaskId={editingTaskId}
+                  statuses={columnStatuses}
+                  getTaskIsCompleted={getTaskIsCompleted}
+                  onTaskClick={onTaskClick}
+                  onTaskDoubleClick={handleTaskDoubleClick}
+                  onQuickAdd={handleColumnQuickAdd}
+                  onEditSave={handleEditSave}
+                  onEditCancel={handleEditCancel}
+                />
+              )
+            })}
           </div>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>

@@ -17,6 +17,7 @@ interface StatusSelectProps {
   onChange: (value: string) => void
   statuses: Status[]
   className?: string
+  compact?: boolean
 }
 
 // ============================================================================
@@ -26,13 +27,19 @@ interface StatusSelectProps {
 const StatusDot = ({
   color,
   className,
+  compact = false,
 }: {
   color: string
   className?: string
+  compact?: boolean
 }): React.JSX.Element => {
   return (
     <span
-      className={cn("size-3 shrink-0 rounded-full", className)}
+      className={cn(
+        "shrink-0 rounded-full",
+        compact ? "size-2" : "size-3",
+        className
+      )}
       style={{ backgroundColor: color }}
       aria-hidden="true"
     />
@@ -48,6 +55,7 @@ export const StatusSelect = ({
   onChange,
   statuses,
   className,
+  compact = false,
 }: StatusSelectProps): React.JSX.Element => {
   // Sort statuses by order
   const sortedStatuses = [...statuses].sort((a, b) => a.order - b.order)
@@ -62,17 +70,25 @@ export const StatusSelect = ({
   return (
     <Select value={value} onValueChange={handleValueChange}>
       <SelectTrigger
-        className={cn("w-full", className)}
+        className={cn(
+          "w-full",
+          compact && "h-9 text-sm",
+          className
+        )}
         aria-label="Select status"
       >
         <SelectValue>
           {currentStatus ? (
             <div className="flex items-center gap-2">
-              <StatusDot color={currentStatus.color} />
-              <span className="truncate">{currentStatus.name}</span>
+              <StatusDot color={currentStatus.color} compact={compact} />
+              <span className={cn("truncate", compact && "text-sm")}>
+                {currentStatus.name}
+              </span>
             </div>
           ) : (
-            <span className="text-muted-foreground">Select status</span>
+            <span className={cn("text-muted-foreground", compact && "text-sm")}>
+              Select status
+            </span>
           )}
         </SelectValue>
       </SelectTrigger>
