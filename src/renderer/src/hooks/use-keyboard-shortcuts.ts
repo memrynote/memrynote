@@ -123,5 +123,13 @@ export const getKeyboardShortcuts = (): ShortcutCategory[] => [
       { key: "R", label: "Refresh inbox" },
     ],
   },
+  {
+    title: "Repeating Tasks",
+    shortcuts: [
+      { key: "R", label: "Open repeat configuration (task focused)" },
+      { key: "Shift+S", label: "Skip this occurrence" },
+      { key: "Shift+X", label: "Stop repeating" },
+    ],
+  },
 ]
 

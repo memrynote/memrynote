@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react"
-import { X } from "lucide-react"
 
 import {
   Dialog,
@@ -14,10 +13,12 @@ import { ProjectSelect } from "./project-select"
 import { StatusSelect } from "./status-select"
 import { DueDatePicker } from "./due-date-picker"
 import { PrioritySelect } from "./priority-select"
+import { RepeatPicker } from "./repeat-picker"
+import { CustomRepeatDialog } from "./custom-repeat-dialog"
 import { cn } from "@/lib/utils"
-import { getDefaultTodoStatus, startOfDay, addDays } from "@/lib/task-utils"
-import { createDefaultTask, type Task, type Priority } from "@/data/sample-tasks"
-import type { Project, Status } from "@/data/tasks-data"
+import { getDefaultTodoStatus } from "@/lib/task-utils"
+import { createDefaultTask, type Task, type Priority, type RepeatConfig } from "@/data/sample-tasks"
+import type { Project } from "@/data/tasks-data"
 
 // ============================================================================
 // TYPES
@@ -41,7 +42,7 @@ interface TaskFormData {
   dueDate: Date | null
   dueTime: string | null
   priority: Priority
-  isRepeating: boolean
+  repeatConfig: RepeatConfig | null
 }
 
 interface FormErrors {
@@ -78,7 +79,7 @@ export const AddTaskModal = ({
       dueDate: defaultDueDate,
       dueTime: null,
       priority: "none",
-      isRepeating: false,
+      repeatConfig: null,
     }
   }, [defaultProjectId, defaultDueDate, prefillTitle, projects])
 
@@ -86,6 +87,7 @@ export const AddTaskModal = ({
   const [formData, setFormData] = useState<TaskFormData>(getInitialFormData)
   const [errors, setErrors] = useState<FormErrors>({})
   const [createAnother, setCreateAnother] = useState(false)
+  const [isCustomRepeatDialogOpen, setIsCustomRepeatDialogOpen] = useState(false)
 
   // Reset form when modal opens
   useEffect(() => {
@@ -107,9 +109,6 @@ export const AddTaskModal = ({
   const currentStatuses = useMemo(() => {
     return currentProject?.statuses || []
   }, [currentProject])
-
-  // Check if form has content
-  const hasContent = formData.title.trim() !== "" || formData.description.trim() !== ""
 
   // ========== HANDLERS ==========
 
@@ -153,8 +152,8 @@ export const AddTaskModal = ({
     setFormData((prev) => ({ ...prev, priority }))
   }
 
-  const handleRepeatingChange = (checked: boolean): void => {
-    setFormData((prev) => ({ ...prev, isRepeating: checked }))
+  const handleRepeatConfigChange = (repeatConfig: RepeatConfig | null): void => {
+    setFormData((prev) => ({ ...prev, repeatConfig }))
   }
 
   const handleCreateAnotherChange = (checked: boolean): void => {
@@ -192,7 +191,8 @@ export const AddTaskModal = ({
       description: formData.description.trim(),
       dueTime: formData.dueTime,
       priority: formData.priority,
-      isRepeating: formData.isRepeating,
+      isRepeating: formData.repeatConfig !== null,
+      repeatConfig: formData.repeatConfig,
     }
 
     onAddTask(finalTask)
@@ -207,7 +207,7 @@ export const AddTaskModal = ({
         dueDate: prev.dueDate,
         dueTime: null,
         priority: "none",
-        isRepeating: false,
+        repeatConfig: null,
       }))
       setErrors({})
       titleInputRef.current?.focus()
@@ -335,19 +335,17 @@ export const AddTaskModal = ({
             </div>
           </div>
 
-          {/* Repeating Checkbox */}
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="task-repeating"
-              checked={formData.isRepeating}
-              onCheckedChange={handleRepeatingChange}
-            />
-            <label
-              htmlFor="task-repeating"
-              className="text-sm text-muted-foreground cursor-pointer"
-            >
-              Repeating task
+          {/* Repeat */}
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Repeat
             </label>
+            <RepeatPicker
+              value={formData.repeatConfig}
+              dueDate={formData.dueDate}
+              onChange={handleRepeatConfigChange}
+              onOpenCustomDialog={() => setIsCustomRepeatDialogOpen(true)}
+            />
           </div>
         </div>
 
@@ -375,6 +373,18 @@ export const AddTaskModal = ({
           </div>
         </div>
       </DialogContent>
+
+      {/* Custom Repeat Dialog */}
+      <CustomRepeatDialog
+        isOpen={isCustomRepeatDialogOpen}
+        onClose={() => setIsCustomRepeatDialogOpen(false)}
+        onSave={(config) => {
+          handleRepeatConfigChange(config)
+          setIsCustomRepeatDialogOpen(false)
+        }}
+        initialConfig={formData.repeatConfig}
+        dueDate={formData.dueDate}
+      />
     </Dialog>
   )
 }

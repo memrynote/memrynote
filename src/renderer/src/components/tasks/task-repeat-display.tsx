@@ -1,8 +1,17 @@
-import { RefreshCw, ChevronDown } from "lucide-react"
+import { useState, useMemo, useCallback } from "react"
+import { SkipForward } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { RepeatPicker } from "./repeat-picker"
+import { CustomRepeatDialog } from "./custom-repeat-dialog"
 import type { RepeatConfig } from "@/data/sample-tasks"
-import { addDays, formatDateShort } from "@/lib/task-utils"
+import {
+  getRepeatDisplayText,
+  calculateNextOccurrences,
+  getRepeatProgress,
+} from "@/lib/repeat-utils"
+import { formatDateShort } from "@/lib/task-utils"
 
 // ============================================================================
 // TYPES
@@ -11,91 +20,38 @@ import { addDays, formatDateShort } from "@/lib/task-utils"
 interface TaskRepeatDisplayProps {
   isRepeating: boolean
   repeatConfig: RepeatConfig | null
+  dueDate?: Date | null
+  onConfigChange?: (config: RepeatConfig | null) => void
+  onSkipOccurrence?: () => void
   onToggle?: () => void
   className?: string
 }
 
 // ============================================================================
-// REPEAT TEXT FORMATTER
+// PROGRESS BAR SUB-COMPONENT
 // ============================================================================
 
-const formatRepeatText = (config: RepeatConfig): string => {
-  const { frequency, interval, daysOfWeek } = config
-
-  // Day names for weekly frequency
-  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-  const shortDayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-
-  switch (frequency) {
-    case "daily":
-      if (interval === 1) return "Every day"
-      return `Every ${interval} days`
-
-    case "weekly":
-      if (daysOfWeek.length === 0) {
-        if (interval === 1) return "Every week"
-        return `Every ${interval} weeks`
-      }
-      const selectedDays = daysOfWeek
-        .sort((a, b) => a - b)
-        .map((d) => (daysOfWeek.length > 2 ? shortDayNames[d] : dayNames[d]))
-        .join(", ")
-      if (interval === 1) return `Every week on ${selectedDays}`
-      return `Every ${interval} weeks on ${selectedDays}`
-
-    case "monthly":
-      if (interval === 1) return "Every month"
-      return `Every ${interval} months`
-
-    case "yearly":
-      if (interval === 1) return "Every year"
-      return `Every ${interval} years`
-
-    case "custom":
-      return `Custom: Every ${interval} days`
-
-    default:
-      return "Repeating"
-  }
+interface RepeatProgressBarProps {
+  current: number
+  total: number
+  percentage: number
 }
 
-/**
- * Calculate next occurrence date based on repeat config
- */
-const getNextOccurrence = (config: RepeatConfig, baseDate: Date = new Date()): Date => {
-  const { frequency, interval, daysOfWeek } = config
-
-  switch (frequency) {
-    case "daily":
-      return addDays(baseDate, interval)
-
-    case "weekly":
-      if (daysOfWeek.length === 0) {
-        return addDays(baseDate, 7 * interval)
-      }
-      // Find next occurrence day
-      const currentDay = baseDate.getDay()
-      let nextDay = daysOfWeek.find((d) => d > currentDay)
-      if (nextDay === undefined) {
-        // Wrap to next week
-        nextDay = daysOfWeek[0]
-        return addDays(baseDate, 7 * interval - currentDay + nextDay)
-      }
-      return addDays(baseDate, nextDay - currentDay)
-
-    case "monthly":
-      const nextMonth = new Date(baseDate)
-      nextMonth.setMonth(nextMonth.getMonth() + interval)
-      return nextMonth
-
-    case "yearly":
-      const nextYear = new Date(baseDate)
-      nextYear.setFullYear(nextYear.getFullYear() + interval)
-      return nextYear
-
-    default:
-      return addDays(baseDate, interval)
-  }
+const RepeatProgressBar = ({ current, total, percentage }: RepeatProgressBarProps): React.JSX.Element => {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>Progress: {current} of {total} completed</span>
+        <span>{percentage}%</span>
+      </div>
+      <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+        <div
+          className="h-full rounded-full bg-primary transition-all duration-300"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+    </div>
+  )
 }
 
 // ============================================================================
@@ -105,57 +61,137 @@ const getNextOccurrence = (config: RepeatConfig, baseDate: Date = new Date()): D
 export const TaskRepeatDisplay = ({
   isRepeating,
   repeatConfig,
+  dueDate,
+  onConfigChange,
+  onSkipOccurrence,
   onToggle,
   className,
 }: TaskRepeatDisplayProps): React.JSX.Element => {
-  const repeatText = isRepeating && repeatConfig
-    ? formatRepeatText(repeatConfig)
-    : "Does not repeat"
+  const [isCustomDialogOpen, setIsCustomDialogOpen] = useState(false)
 
-  const nextOccurrence = isRepeating && repeatConfig
-    ? getNextOccurrence(repeatConfig)
-    : null
+  // Get next occurrences for preview
+  const nextOccurrences = useMemo(() => {
+    if (!isRepeating || !repeatConfig || !dueDate) return []
+    return calculateNextOccurrences(dueDate, repeatConfig, 3)
+  }, [isRepeating, repeatConfig, dueDate])
 
-  const handleClick = (): void => {
-    onToggle?.()
-  }
+  // Get progress for count-limited repeats
+  const progress = useMemo(() => {
+    if (!repeatConfig) return null
+    return getRepeatProgress(repeatConfig)
+  }, [repeatConfig])
+
+  // Get end info text
+  const endInfo = useMemo(() => {
+    if (!repeatConfig) return null
+    if (repeatConfig.endType === "date" && repeatConfig.endDate) {
+      return `Ends: ${formatDateShort(repeatConfig.endDate)}`
+    }
+    if (repeatConfig.endType === "count" && repeatConfig.endCount && progress) {
+      const remaining = repeatConfig.endCount - repeatConfig.completedCount
+      return `${remaining} remaining`
+    }
+    return null
+  }, [repeatConfig, progress])
+
+  const handleConfigChange = useCallback((config: RepeatConfig | null): void => {
+    onConfigChange?.(config)
+  }, [onConfigChange])
+
+  const handleOpenCustomDialog = useCallback((): void => {
+    setIsCustomDialogOpen(true)
+  }, [])
+
+  const handleCustomDialogSave = useCallback((config: RepeatConfig): void => {
+    onConfigChange?.(config)
+    setIsCustomDialogOpen(false)
+  }, [onConfigChange])
+
+  const handleSkipClick = useCallback((): void => {
+    onSkipOccurrence?.()
+  }, [onSkipOccurrence])
+
+  // Legacy toggle handler (if no onConfigChange provided)
+  const handleLegacyClick = useCallback((): void => {
+    if (!onConfigChange && onToggle) {
+      onToggle()
+    }
+  }, [onConfigChange, onToggle])
 
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
+    <div className={cn("flex flex-col gap-3", className)}>
       {/* Section label */}
       <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Repeat
       </h3>
 
-      {/* Repeat toggle/display */}
-      <button
-        type="button"
-        onClick={handleClick}
-        className={cn(
-          "flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm transition-colors",
-          "hover:border-primary hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring"
-        )}
-        aria-label="Configure repeat settings"
-      >
-        <RefreshCw
-          className={cn(
-            "size-4",
-            isRepeating ? "text-blue-500" : "text-muted-foreground"
-          )}
-          aria-hidden="true"
+      {/* RepeatPicker or legacy button */}
+      {onConfigChange ? (
+        <RepeatPicker
+          value={repeatConfig}
+          dueDate={dueDate || null}
+          onChange={handleConfigChange}
+          onOpenCustomDialog={handleOpenCustomDialog}
         />
-        <span className={cn("flex-1 text-left", !isRepeating && "text-muted-foreground")}>
-          {repeatText}
-        </span>
-        <ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" />
-      </button>
-
-      {/* Next occurrence (only if repeating) */}
-      {nextOccurrence && (
-        <p className="text-xs text-muted-foreground">
-          Next occurrence: {formatDateShort(nextOccurrence)}
-        </p>
+      ) : (
+        <button
+          type="button"
+          onClick={handleLegacyClick}
+          className={cn(
+            "flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm transition-colors",
+            "hover:border-primary hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring"
+          )}
+          aria-label="Configure repeat settings"
+        >
+          <span className={cn("flex-1 text-left", !isRepeating && "text-muted-foreground")}>
+            {isRepeating && repeatConfig ? getRepeatDisplayText(repeatConfig) : "Does not repeat"}
+          </span>
+        </button>
       )}
+
+      {/* Progress bar for count-limited repeats */}
+      {isRepeating && progress && (
+        <RepeatProgressBar
+          current={progress.current}
+          total={progress.total}
+          percentage={progress.percentage}
+        />
+      )}
+
+      {/* Next occurrences preview */}
+      {isRepeating && nextOccurrences.length > 1 && (
+        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+          <span>Next: {formatDateShort(nextOccurrences[1])}</span>
+          {nextOccurrences.length > 2 && (
+            <span>After that: {formatDateShort(nextOccurrences[2])}</span>
+          )}
+          {endInfo && (
+            <span className="mt-1">{endInfo}</span>
+          )}
+        </div>
+      )}
+
+      {/* Skip occurrence button */}
+      {isRepeating && onSkipOccurrence && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleSkipClick}
+          className="justify-start text-muted-foreground hover:text-foreground"
+        >
+          <SkipForward className="mr-2 size-4" />
+          Skip this occurrence
+        </Button>
+      )}
+
+      {/* Custom repeat dialog */}
+      <CustomRepeatDialog
+        isOpen={isCustomDialogOpen}
+        onClose={() => setIsCustomDialogOpen(false)}
+        onSave={handleCustomDialogSave}
+        initialConfig={repeatConfig}
+        dueDate={dueDate}
+      />
     </div>
   )
 }

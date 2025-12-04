@@ -4,13 +4,36 @@
 
 export type Priority = "none" | "low" | "medium" | "high" | "urgent"
 
-export type RepeatFrequency = "daily" | "weekly" | "monthly" | "yearly" | "custom"
+export type RepeatFrequency = "daily" | "weekly" | "monthly" | "yearly"
+
+export type MonthlyType = "dayOfMonth" | "weekPattern"
+
+export type RepeatEndType = "never" | "date" | "count"
 
 export interface RepeatConfig {
+  // Base frequency
   frequency: RepeatFrequency
-  interval: number // every X days/weeks/months/years
-  daysOfWeek: number[] // for weekly: [1,3,5] = Mon,Wed,Fri (0=Sun, 6=Sat)
-  endDate: Date | null // optional end to recurrence
+
+  // Interval: every X days/weeks/months/years
+  interval: number // 1 = every, 2 = every other, 3 = every third, etc.
+
+  // Weekly: which days of the week
+  daysOfWeek?: number[] // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+
+  // Monthly: day of month OR week pattern
+  monthlyType?: MonthlyType
+  dayOfMonth?: number // 1-31, used when monthlyType = "dayOfMonth"
+  weekOfMonth?: number // 1-5 (5 = last), used when monthlyType = "weekPattern"
+  dayOfWeekForMonth?: number // 0-6, used with weekOfMonth
+
+  // End condition
+  endType: RepeatEndType
+  endDate?: Date | null // when endType = "date"
+  endCount?: number // when endType = "count" (after X occurrences)
+
+  // Tracking
+  completedCount: number // how many times completed
+  createdAt: Date
 }
 
 export interface Task {
@@ -127,7 +150,9 @@ export const sampleTasks: Task[] = [
       frequency: "weekly",
       interval: 1,
       daysOfWeek: [0], // Sunday
-      endDate: null,
+      endType: "never",
+      completedCount: 0,
+      createdAt: new Date("2024-11-01"),
     },
     linkedNoteIds: [],
     sourceNoteId: null,
@@ -264,7 +289,9 @@ export const sampleTasks: Task[] = [
       frequency: "weekly",
       interval: 1,
       daysOfWeek: [1], // Monday
-      endDate: null,
+      endType: "never",
+      completedCount: 0,
+      createdAt: new Date("2024-11-01"),
     },
     linkedNoteIds: [],
     sourceNoteId: null,

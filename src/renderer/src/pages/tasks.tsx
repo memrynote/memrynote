@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import {
     List,
     Star,
@@ -9,6 +9,8 @@ import {
     Columns3,
     CalendarDays,
     Settings,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -22,6 +24,8 @@ import { TaskList } from "@/components/tasks/task-list"
 import { AddTaskModal } from "@/components/tasks/add-task-modal"
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel"
 import { KanbanBoard } from "@/components/tasks/kanban"
+import { CalendarView } from "@/components/tasks/calendar"
+import { TasksSidebar, type SidebarView, type SidebarProject } from "@/components/tasks/tasks-sidebar"
 import { getIconByName } from "@/components/icon-picker"
 import { cn } from "@/lib/utils"
 import {
@@ -40,8 +44,10 @@ import {
     type Project,
     type ViewMode,
 } from "@/data/tasks-data"
-import { sampleTasks, createDefaultTask, type Task, type Priority } from "@/data/sample-tasks"
-import { addDays } from "@/lib/task-utils"
+import { sampleTasks, createDefaultTask, generateTaskId, type Task, type Priority, type RepeatConfig } from "@/data/sample-tasks"
+import { addDays, formatDateShort } from "@/lib/task-utils"
+import { calculateNextOccurrence, shouldCreateNextOccurrence } from "@/lib/repeat-utils"
+import type { StopRepeatOption } from "@/components/tasks/stop-repeating-dialog"
 
 // ============================================================================
 // TYPES
@@ -534,6 +540,10 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
     // View mode state
     const [activeView, setActiveView] = useState<ViewMode>("list")
 
+    // Sidebar state
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+    const [userPreferredCollapsed, setUserPreferredCollapsed] = useState<boolean | null>(null)
+
     // Modal states
     const [isProjectModalOpen, setIsProjectModalOpen] = useState(false)
     const [editingProject, setEditingProject] = useState<Project | null>(null)
@@ -541,6 +551,8 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
     const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
     const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false)
     const [addTaskPrefillTitle, setAddTaskPrefillTitle] = useState("")
+    const [addTaskPrefillDueDate, setAddTaskPrefillDueDate] = useState<Date | null>(null)
+    const [addTaskPrefillProjectId, setAddTaskPrefillProjectId] = useState<string | null>(null)
 
     // Task Detail Panel states
     const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false)
@@ -738,20 +750,79 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
         setActiveView(view)
     }
 
+    const toggleSidebar = useCallback(() => {
+        setSidebarCollapsed((prev) => {
+            const next = !prev
+            setUserPreferredCollapsed(next)
+            try {
+                localStorage.setItem("tasksSidebarCollapsed", JSON.stringify(next))
+            } catch (err) {
+                // ignore storage errors
+            }
+            return next
+        })
+    }, [])
+
+    // Load saved preference
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem("tasksSidebarCollapsed")
+            if (saved !== null) {
+                const parsed = JSON.parse(saved)
+                setUserPreferredCollapsed(parsed)
+                setSidebarCollapsed(parsed)
+            }
+        } catch (err) {
+            // ignore
+        }
+    }, [])
+
+    // Auto-collapse for space-hungry views when no user preference
+    useEffect(() => {
+        if (userPreferredCollapsed !== null) return
+        if (activeView === "calendar" || activeView === "kanban") {
+            setSidebarCollapsed(true)
+        } else {
+            setSidebarCollapsed(false)
+        }
+    }, [activeView, userPreferredCollapsed])
+
+    // Keyboard shortcut Cmd/Ctrl + B or Cmd/Ctrl + \\
+    useEffect(() => {
+        const handler = (e: KeyboardEvent): void => {
+            if (e.key === "b" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                toggleSidebar()
+            }
+            if (e.key === "\\" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                toggleSidebar()
+            }
+        }
+        window.addEventListener("keydown", handler)
+        return () => window.removeEventListener("keydown", handler)
+    }, [toggleSidebar])
+
     const handleAddTask = (): void => {
         // Open the add task modal
         setAddTaskPrefillTitle("")
+        setAddTaskPrefillDueDate(null)
+        setAddTaskPrefillProjectId(null)
         setIsAddTaskModalOpen(true)
     }
 
     const handleOpenAddTaskModal = useCallback((prefillTitle: string): void => {
         setAddTaskPrefillTitle(prefillTitle)
+        setAddTaskPrefillDueDate(null)
+        setAddTaskPrefillProjectId(null)
         setIsAddTaskModalOpen(true)
     }, [])
 
     const handleAddTaskModalClose = (): void => {
         setIsAddTaskModalOpen(false)
         setAddTaskPrefillTitle("")
+        setAddTaskPrefillDueDate(null)
+        setAddTaskPrefillProjectId(null)
     }
 
     const handleAddTaskFromModal = useCallback((newTask: Task): void => {
@@ -835,39 +906,139 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
 
     const handleToggleComplete = useCallback(
         (taskId: string): void => {
-            setTasks((prev) =>
-                prev.map((task) => {
-                    if (task.id !== taskId) return task
+            const taskToComplete = tasks.find((t) => t.id === taskId)
+            if (!taskToComplete) return
 
-                    // Find the project and its statuses
-                    const project = projectsWithCounts.find((p) => p.id === task.projectId)
-                    if (!project) return task
+            const project = projectsWithCounts.find((p) => p.id === taskToComplete.projectId)
+            if (!project) return
 
-                    const currentStatus = project.statuses.find((s) => s.id === task.statusId)
-                    if (!currentStatus) return task
+            const currentStatus = project.statuses.find((s) => s.id === taskToComplete.statusId)
+            if (!currentStatus) return
 
-                    // Toggle between todo and done
-                    if (currentStatus.type === "done") {
-                        // Move back to first todo status
-                        const todoStatus = getDefaultTodoStatus(project)
-                        return {
-                            ...task,
-                            statusId: todoStatus?.id || task.statusId,
-                            completedAt: null,
-                        }
-                    } else {
-                        // Move to first done status
-                        const doneStatus = getDefaultDoneStatus(project)
-                        return {
-                            ...task,
-                            statusId: doneStatus?.id || task.statusId,
-                            completedAt: new Date(),
-                        }
-                    }
+            // If uncompleting, just update the status
+            if (currentStatus.type === "done") {
+                const todoStatus = getDefaultTodoStatus(project)
+                setTasks((prev) =>
+                    prev.map((task) =>
+                        task.id === taskId
+                            ? { ...task, statusId: todoStatus?.id || task.statusId, completedAt: null }
+                            : task
+                    )
+                )
+                return
+            }
+
+            // Completing a task
+            const doneStatus = getDefaultDoneStatus(project)
+
+            // Handle repeating task completion
+            if (taskToComplete.isRepeating && taskToComplete.repeatConfig && taskToComplete.dueDate) {
+                const config = taskToComplete.repeatConfig
+                const newCompletedCount = config.completedCount + 1
+                const nextDate = calculateNextOccurrence(taskToComplete.dueDate, config)
+                const shouldCreateNext = shouldCreateNextOccurrence({
+                    ...config,
+                    completedCount: newCompletedCount,
                 })
-            )
+
+                // Mark current task complete
+                setTasks((prev) =>
+                    prev.map((task) =>
+                        task.id === taskId
+                            ? {
+                                  ...task,
+                                  statusId: doneStatus?.id || task.statusId,
+                                  completedAt: new Date(),
+                                  repeatConfig: {
+                                      ...config,
+                                      completedCount: newCompletedCount,
+                                  },
+                              }
+                            : task
+                    )
+                )
+
+                // Create next occurrence if applicable
+                if (shouldCreateNext && nextDate) {
+                    const newTask: Task = {
+                        ...taskToComplete,
+                        id: generateTaskId(),
+                        dueDate: nextDate,
+                        statusId: getDefaultTodoStatus(project)?.id || taskToComplete.statusId,
+                        completedAt: null,
+                        createdAt: new Date(),
+                        repeatConfig: {
+                            ...config,
+                            completedCount: newCompletedCount,
+                        },
+                    }
+                    setTasks((prev) => [...prev, newTask])
+                    toast.success("Task completed!", {
+                        description: `Next occurrence: ${formatDateShort(nextDate)}`,
+                    })
+                } else {
+                    toast.success("Series complete!", {
+                        description: "This was the final occurrence.",
+                    })
+                }
+            } else {
+                // Regular task completion
+                setTasks((prev) =>
+                    prev.map((task) =>
+                        task.id === taskId
+                            ? { ...task, statusId: doneStatus?.id || task.statusId, completedAt: new Date() }
+                            : task
+                    )
+                )
+            }
         },
-        [projectsWithCounts]
+        [tasks, projectsWithCounts]
+    )
+
+    const handleSkipOccurrence = useCallback(
+        (taskId: string): void => {
+            const task = tasks.find((t) => t.id === taskId)
+            if (!task || !task.isRepeating || !task.repeatConfig || !task.dueDate) return
+
+            const nextDate = calculateNextOccurrence(task.dueDate, task.repeatConfig)
+            if (nextDate) {
+                setTasks((prev) =>
+                    prev.map((t) =>
+                        t.id === taskId ? { ...t, dueDate: nextDate } : t
+                    )
+                )
+                toast.success("Occurrence skipped", {
+                    description: `Moved to ${formatDateShort(nextDate)}`,
+                })
+            }
+        },
+        [tasks]
+    )
+
+    const handleStopRepeating = useCallback(
+        (taskId: string, option: StopRepeatOption): void => {
+            const task = tasks.find((t) => t.id === taskId)
+            if (!task) return
+
+            if (option === "delete") {
+                // Delete the task entirely
+                setTasks((prev) => prev.filter((t) => t.id !== taskId))
+                setIsDetailPanelOpen(false)
+                setSelectedTaskId(null)
+                toast.success("Repeating task deleted")
+            } else {
+                // Keep task but stop repeating
+                setTasks((prev) =>
+                    prev.map((t) =>
+                        t.id === taskId
+                            ? { ...t, isRepeating: false, repeatConfig: null }
+                            : t
+                    )
+                )
+                toast.success("Task will no longer repeat")
+            }
+        },
+        [tasks]
     )
 
     const handleTaskClick = useCallback((taskId: string): void => {
@@ -934,19 +1105,74 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
         setSelectedTaskId(duplicatedTask.id)
     }, [tasks, projectsWithCounts])
 
+    const handleAddTaskWithDate = useCallback(
+        (date: Date): void => {
+            const projectId =
+                selectedType === "project" && selectedProject ? selectedProject.id : "personal"
+            setAddTaskPrefillProjectId(projectId)
+            setAddTaskPrefillDueDate(date)
+            setAddTaskPrefillTitle("")
+            setIsAddTaskModalOpen(true)
+        },
+        [selectedProject, selectedType]
+    )
+
+    const calendarTasks = useMemo(() => {
+        if (selectedType === "project") {
+            return tasks.filter((t) => t.projectId === selectedId)
+        }
+        return tasks
+    }, [selectedType, selectedId, tasks])
+
+    const sidebarViews: SidebarView[] = useMemo(
+        () =>
+            taskViews.map((view) => ({
+                id: view.id,
+                label: view.label,
+                count: viewCounts[view.id] || 0,
+                icon: viewIconMap[view.icon],
+            })),
+        [viewCounts]
+    )
+
+    const sidebarProjects: SidebarProject[] = useMemo(
+        () =>
+            projectsWithCounts
+                .filter((p) => !p.isArchived)
+                .map((p) => ({
+                    id: p.id,
+                    name: p.name,
+                    taskCount: p.taskCount,
+                    color: p.color,
+                })),
+        [projectsWithCounts]
+    )
+
     return (
         <>
             <div className={cn("flex h-full", className)}>
-                {/* Left Column - Navigation */}
-                <TasksLeftColumn
+                <TasksSidebar
+                    collapsed={sidebarCollapsed}
+                    onToggle={toggleSidebar}
+                    views={sidebarViews}
+                    projects={sidebarProjects}
                     selectedId={selectedId}
                     selectedType={selectedType}
-                    projects={projectsWithCounts}
-                    viewCounts={viewCounts}
                     onSelectView={handleSelectView}
                     onSelectProject={handleSelectProject}
                     onNewProject={handleNewProject}
-                    onEditProject={handleEditProject}
+                    renderExpanded={
+                        <TasksLeftColumn
+                            selectedId={selectedId}
+                            selectedType={selectedType}
+                            projects={projectsWithCounts}
+                            viewCounts={viewCounts}
+                            onSelectView={handleSelectView}
+                            onSelectProject={handleSelectProject}
+                            onNewProject={handleNewProject}
+                            onEditProject={handleEditProject}
+                        />
+                    }
                 />
 
                 {/* Main Content Area */}
@@ -996,12 +1222,16 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
 
                     {/* Placeholder for Calendar view */}
                     {activeView === "calendar" && (
-                        <div className="flex flex-1 items-center justify-center p-6">
-                            <div className="text-center">
-                                <p className="text-lg text-text-secondary">Calendar view</p>
-                                <p className="mt-2 text-sm text-text-tertiary">(coming soon)</p>
-                            </div>
-                        </div>
+                        <CalendarView
+                            tasks={calendarTasks}
+                            projects={projectsWithCounts}
+                            selectedId={selectedId}
+                            selectedType={selectedType}
+                            onUpdateTask={handleUpdateTask}
+                            onTaskClick={handleTaskClick}
+                            onAddTaskWithDate={handleAddTaskWithDate}
+                            onToggleComplete={handleToggleComplete}
+                        />
                     )}
                 </main>
             </div>
@@ -1029,8 +1259,8 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
                 onClose={handleAddTaskModalClose}
                 onAddTask={handleAddTaskFromModal}
                 projects={projectsWithCounts}
-                defaultProjectId={modalDefaultProjectId}
-                defaultDueDate={modalDefaultDueDate}
+                defaultProjectId={addTaskPrefillProjectId || modalDefaultProjectId}
+                defaultDueDate={addTaskPrefillDueDate || modalDefaultDueDate}
                 prefillTitle={addTaskPrefillTitle}
             />
 
@@ -1045,6 +1275,8 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
                 onToggleComplete={handleToggleComplete}
                 onDeleteTask={handleDeleteTask}
                 onDuplicateTask={handleDuplicateTask}
+                onSkipOccurrence={handleSkipOccurrence}
+                onStopRepeating={handleStopRepeating}
             />
         </>
     )

@@ -6,6 +6,7 @@ import {
   PriorityBadge,
   DueDateBadge,
 } from "@/components/tasks/task-badges"
+import { RepeatIndicator } from "@/components/tasks/repeat-indicator"
 import type { Task } from "@/data/sample-tasks"
 import type { Project } from "@/data/tasks-data"
 
@@ -79,17 +80,22 @@ export const TaskRow = ({
         onChange={handleToggleComplete}
       />
 
-      {/* Title */}
-      <span
-        className={cn(
-          "flex-1 truncate text-sm",
-          isCompleted
-            ? "text-text-tertiary line-through"
-            : "text-text-primary"
+      {/* Title with Repeat Indicator */}
+      <div className="flex flex-1 items-center gap-2 min-w-0">
+        <span
+          className={cn(
+            "truncate text-sm",
+            isCompleted
+              ? "text-text-tertiary line-through"
+              : "text-text-primary"
+          )}
+        >
+          {task.title}
+        </span>
+        {task.isRepeating && task.repeatConfig && !isCompleted && (
+          <RepeatIndicator config={task.repeatConfig} size="sm" />
         )}
-      >
-        {task.title}
-      </span>
+      </div>
 
       {/* Right side badges container */}
       <div className="flex items-center gap-3 shrink-0">

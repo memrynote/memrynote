@@ -10,8 +10,9 @@ import { TaskLinksSection } from "./task-links-section"
 import { TaskMetadata } from "./task-metadata"
 import { TaskDetailFooter } from "./task-detail-footer"
 import { DeleteTaskDialog } from "./delete-task-dialog"
+import { StopRepeatingDialog, type StopRepeatOption } from "./stop-repeating-dialog"
 import { cn } from "@/lib/utils"
-import type { Task, Priority } from "@/data/sample-tasks"
+import type { Task, Priority, RepeatConfig } from "@/data/sample-tasks"
 import type { Project } from "@/data/tasks-data"
 
 // ============================================================================
@@ -28,6 +29,8 @@ interface TaskDetailPanelProps {
   onToggleComplete: (taskId: string) => void
   onDeleteTask: (taskId: string) => void
   onDuplicateTask: (taskId: string) => void
+  onSkipOccurrence?: (taskId: string) => void
+  onStopRepeating?: (taskId: string, option: StopRepeatOption) => void
   className?: string
 }
 
@@ -45,9 +48,12 @@ export const TaskDetailPanel = ({
   onToggleComplete,
   onDeleteTask,
   onDuplicateTask,
+  onSkipOccurrence,
+  onStopRepeating,
   className,
 }: TaskDetailPanelProps): React.JSX.Element => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isStopRepeatDialogOpen, setIsStopRepeatDialogOpen] = useState(false)
 
   // Handle escape key to close
   useEffect(() => {
@@ -131,10 +137,37 @@ export const TaskDetailPanel = ({
     [task, onUpdateTask]
   )
 
-  const handleToggleRepeat = useCallback((): void => {
-    // Placeholder - full repeat config will be built in Prompt 9
-    console.log("Toggle repeat config")
+  const handleRepeatConfigChange = useCallback(
+    (repeatConfig: RepeatConfig | null): void => {
+      if (task) {
+        onUpdateTask(task.id, {
+          isRepeating: repeatConfig !== null,
+          repeatConfig,
+        })
+      }
+    },
+    [task, onUpdateTask]
+  )
+
+  const handleSkipOccurrence = useCallback((): void => {
+    if (task && onSkipOccurrence) {
+      onSkipOccurrence(task.id)
+    }
+  }, [task, onSkipOccurrence])
+
+  const handleStopRepeatClick = useCallback((): void => {
+    setIsStopRepeatDialogOpen(true)
   }, [])
+
+  const handleStopRepeatConfirm = useCallback(
+    (option: StopRepeatOption): void => {
+      if (task && onStopRepeating) {
+        onStopRepeating(task.id, option)
+      }
+      setIsStopRepeatDialogOpen(false)
+    },
+    [task, onStopRepeating]
+  )
 
   const handleAddLink = useCallback(
     (noteId: string): void => {
@@ -257,7 +290,9 @@ export const TaskDetailPanel = ({
                   <TaskRepeatDisplay
                     isRepeating={task.isRepeating}
                     repeatConfig={task.repeatConfig}
-                    onToggle={handleToggleRepeat}
+                    dueDate={task.dueDate}
+                    onConfigChange={handleRepeatConfigChange}
+                    onSkipOccurrence={task.isRepeating && onSkipOccurrence ? handleSkipOccurrence : undefined}
                   />
 
                   {/* Divider */}
@@ -300,6 +335,15 @@ export const TaskDetailPanel = ({
         onClose={() => setIsDeleteDialogOpen(false)}
         onConfirm={handleConfirmDelete}
         taskTitle={task?.title || ""}
+      />
+
+      {/* Stop Repeating Dialog */}
+      <StopRepeatingDialog
+        isOpen={isStopRepeatDialogOpen}
+        onClose={() => setIsStopRepeatDialogOpen(false)}
+        onConfirm={handleStopRepeatConfirm}
+        taskTitle={task?.title || ""}
+        repeatConfig={task?.repeatConfig || null}
       />
     </>
   )
