@@ -4,7 +4,6 @@ import * as React from "react"
 import { useState, useMemo } from "react"
 import {
   AudioWaveform,
-  Calendar,
   CalendarDays,
   Check,
   Command,
@@ -12,13 +11,9 @@ import {
   Home,
   Inbox,
   List,
-  MoreHorizontal,
-  Pencil,
   Plus,
   Search,
   Star,
-  Trash2,
-  Archive,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -31,7 +26,6 @@ import {
   SidebarGroup,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -39,14 +33,8 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { SidebarSection } from "@/components/sidebar-section"
+import { SortableProjectList } from "@/components/sidebar/sortable-project-list"
 import FileTree from "@/components/file-tree"
 import { ProjectModal } from "@/components/tasks/project-modal"
 import { DeleteProjectDialog, type DeleteTasksOption } from "@/components/tasks/delete-project-dialog"
@@ -163,8 +151,6 @@ export function AppSidebar({
   onProjectsChange,
   ...props
 }: AppSidebarProps) {
-  const { isMobile } = useSidebar()
-
   // Project modal state
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
@@ -184,11 +170,6 @@ export function AppSidebar({
   const handleTaskViewClick = (viewId: string) => (e: React.MouseEvent) => {
     e.preventDefault()
     onSelectTaskView(viewId)
-  }
-
-  const handleProjectClick = (projectId: string) => (e: React.MouseEvent) => {
-    e.preventDefault()
-    onSelectProject(projectId)
   }
 
   const handleNewProject = (): void => {
@@ -338,75 +319,34 @@ export function AppSidebar({
             {/* Dashed divider between views and projects */}
             <div className="my-2 mx-2 border-t border-dashed border-sidebar-border" />
 
-            {/* Projects */}
-            {visibleProjects.map((project) => (
-              <SidebarMenuItem key={project.id} className="group/project">
-                <SidebarMenuButton
-                  tooltip={project.name}
-                  isActive={isProjectActive(project.id)}
-                  onClick={handleProjectClick(project.id)}
-                >
-                  <span
-                    className="size-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: project.color }}
-                    aria-hidden="true"
-                  />
-                  <span className="truncate">{project.name}</span>
-                </SidebarMenuButton>
-                <SidebarMenuBadge className="group-hover/project:hidden">
-                  {project.taskCount > 0 ? project.taskCount : ""}
-                </SidebarMenuBadge>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <SidebarMenuAction
-                      showOnHover
-                      className="opacity-0 group-hover/project:opacity-100"
-                    >
-                      <MoreHorizontal className="size-4" />
-                      <span className="sr-only">Project options</span>
-                    </SidebarMenuAction>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    className="w-48 rounded-lg"
-                    side={isMobile ? "bottom" : "right"}
-                    align={isMobile ? "end" : "start"}
-                  >
-                    <DropdownMenuItem onClick={() => handleEditProject(project)}>
-                      <Pencil className="size-4 text-muted-foreground" />
-                      <span>Edit project</span>
-                    </DropdownMenuItem>
-                    {!project.isDefault && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleArchiveProject(project)}>
-                          <Archive className="size-4 text-muted-foreground" />
-                          <span>Archive project</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleProjectDelete(project.id)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="size-4" />
-                          <span>Delete project</span>
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </SidebarMenuItem>
-            ))}
+            {/* Scrollable Projects Container */}
+            <div className="max-h-[300px] overflow-y-auto scrollbar-thin">
+              {/* Projects - Sortable List */}
+              <SortableProjectList
+                projects={visibleProjects}
+                activeProjectId={isProjectActive(taskSelectedId) ? taskSelectedId : null}
+                onProjectClick={(projectId) => onSelectProject(projectId)}
+                onProjectEdit={handleEditProject}
+                onProjectArchive={handleArchiveProject}
+                onProjectDelete={handleProjectDelete}
+                onProjectsReorder={onProjectsChange}
+                onCreateProject={handleNewProject}
+              />
 
-            {/* New Project Button */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                tooltip="New Project"
-                onClick={handleNewProject}
-                className="text-sidebar-foreground/70"
-              >
-                <Plus className="size-4" />
-                <span>New Project</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+              {/* New Project Button - always visible at bottom */}
+              {visibleProjects.length > 0 && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    tooltip="New Project"
+                    onClick={handleNewProject}
+                    className="text-sidebar-foreground/70"
+                  >
+                    <Plus className="size-4" />
+                    <span>New Project</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+            </div>
           </SidebarSection>
 
           <SidebarSeparator className="w-auto!" />
