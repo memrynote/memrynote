@@ -38,9 +38,16 @@ interface TaskDetailPanelProps {
   onAddSubtask?: (parentId: string, title: string) => void
   onBulkAddSubtasks?: (parentId: string, titles: string[]) => void
   onUpdateSubtask?: (subtaskId: string, updates: Partial<Task>) => void
+  onToggleSubtaskComplete?: (subtaskId: string) => void
   onDeleteSubtask?: (subtaskId: string) => void
   onReorderSubtasks?: (parentId: string, newOrder: string[]) => void
   onPromoteSubtask?: (subtaskId: string) => void
+  // Bulk subtask operations
+  onCompleteAllSubtasks?: (parentId: string) => void
+  onMarkAllSubtasksIncomplete?: (parentId: string) => void
+  onOpenBulkDueDateDialog?: (parentId: string) => void
+  onOpenBulkPriorityDialog?: (parentId: string) => void
+  onOpenDeleteAllSubtasksDialog?: (parentId: string) => void
   className?: string
 }
 
@@ -64,9 +71,15 @@ export const TaskDetailPanel = ({
   onAddSubtask,
   onBulkAddSubtasks,
   onUpdateSubtask,
+  onToggleSubtaskComplete,
   onDeleteSubtask,
   onReorderSubtasks,
   onPromoteSubtask,
+  onCompleteAllSubtasks,
+  onMarkAllSubtasksIncomplete,
+  onOpenBulkDueDateDialog,
+  onOpenBulkPriorityDialog,
+  onOpenDeleteAllSubtasksDialog,
   className,
 }: TaskDetailPanelProps): React.JSX.Element => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -293,6 +306,49 @@ export const TaskDetailPanel = ({
     [onPromoteSubtask]
   )
 
+  const handleToggleSubtaskComplete = useCallback(
+    (subtaskId: string): void => {
+      onToggleSubtaskComplete?.(subtaskId)
+    },
+    [onToggleSubtaskComplete]
+  )
+
+  // Bulk subtask operation handlers
+  const handleCompleteAllSubtasks = useCallback(
+    (parentId: string): void => {
+      onCompleteAllSubtasks?.(parentId)
+    },
+    [onCompleteAllSubtasks]
+  )
+
+  const handleMarkAllSubtasksIncomplete = useCallback(
+    (parentId: string): void => {
+      onMarkAllSubtasksIncomplete?.(parentId)
+    },
+    [onMarkAllSubtasksIncomplete]
+  )
+
+  const handleOpenBulkDueDateDialog = useCallback(
+    (parentId: string): void => {
+      onOpenBulkDueDateDialog?.(parentId)
+    },
+    [onOpenBulkDueDateDialog]
+  )
+
+  const handleOpenBulkPriorityDialog = useCallback(
+    (parentId: string): void => {
+      onOpenBulkPriorityDialog?.(parentId)
+    },
+    [onOpenBulkPriorityDialog]
+  )
+
+  const handleOpenDeleteAllSubtasksDialog = useCallback(
+    (parentId: string): void => {
+      onOpenDeleteAllSubtasksDialog?.(parentId)
+    },
+    [onOpenDeleteAllSubtasksDialog]
+  )
+
   return (
     <>
       <AnimatePresence>
@@ -369,9 +425,15 @@ export const TaskDetailPanel = ({
                         onAddSubtask={handleAddSubtask}
                         onBulkAddSubtasks={handleBulkAddSubtasks}
                         onUpdateSubtask={handleUpdateSubtask}
+                        onToggleSubtaskComplete={handleToggleSubtaskComplete}
                         onDeleteSubtask={handleDeleteSubtask}
                         onReorderSubtasks={handleReorderSubtasks}
                         onPromoteSubtask={handlePromoteSubtask}
+                        onCompleteAllSubtasks={handleCompleteAllSubtasks}
+                        onMarkAllSubtasksIncomplete={handleMarkAllSubtasksIncomplete}
+                        onOpenBulkDueDateDialog={handleOpenBulkDueDateDialog}
+                        onOpenBulkPriorityDialog={handleOpenBulkPriorityDialog}
+                        onOpenDeleteAllSubtasksDialog={handleOpenDeleteAllSubtasksDialog}
                       />
 
                       {/* Divider */}

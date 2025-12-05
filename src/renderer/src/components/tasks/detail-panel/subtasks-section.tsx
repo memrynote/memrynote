@@ -2,7 +2,8 @@ import { useState, useRef } from "react"
 import { Plus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { SubtaskProgressBar } from "@/components/tasks/subtask-progress-bar"
+import { CelebrationProgress } from "@/components/tasks/celebration-progress"
+import { BulkSubtaskActionsMenu } from "./bulk-subtask-actions-menu"
 import { SubtasksEmptyState } from "./subtasks-empty-state"
 import { SortableSubtaskDetailList } from "./sortable-subtask-detail-list"
 import type { Task } from "@/data/sample-tasks"
@@ -19,9 +20,15 @@ interface SubtasksSectionProps {
   onAddSubtask: (parentId: string, title: string) => void
   onBulkAddSubtasks: (parentId: string, titles: string[]) => void
   onUpdateSubtask: (subtaskId: string, updates: Partial<Task>) => void
+  onToggleSubtaskComplete: (subtaskId: string) => void
   onDeleteSubtask: (subtaskId: string) => void
   onReorderSubtasks: (parentId: string, newOrder: string[]) => void
   onPromoteSubtask: (subtaskId: string) => void
+  onCompleteAllSubtasks: (parentId: string) => void
+  onMarkAllSubtasksIncomplete: (parentId: string) => void
+  onOpenBulkDueDateDialog: (parentId: string) => void
+  onOpenBulkPriorityDialog: (parentId: string) => void
+  onOpenDeleteAllSubtasksDialog: (parentId: string) => void
 }
 
 // ============================================================================
@@ -116,11 +123,19 @@ export const SubtasksSection = ({
   onAddSubtask,
   onBulkAddSubtasks,
   onUpdateSubtask,
+  onToggleSubtaskComplete,
   onDeleteSubtask,
   onReorderSubtasks,
   onPromoteSubtask,
+  onCompleteAllSubtasks,
+  onMarkAllSubtasksIncomplete,
+  onOpenBulkDueDateDialog,
+  onOpenBulkPriorityDialog,
+  onOpenDeleteAllSubtasksDialog,
 }: SubtasksSectionProps): React.JSX.Element => {
   const hasSubtasks = subtasks.length > 0
+  const hasIncomplete = progress.completed < progress.total
+  const hasComplete = progress.completed > 0
 
   const handleBulkAdd = (titles: string[]): void => {
     onBulkAddSubtasks(parentTask.id, titles)
@@ -133,17 +148,29 @@ export const SubtasksSection = ({
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           Subtasks
         </h3>
-        {hasSubtasks && (
-          <span className="text-xs text-muted-foreground">
-            {progress.completed}/{progress.total} done
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {hasSubtasks && (
+            <span className="text-xs text-muted-foreground">
+              {progress.completed}/{progress.total} done
+            </span>
+          )}
+          <BulkSubtaskActionsMenu
+            subtaskCount={subtasks.length}
+            hasIncomplete={hasIncomplete}
+            hasComplete={hasComplete}
+            onCompleteAll={() => onCompleteAllSubtasks(parentTask.id)}
+            onMarkAllIncomplete={() => onMarkAllSubtasksIncomplete(parentTask.id)}
+            onSetDueDate={() => onOpenBulkDueDateDialog(parentTask.id)}
+            onSetPriority={() => onOpenBulkPriorityDialog(parentTask.id)}
+            onDeleteAll={() => onOpenDeleteAllSubtasksDialog(parentTask.id)}
+          />
+        </div>
       </div>
 
-      {/* Progress bar */}
+      {/* Progress bar with celebration */}
       {hasSubtasks && (
         <div className="mb-4">
-          <SubtaskProgressBar progress={progress} size="md" showLabel={false} />
+          <CelebrationProgress progress={progress} size="md" showLabel={false} />
         </div>
       )}
 
@@ -154,6 +181,7 @@ export const SubtasksSection = ({
             parentId={parentTask.id}
             subtasks={subtasks}
             onUpdate={onUpdateSubtask}
+            onToggleComplete={onToggleSubtaskComplete}
             onDelete={onDeleteSubtask}
             onReorder={onReorderSubtasks}
             onPromote={onPromoteSubtask}

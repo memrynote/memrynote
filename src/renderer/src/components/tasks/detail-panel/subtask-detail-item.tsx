@@ -19,6 +19,7 @@ interface SubtaskDetailItemProps {
   subtask: Task
   parentId: string
   onUpdate: (subtaskId: string, updates: Partial<Task>) => void
+  onToggleComplete: (subtaskId: string) => void
   onDelete: (subtaskId: string) => void
   onPromote: (subtaskId: string) => void
 }
@@ -59,6 +60,7 @@ export const SubtaskDetailItem = ({
   subtask,
   parentId,
   onUpdate,
+  onToggleComplete,
   onDelete,
   onPromote,
 }: SubtaskDetailItemProps): React.JSX.Element => {
@@ -105,9 +107,7 @@ export const SubtaskDetailItem = ({
   }, [subtask.title])
 
   const handleToggleComplete = (): void => {
-    onUpdate(subtask.id, {
-      completedAt: isCompleted ? null : new Date(),
-    })
+    onToggleComplete(subtask.id)
   }
 
   const handleToggleExpand = (): void => {

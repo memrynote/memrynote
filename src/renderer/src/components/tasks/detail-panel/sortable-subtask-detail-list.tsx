@@ -25,6 +25,7 @@ interface SortableSubtaskDetailListProps {
   parentId: string
   subtasks: Task[]
   onUpdate: (subtaskId: string, updates: Partial<Task>) => void
+  onToggleComplete: (subtaskId: string) => void
   onDelete: (subtaskId: string) => void
   onReorder: (parentId: string, newOrder: string[]) => void
   onPromote: (subtaskId: string) => void
@@ -49,6 +50,7 @@ export const SortableSubtaskDetailList = ({
   parentId,
   subtasks,
   onUpdate,
+  onToggleComplete,
   onDelete,
   onReorder,
   onPromote,
@@ -103,6 +105,7 @@ export const SortableSubtaskDetailList = ({
               subtask={subtask}
               parentId={parentId}
               onUpdate={onUpdate}
+              onToggleComplete={onToggleComplete}
               onDelete={onDelete}
               onPromote={onPromote}
             />

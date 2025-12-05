@@ -14,7 +14,7 @@ import {
 } from "@/components/tasks/task-badges"
 import { RepeatIndicator } from "@/components/tasks/repeat-indicator"
 import { SelectionCheckbox } from "@/components/tasks/bulk-actions"
-import { SubtaskProgressBar } from "@/components/tasks/subtask-progress-bar"
+import { CelebrationProgress } from "@/components/tasks/celebration-progress"
 import { SortableSubtaskList } from "@/components/tasks/sortable-subtask-list"
 import type { Task } from "@/data/sample-tasks"
 import type { Project } from "@/data/tasks-data"
@@ -35,6 +35,7 @@ interface SortableParentTaskRowProps {
   showProjectBadge?: boolean
   onToggleExpand: (taskId: string) => void
   onToggleComplete: (taskId: string) => void
+  onToggleSubtaskComplete?: (subtaskId: string) => void
   onClick?: (taskId: string) => void
   className?: string
   // Selection props
@@ -63,6 +64,7 @@ export const SortableParentTaskRow = ({
   showProjectBadge = false,
   onToggleExpand,
   onToggleComplete,
+  onToggleSubtaskComplete,
   onClick,
   className,
   isSelectionMode = false,
@@ -304,10 +306,10 @@ export const SortableParentTaskRow = ({
             )}
           </div>
 
-          {/* Progress bar (only if has subtasks) */}
+          {/* Progress bar with celebration (only if has subtasks) */}
           {taskHasSubtasks && (
             <div className="mt-1">
-              <SubtaskProgressBar progress={progress} size="sm" />
+              <CelebrationProgress progress={progress} size="sm" />
             </div>
           )}
         </div>
@@ -344,7 +346,7 @@ export const SortableParentTaskRow = ({
           parentTitle={task.title}
           subtasks={subtasks}
           onReorder={onReorderSubtasks || (() => { })}
-          onToggleComplete={onToggleComplete}
+          onToggleComplete={onToggleSubtaskComplete || onToggleComplete}
           onAddSubtask={onAddSubtask}
           onClick={onClick}
         />

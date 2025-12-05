@@ -67,6 +67,13 @@ import { calculateNextOccurrence, shouldCreateNextOccurrence } from "@/lib/repea
 import type { StopRepeatOption } from "@/components/tasks/stop-repeating-dialog"
 import { useFilterState, useSavedFilters, useFilteredAndSortedTasks, useTaskSelection, useBulkActions, useDragHandlers, useSubtaskManagement } from "@/hooks"
 import { BulkActionToolbar, BulkDeleteDialog, BulkDueDatePicker } from "@/components/tasks/bulk-actions"
+import {
+    AllSubtasksCompleteDialog,
+    BulkDueDateDialog,
+    BulkPriorityDialog,
+    DeleteAllSubtasksDialog,
+} from "@/components/tasks/dialogs"
+import { getSubtasks } from "@/lib/subtask-utils"
 
 // ============================================================================
 // TYPES
@@ -1727,6 +1734,7 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
                                     selectedType={selectedType}
                                     selectedTaskId={selectedTaskId}
                                     onToggleComplete={handleToggleComplete}
+                                    onToggleSubtaskComplete={subtaskManagement.handleCompleteSubtask}
                                     onTaskClick={handleTaskClick}
                                     onQuickAdd={handleQuickAdd}
                                     onOpenModal={handleOpenAddTaskModal}
@@ -1836,9 +1844,15 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
                 onAddSubtask={subtaskManagement.handleAddSubtask}
                 onBulkAddSubtasks={subtaskManagement.handleBulkAddSubtasks}
                 onUpdateSubtask={handleUpdateTask}
+                onToggleSubtaskComplete={subtaskManagement.handleCompleteSubtask}
                 onDeleteSubtask={subtaskManagement.handleDeleteSubtask}
                 onReorderSubtasks={subtaskManagement.handleReorderSubtasks}
                 onPromoteSubtask={subtaskManagement.handlePromoteToTask}
+                onCompleteAllSubtasks={subtaskManagement.handleCompleteAllSubtasks}
+                onMarkAllSubtasksIncomplete={subtaskManagement.handleMarkAllSubtasksIncomplete}
+                onOpenBulkDueDateDialog={subtaskManagement.openBulkDueDateDialog}
+                onOpenBulkPriorityDialog={subtaskManagement.openBulkPriorityDialog}
+                onOpenDeleteAllSubtasksDialog={subtaskManagement.openDeleteAllSubtasksDialog}
             />
 
             {/* Clear Completed Menu */}
@@ -1884,6 +1898,45 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
                 onClose={() => setIsBulkDueDatePickerOpen(false)}
                 taskCount={selectedCount}
                 onConfirm={handleBulkDueDateConfirm}
+            />
+
+            {/* All Subtasks Complete Dialog */}
+            <AllSubtasksCompleteDialog
+                isOpen={subtaskManagement.allSubtasksCompleteDialogOpen}
+                parentTitle={subtaskManagement.pendingAutoCompleteParent?.title || ""}
+                subtaskCount={subtaskManagement.pendingAutoCompleteParent ? getSubtasks(subtaskManagement.pendingAutoCompleteParent.id, tasks).length : 0}
+                onClose={subtaskManagement.closeAllSubtasksCompleteDialog}
+                onKeepOpen={subtaskManagement.keepParentOpen}
+                onCompleteParent={subtaskManagement.autoCompleteParent}
+            />
+
+            {/* Bulk Due Date Dialog for Subtasks */}
+            <BulkDueDateDialog
+                isOpen={subtaskManagement.bulkDueDateDialogOpen}
+                parentTitle={subtaskManagement.pendingBulkOperationParent?.title || ""}
+                subtaskCount={subtaskManagement.pendingBulkOperationSubtasks.length}
+                completedCount={subtaskManagement.pendingBulkOperationSubtasks.filter((s) => s.completedAt !== null).length}
+                onClose={subtaskManagement.closeBulkDueDateDialog}
+                onApply={subtaskManagement.confirmBulkDueDate}
+            />
+
+            {/* Bulk Priority Dialog for Subtasks */}
+            <BulkPriorityDialog
+                isOpen={subtaskManagement.bulkPriorityDialogOpen}
+                parentTitle={subtaskManagement.pendingBulkOperationParent?.title || ""}
+                subtaskCount={subtaskManagement.pendingBulkOperationSubtasks.length}
+                completedCount={subtaskManagement.pendingBulkOperationSubtasks.filter((s) => s.completedAt !== null).length}
+                onClose={subtaskManagement.closeBulkPriorityDialog}
+                onApply={subtaskManagement.confirmBulkPriority}
+            />
+
+            {/* Delete All Subtasks Dialog */}
+            <DeleteAllSubtasksDialog
+                isOpen={subtaskManagement.deleteAllSubtasksDialogOpen}
+                parentTitle={subtaskManagement.pendingBulkOperationParent?.title || ""}
+                subtasks={subtaskManagement.pendingBulkOperationSubtasks}
+                onClose={subtaskManagement.closeDeleteAllSubtasksDialog}
+                onConfirm={subtaskManagement.confirmDeleteAllSubtasks}
             />
         </>
     )

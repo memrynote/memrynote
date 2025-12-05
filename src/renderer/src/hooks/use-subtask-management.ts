@@ -11,11 +11,23 @@ import {
   deleteParentWithSubtasks,
   completeParentWithSubtasks,
   getIncompleteSubtasks,
+  getSubtasks,
   hasIncompleteSubtasks,
   hasSubtasks,
   type CreateSubtaskOptions,
 } from "@/lib/subtask-utils"
-import type { Task } from "@/data/sample-tasks"
+import {
+  checkAllSubtasksComplete,
+  completeAllSubtasks,
+  markAllSubtasksIncomplete,
+  setDueDateForAllSubtasks,
+  setPriorityForAllSubtasks,
+  deleteAllSubtasks,
+  completeParentTask,
+  uncompleteParentTask,
+} from "@/lib/subtask-bulk-utils"
+import { useTaskSettings } from "./use-task-settings"
+import type { Task, Priority } from "@/data/sample-tasks"
 import type { Project } from "@/data/tasks-data"
 
 // ============================================================================
@@ -33,6 +45,10 @@ interface UseSubtaskManagementReturn {
   deleteParentDialogOpen: boolean
   completeParentDialogOpen: boolean
   parentPickerDialogOpen: boolean
+  allSubtasksCompleteDialogOpen: boolean
+  bulkDueDateDialogOpen: boolean
+  bulkPriorityDialogOpen: boolean
+  deleteAllSubtasksDialogOpen: boolean
 
   // Dialog data
   pendingDeleteParent: Task | null
@@ -40,6 +56,9 @@ interface UseSubtaskManagementReturn {
   pendingCompleteParent: Task | null
   pendingCompleteIncompleteSubtasks: Task[]
   pendingDemoteTask: Task | null
+  pendingAutoCompleteParent: Task | null
+  pendingBulkOperationParent: Task | null
+  pendingBulkOperationSubtasks: Task[]
 
   // Dialog handlers
   openDeleteParentDialog: (parent: Task) => void
@@ -54,6 +73,24 @@ interface UseSubtaskManagementReturn {
   closeParentPickerDialog: () => void
   confirmDemoteToSubtask: (parentId: string) => void
 
+  // All subtasks complete dialog handlers
+  closeAllSubtasksCompleteDialog: () => void
+  keepParentOpen: () => void
+  autoCompleteParent: () => void
+
+  // Bulk operation dialog handlers
+  openBulkDueDateDialog: (parentId: string) => void
+  closeBulkDueDateDialog: () => void
+  confirmBulkDueDate: (dueDate: Date | null, includeCompleted: boolean) => void
+
+  openBulkPriorityDialog: (parentId: string) => void
+  closeBulkPriorityDialog: () => void
+  confirmBulkPriority: (priority: Priority, includeCompleted: boolean) => void
+
+  openDeleteAllSubtasksDialog: (parentId: string) => void
+  closeDeleteAllSubtasksDialog: () => void
+  confirmDeleteAllSubtasks: () => void
+
   // Direct actions
   handleAddSubtask: (parentId: string, title: string) => void
   handleBulkAddSubtasks: (parentId: string, titles: string[]) => void
@@ -61,9 +98,14 @@ interface UseSubtaskManagementReturn {
   handlePromoteToTask: (subtaskId: string) => void
   handleDeleteSubtask: (subtaskId: string) => void
 
+  // Bulk actions
+  handleCompleteAllSubtasks: (parentId: string) => void
+  handleMarkAllSubtasksIncomplete: (parentId: string) => void
+
   // Smart actions (may open dialogs if needed)
   handleDeleteTask: (taskId: string) => void
   handleCompleteTask: (taskId: string) => void
+  handleCompleteSubtask: (subtaskId: string) => void
 }
 
 // ============================================================================
@@ -72,9 +114,14 @@ interface UseSubtaskManagementReturn {
 
 export const useSubtaskManagement = ({
   tasks,
-  projects,
+  projects: _projects,
   onTasksChange,
 }: UseSubtaskManagementOptions): UseSubtaskManagementReturn => {
+  // Note: projects is available for future use (e.g., status handling)
+  void _projects
+  // Get settings
+  const { subtaskSettings } = useTaskSettings()
+
   // Delete parent dialog state
   const [deleteParentDialogOpen, setDeleteParentDialogOpen] = useState(false)
   const [pendingDeleteParent, setPendingDeleteParent] = useState<Task | null>(null)
@@ -88,6 +135,17 @@ export const useSubtaskManagement = ({
   // Parent picker dialog state
   const [parentPickerDialogOpen, setParentPickerDialogOpen] = useState(false)
   const [pendingDemoteTask, setPendingDemoteTask] = useState<Task | null>(null)
+
+  // All subtasks complete dialog state
+  const [allSubtasksCompleteDialogOpen, setAllSubtasksCompleteDialogOpen] = useState(false)
+  const [pendingAutoCompleteParent, setPendingAutoCompleteParent] = useState<Task | null>(null)
+
+  // Bulk operation dialog state
+  const [bulkDueDateDialogOpen, setBulkDueDateDialogOpen] = useState(false)
+  const [bulkPriorityDialogOpen, setBulkPriorityDialogOpen] = useState(false)
+  const [deleteAllSubtasksDialogOpen, setDeleteAllSubtasksDialogOpen] = useState(false)
+  const [pendingBulkOperationParent, setPendingBulkOperationParent] = useState<Task | null>(null)
+  const [pendingBulkOperationSubtasks, setPendingBulkOperationSubtasks] = useState<Task[]>([])
 
   // ========================================================================
   // ADD SUBTASK
@@ -372,11 +430,290 @@ export const useSubtaskManagement = ({
     [tasks, onTasksChange, openCompleteParentDialog]
   )
 
+  // ========================================================================
+  // COMPLETE SUBTASK WITH AUTO-COMPLETE PARENT CHECK
+  // ========================================================================
+
+  const handleCompleteSubtask = useCallback(
+    (subtaskId: string): void => {
+      const subtask = tasks.find((t) => t.id === subtaskId)
+      if (!subtask || !subtask.parentId) return
+
+      const parentId = subtask.parentId
+
+      // Complete the subtask
+      const now = new Date()
+      const updatedTasks = tasks.map((t) =>
+        t.id === subtaskId ? { ...t, completedAt: now } : t
+      )
+
+      // Update state immediately so progress bar shows 100%
+      onTasksChange(updatedTasks)
+
+      // Check if all subtasks are now complete
+      const allComplete = checkAllSubtasksComplete(parentId, updatedTasks)
+
+      if (allComplete) {
+        const parent = tasks.find((t) => t.id === parentId)
+        if (!parent) return
+
+        if (subtaskSettings.autoCompleteParent) {
+          // Delay auto-complete to let celebration animation play
+          setTimeout(() => {
+            // Re-fetch current tasks state to avoid stale closure
+            const result = completeParentTask(parentId, updatedTasks)
+            if (result.success && result.updatedTasks) {
+              onTasksChange(result.updatedTasks)
+
+              // Show toast with undo action
+              toast.success("🎉 All subtasks complete! Task marked as done.", {
+                action: {
+                  label: "Undo",
+                  onClick: () => {
+                    const undoResult = uncompleteParentTask(parentId, result.updatedTasks!)
+                    if (undoResult.success && undoResult.updatedTasks) {
+                      onTasksChange(undoResult.updatedTasks)
+                      toast.success("Task reopened")
+                    }
+                  },
+                },
+              })
+            }
+          }, 200) // Wait 0.2 seconds for celebration animation
+        } else {
+          // Show dialog to ask user (after a brief delay for the animation)
+          setTimeout(() => {
+            setPendingAutoCompleteParent(parent)
+            setAllSubtasksCompleteDialogOpen(true)
+          }, 1000)
+        }
+      }
+    },
+    [tasks, onTasksChange, subtaskSettings.autoCompleteParent]
+  )
+
+  // ========================================================================
+  // ALL SUBTASKS COMPLETE DIALOG
+  // ========================================================================
+
+  const closeAllSubtasksCompleteDialog = useCallback((): void => {
+    setAllSubtasksCompleteDialogOpen(false)
+    setPendingAutoCompleteParent(null)
+  }, [])
+
+  const keepParentOpen = useCallback((): void => {
+    closeAllSubtasksCompleteDialog()
+    toast.success("Task kept open")
+  }, [closeAllSubtasksCompleteDialog])
+
+  const autoCompleteParent = useCallback((): void => {
+    if (!pendingAutoCompleteParent) return
+
+    const result = completeParentTask(pendingAutoCompleteParent.id, tasks)
+    if (result.success && result.updatedTasks) {
+      onTasksChange(result.updatedTasks)
+      toast.success("Task completed")
+    }
+
+    closeAllSubtasksCompleteDialog()
+  }, [pendingAutoCompleteParent, tasks, onTasksChange, closeAllSubtasksCompleteDialog])
+
+  // ========================================================================
+  // BULK COMPLETE ALL SUBTASKS
+  // ========================================================================
+
+  const handleCompleteAllSubtasks = useCallback(
+    (parentId: string): void => {
+      const result = completeAllSubtasks(parentId, tasks)
+
+      if (result.success && result.updatedTasks) {
+        const affectedCount = result.affectedCount || 0
+        const updatedTasks = result.updatedTasks
+
+        // Update state immediately so progress bar shows 100%
+        onTasksChange(updatedTasks)
+        toast.success(`${affectedCount} subtask${affectedCount !== 1 ? "s" : ""} completed`)
+
+        // Check if we should auto-complete parent (with delay for celebration)
+        const allComplete = checkAllSubtasksComplete(parentId, updatedTasks)
+
+        if (allComplete && subtaskSettings.autoCompleteParent) {
+          setTimeout(() => {
+            const completeResult = completeParentTask(parentId, updatedTasks)
+            if (completeResult.success && completeResult.updatedTasks) {
+              onTasksChange(completeResult.updatedTasks)
+              toast.success("🎉 Task marked as done!")
+            }
+          }, 1500) // Wait 1.5 seconds for celebration animation
+        }
+      } else {
+        toast.error(result.error || "Failed to complete subtasks")
+      }
+    },
+    [tasks, onTasksChange, subtaskSettings.autoCompleteParent]
+  )
+
+  // ========================================================================
+  // BULK MARK ALL INCOMPLETE
+  // ========================================================================
+
+  const handleMarkAllSubtasksIncomplete = useCallback(
+    (parentId: string): void => {
+      const result = markAllSubtasksIncomplete(parentId, tasks)
+
+      if (result.success && result.updatedTasks) {
+        onTasksChange(result.updatedTasks)
+        toast.success(`${result.affectedCount} subtask${result.affectedCount !== 1 ? "s" : ""} marked incomplete`)
+      } else {
+        toast.error(result.error || "Failed to mark subtasks incomplete")
+      }
+    },
+    [tasks, onTasksChange]
+  )
+
+  // ========================================================================
+  // BULK DUE DATE DIALOG
+  // ========================================================================
+
+  const openBulkDueDateDialog = useCallback(
+    (parentId: string): void => {
+      const parent = tasks.find((t) => t.id === parentId)
+      if (!parent) return
+
+      const subtasks = getSubtasks(parentId, tasks)
+      setPendingBulkOperationParent(parent)
+      setPendingBulkOperationSubtasks(subtasks)
+      setBulkDueDateDialogOpen(true)
+    },
+    [tasks]
+  )
+
+  const closeBulkDueDateDialog = useCallback((): void => {
+    setBulkDueDateDialogOpen(false)
+    setPendingBulkOperationParent(null)
+    setPendingBulkOperationSubtasks([])
+  }, [])
+
+  const confirmBulkDueDate = useCallback(
+    (dueDate: Date | null, includeCompleted: boolean): void => {
+      if (!pendingBulkOperationParent) return
+
+      const result = setDueDateForAllSubtasks(
+        pendingBulkOperationParent.id,
+        dueDate,
+        includeCompleted,
+        tasks
+      )
+
+      if (result.success && result.updatedTasks) {
+        onTasksChange(result.updatedTasks)
+        toast.success(
+          dueDate
+            ? `Due date set for ${result.affectedCount} subtask${result.affectedCount !== 1 ? "s" : ""}`
+            : `Due date cleared for ${result.affectedCount} subtask${result.affectedCount !== 1 ? "s" : ""}`
+        )
+      } else {
+        toast.error(result.error || "Failed to set due date")
+      }
+
+      closeBulkDueDateDialog()
+    },
+    [pendingBulkOperationParent, tasks, onTasksChange, closeBulkDueDateDialog]
+  )
+
+  // ========================================================================
+  // BULK PRIORITY DIALOG
+  // ========================================================================
+
+  const openBulkPriorityDialog = useCallback(
+    (parentId: string): void => {
+      const parent = tasks.find((t) => t.id === parentId)
+      if (!parent) return
+
+      const subtasks = getSubtasks(parentId, tasks)
+      setPendingBulkOperationParent(parent)
+      setPendingBulkOperationSubtasks(subtasks)
+      setBulkPriorityDialogOpen(true)
+    },
+    [tasks]
+  )
+
+  const closeBulkPriorityDialog = useCallback((): void => {
+    setBulkPriorityDialogOpen(false)
+    setPendingBulkOperationParent(null)
+    setPendingBulkOperationSubtasks([])
+  }, [])
+
+  const confirmBulkPriority = useCallback(
+    (priority: Priority, includeCompleted: boolean): void => {
+      if (!pendingBulkOperationParent) return
+
+      const result = setPriorityForAllSubtasks(
+        pendingBulkOperationParent.id,
+        priority,
+        includeCompleted,
+        tasks
+      )
+
+      if (result.success && result.updatedTasks) {
+        onTasksChange(result.updatedTasks)
+        toast.success(`Priority set for ${result.affectedCount} subtask${result.affectedCount !== 1 ? "s" : ""}`)
+      } else {
+        toast.error(result.error || "Failed to set priority")
+      }
+
+      closeBulkPriorityDialog()
+    },
+    [pendingBulkOperationParent, tasks, onTasksChange, closeBulkPriorityDialog]
+  )
+
+  // ========================================================================
+  // DELETE ALL SUBTASKS DIALOG
+  // ========================================================================
+
+  const openDeleteAllSubtasksDialog = useCallback(
+    (parentId: string): void => {
+      const parent = tasks.find((t) => t.id === parentId)
+      if (!parent) return
+
+      const subtasks = getSubtasks(parentId, tasks)
+      setPendingBulkOperationParent(parent)
+      setPendingBulkOperationSubtasks(subtasks)
+      setDeleteAllSubtasksDialogOpen(true)
+    },
+    [tasks]
+  )
+
+  const closeDeleteAllSubtasksDialog = useCallback((): void => {
+    setDeleteAllSubtasksDialogOpen(false)
+    setPendingBulkOperationParent(null)
+    setPendingBulkOperationSubtasks([])
+  }, [])
+
+  const confirmDeleteAllSubtasks = useCallback((): void => {
+    if (!pendingBulkOperationParent) return
+
+    const result = deleteAllSubtasks(pendingBulkOperationParent.id, tasks)
+
+    if (result.success && result.updatedTasks) {
+      onTasksChange(result.updatedTasks)
+      toast.success(`${result.affectedCount} subtask${result.affectedCount !== 1 ? "s" : ""} deleted`)
+    } else {
+      toast.error(result.error || "Failed to delete subtasks")
+    }
+
+    closeDeleteAllSubtasksDialog()
+  }, [pendingBulkOperationParent, tasks, onTasksChange, closeDeleteAllSubtasksDialog])
+
   return {
     // Dialog state
     deleteParentDialogOpen,
     completeParentDialogOpen,
     parentPickerDialogOpen,
+    allSubtasksCompleteDialogOpen,
+    bulkDueDateDialogOpen,
+    bulkPriorityDialogOpen,
+    deleteAllSubtasksDialogOpen,
 
     // Dialog data
     pendingDeleteParent,
@@ -384,6 +721,9 @@ export const useSubtaskManagement = ({
     pendingCompleteParent,
     pendingCompleteIncompleteSubtasks,
     pendingDemoteTask,
+    pendingAutoCompleteParent,
+    pendingBulkOperationParent,
+    pendingBulkOperationSubtasks,
 
     // Dialog handlers
     openDeleteParentDialog,
@@ -398,16 +738,39 @@ export const useSubtaskManagement = ({
     closeParentPickerDialog,
     confirmDemoteToSubtask,
 
-  // Direct actions
-  handleAddSubtask,
-  handleBulkAddSubtasks,
-  handleReorderSubtasks,
-  handlePromoteToTask,
-  handleDeleteSubtask,
+    // All subtasks complete dialog handlers
+    closeAllSubtasksCompleteDialog,
+    keepParentOpen,
+    autoCompleteParent,
+
+    // Bulk operation dialog handlers
+    openBulkDueDateDialog,
+    closeBulkDueDateDialog,
+    confirmBulkDueDate,
+
+    openBulkPriorityDialog,
+    closeBulkPriorityDialog,
+    confirmBulkPriority,
+
+    openDeleteAllSubtasksDialog,
+    closeDeleteAllSubtasksDialog,
+    confirmDeleteAllSubtasks,
+
+    // Direct actions
+    handleAddSubtask,
+    handleBulkAddSubtasks,
+    handleReorderSubtasks,
+    handlePromoteToTask,
+    handleDeleteSubtask,
+
+    // Bulk actions
+    handleCompleteAllSubtasks,
+    handleMarkAllSubtasksIncomplete,
 
     // Smart actions
     handleDeleteTask,
     handleCompleteTask,
+    handleCompleteSubtask,
   }
 }
 

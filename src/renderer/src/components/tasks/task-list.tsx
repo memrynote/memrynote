@@ -30,6 +30,7 @@ interface TaskListProps {
     selectedType: "view" | "project"
     selectedTaskId?: string | null
     onToggleComplete: (taskId: string) => void
+    onToggleSubtaskComplete?: (subtaskId: string) => void
     onTaskClick?: (taskId: string) => void
     onQuickAdd: (
         title: string,
@@ -62,6 +63,7 @@ interface TaskListByDueDateProps {
     showProjectBadge: boolean
     selectedTaskId?: string | null
     onToggleComplete: (taskId: string) => void
+    onToggleSubtaskComplete?: (subtaskId: string) => void
     onTaskClick?: (taskId: string) => void
     // Selection props
     isSelectionMode?: boolean
@@ -83,6 +85,7 @@ const TaskListByDueDate = ({
     showProjectBadge,
     selectedTaskId,
     onToggleComplete,
+    onToggleSubtaskComplete,
     onTaskClick,
     // Selection props
     isSelectionMode = false,
@@ -125,6 +128,7 @@ const TaskListByDueDate = ({
                         showProjectBadge={showProjectBadge}
                         selectedTaskId={selectedTaskId}
                         onToggleComplete={onToggleComplete}
+                        onToggleSubtaskComplete={onToggleSubtaskComplete}
                         onTaskClick={onTaskClick}
                         // Selection props
                         isSelectionMode={isSelectionMode}
@@ -154,6 +158,7 @@ interface TaskListByCompletionProps {
     projects: Project[]
     selectedTaskId?: string | null
     onToggleComplete: (taskId: string) => void
+    onToggleSubtaskComplete?: (subtaskId: string) => void
     onTaskClick?: (taskId: string) => void
     // Selection props
     isSelectionMode?: boolean
@@ -174,6 +179,7 @@ const TaskListByCompletion = ({
     projects,
     selectedTaskId,
     onToggleComplete,
+    onToggleSubtaskComplete,
     onTaskClick,
     // Selection props
     isSelectionMode = false,
@@ -209,6 +215,7 @@ const TaskListByCompletion = ({
                         showProjectBadge={true}
                         selectedTaskId={selectedTaskId}
                         onToggleComplete={onToggleComplete}
+                        onToggleSubtaskComplete={onToggleSubtaskComplete}
                         onTaskClick={onTaskClick}
                         // Selection props
                         isSelectionMode={isSelectionMode}
@@ -238,6 +245,7 @@ interface TaskListByStatusProps {
     project: Project
     selectedTaskId?: string | null
     onToggleComplete: (taskId: string) => void
+    onToggleSubtaskComplete?: (subtaskId: string) => void
     onTaskClick?: (taskId: string) => void
     // Selection props
     isSelectionMode?: boolean
@@ -258,6 +266,7 @@ const TaskListByStatus = ({
     project,
     selectedTaskId,
     onToggleComplete,
+    onToggleSubtaskComplete,
     onTaskClick,
     // Selection props
     isSelectionMode = false,
@@ -287,6 +296,7 @@ const TaskListByStatus = ({
                     project={project}
                     selectedTaskId={selectedTaskId}
                     onToggleComplete={onToggleComplete}
+                    onToggleSubtaskComplete={onToggleSubtaskComplete}
                     onTaskClick={onTaskClick}
                     // Selection props
                     isSelectionMode={isSelectionMode}
@@ -316,6 +326,7 @@ export const TaskList = ({
     selectedType,
     selectedTaskId,
     onToggleComplete,
+    onToggleSubtaskComplete,
     onTaskClick,
     onQuickAdd,
     onOpenModal,
@@ -380,6 +391,7 @@ export const TaskList = ({
                     project={selectedProject}
                     selectedTaskId={selectedTaskId}
                     onToggleComplete={onToggleComplete}
+                    onToggleSubtaskComplete={onToggleSubtaskComplete}
                     onTaskClick={onTaskClick}
                     // Selection props
                     isSelectionMode={isSelectionMode}
@@ -405,6 +417,7 @@ export const TaskList = ({
                     projects={projects}
                     selectedTaskId={selectedTaskId}
                     onToggleComplete={onToggleComplete}
+                    onToggleSubtaskComplete={onToggleSubtaskComplete}
                     onTaskClick={onTaskClick}
                     // Selection props
                     isSelectionMode={isSelectionMode}
@@ -430,6 +443,7 @@ export const TaskList = ({
                 showProjectBadge={true}
                 selectedTaskId={selectedTaskId}
                 onToggleComplete={onToggleComplete}
+                onToggleSubtaskComplete={onToggleSubtaskComplete}
                 onTaskClick={onTaskClick}
                 // Selection props
                 isSelectionMode={isSelectionMode}

@@ -65,6 +65,7 @@ interface TaskGroupProps {
   showProjectBadge?: boolean
   selectedTaskId?: string | null
   onToggleComplete: (taskId: string) => void
+  onToggleSubtaskComplete?: (subtaskId: string) => void
   onTaskClick?: (taskId: string) => void
   className?: string
   /** Optional explicit date for this group (used for reschedule on drop) */
@@ -89,6 +90,7 @@ interface StatusTaskGroupProps {
   project: Project
   selectedTaskId?: string | null
   onToggleComplete: (taskId: string) => void
+  onToggleSubtaskComplete?: (subtaskId: string) => void
   onTaskClick?: (taskId: string) => void
   className?: string
   // Selection props
@@ -150,6 +152,7 @@ export const TaskGroup = ({
   showProjectBadge = false,
   selectedTaskId,
   onToggleComplete,
+  onToggleSubtaskComplete,
   onTaskClick,
   className,
   date,
@@ -240,6 +243,7 @@ export const TaskGroup = ({
                   showProjectBadge={showProjectBadge}
                   onToggleExpand={onToggleExpand}
                   onToggleComplete={onToggleComplete}
+                  onToggleSubtaskComplete={onToggleSubtaskComplete}
                   onClick={onTaskClick}
                   // Selection props
                   isSelectionMode={isSelectionMode}
@@ -290,6 +294,7 @@ export const StatusTaskGroup = ({
   project,
   selectedTaskId,
   onToggleComplete,
+  onToggleSubtaskComplete,
   onTaskClick,
   className,
   // Selection props
@@ -376,6 +381,7 @@ export const StatusTaskGroup = ({
                   showProjectBadge={false}
                   onToggleExpand={onToggleExpand}
                   onToggleComplete={onToggleComplete}
+                  onToggleSubtaskComplete={onToggleSubtaskComplete}
                   onClick={onTaskClick}
                   // Selection props
                   isSelectionMode={isSelectionMode}

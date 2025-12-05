@@ -10,7 +10,7 @@ import {
   DueDateBadge,
 } from "@/components/tasks/task-badges"
 import { RepeatIndicator } from "@/components/tasks/repeat-indicator"
-import { SubtaskProgressBar } from "@/components/tasks/subtask-progress-bar"
+import { CelebrationProgress } from "@/components/tasks/celebration-progress"
 import { SubtaskRow } from "@/components/tasks/subtask-row"
 import type { Task } from "@/data/sample-tasks"
 import type { Project } from "@/data/tasks-data"
@@ -30,6 +30,7 @@ interface ParentTaskRowProps {
   showProjectBadge?: boolean
   onToggleExpand: (taskId: string) => void
   onToggleComplete: (taskId: string) => void
+  onToggleSubtaskComplete?: (subtaskId: string) => void
   onClick?: (taskId: string) => void
   className?: string
 }
@@ -49,6 +50,7 @@ export const ParentTaskRow = ({
   showProjectBadge = false,
   onToggleExpand,
   onToggleComplete,
+  onToggleSubtaskComplete,
   onClick,
   className,
 }: ParentTaskRowProps): React.JSX.Element => {
@@ -164,10 +166,10 @@ export const ParentTaskRow = ({
             )}
           </div>
 
-          {/* Progress bar (only if has subtasks) */}
+          {/* Progress bar with celebration (only if has subtasks) */}
           {taskHasSubtasks && (
             <div className="mt-1">
-              <SubtaskProgressBar progress={progress} size="sm" />
+              <CelebrationProgress progress={progress} size="sm" />
             </div>
           )}
         </div>
@@ -210,7 +212,7 @@ export const ParentTaskRow = ({
               key={subtask.id}
               subtask={subtask}
               isLast={index === subtasks.length - 1}
-              onToggleComplete={onToggleComplete}
+              onToggleComplete={onToggleSubtaskComplete || onToggleComplete}
               onClick={onClick}
             />
           ))}
