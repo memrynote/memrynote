@@ -572,7 +572,26 @@ export const groupTasksByCalendarDate = (
 // ============================================================================
 
 /**
+ * Include subtasks when their parent matches the filter
+ * When a top-level task matches, all its subtasks are included
+ */
+const includeSubtasksForMatchingParents = (
+  matchingTopLevel: Task[],
+  allTasks: Task[]
+): Task[] => {
+  const matchingIds = new Set(matchingTopLevel.map((t) => t.id))
+
+  // Include all subtasks of matching parents
+  return allTasks.filter(
+    (t) =>
+      matchingIds.has(t.id) || // Is a matching top-level task
+      (t.parentId !== null && matchingIds.has(t.parentId)) // Is subtask of matching parent
+  )
+}
+
+/**
  * Get filtered tasks based on current selection
+ * Handles subtasks: when a parent matches, its subtasks are included
  */
 export const getFilteredTasks = (
   tasks: Task[],
@@ -590,11 +609,14 @@ export const getFilteredTasks = (
   // Helper to check if task is complete
   const isComplete = (task: Task): boolean => !isIncomplete(task)
 
-  // Get incomplete tasks
-  const incompleteTasks = tasks.filter(isIncomplete)
+  // Helper to check if task is a subtask
+  const isSubtask = (task: Task): boolean => task.parentId !== null
 
-  // Get completed tasks
-  const completedTasks = tasks.filter(isComplete)
+  // Get incomplete top-level tasks
+  const incompleteTopLevel = tasks.filter((t) => isIncomplete(t) && !isSubtask(t))
+
+  // Get completed top-level tasks
+  const completedTopLevel = tasks.filter((t) => isComplete(t) && !isSubtask(t))
 
   if (selectedType === "view") {
     const today = startOfDay(new Date())
@@ -602,38 +624,50 @@ export const getFilteredTasks = (
 
     switch (selectedId) {
       case "all":
-        return incompleteTasks
+        // All incomplete tasks - include subtasks of incomplete parents
+        return includeSubtasksForMatchingParents(incompleteTopLevel, tasks)
 
-      case "today":
-        return incompleteTasks.filter((task) => {
+      case "today": {
+        // Filter top-level tasks by due date
+        const matchingTopLevel = incompleteTopLevel.filter((task) => {
           if (!task.dueDate) return false
           const taskDate = startOfDay(task.dueDate)
           // Include overdue and today
           return isSameDay(taskDate, today) || isBefore(taskDate, today)
         })
+        // Include subtasks of matching parents
+        return includeSubtasksForMatchingParents(matchingTopLevel, tasks)
+      }
 
-      case "upcoming":
-        return incompleteTasks.filter((task) => {
+      case "upcoming": {
+        // Filter top-level tasks by due date
+        const matchingTopLevel = incompleteTopLevel.filter((task) => {
           if (!task.dueDate) return false
           const taskDate = startOfDay(task.dueDate)
           // Tomorrow through next 7 days
           return isAfter(taskDate, today) && !isAfter(taskDate, weekFromNow)
         })
+        // Include subtasks of matching parents
+        return includeSubtasksForMatchingParents(matchingTopLevel, tasks)
+      }
 
       case "completed":
-        return completedTasks
+        // All completed tasks - include subtasks of completed parents
+        return includeSubtasksForMatchingParents(completedTopLevel, tasks)
 
       default:
-        return incompleteTasks
+        return includeSubtasksForMatchingParents(incompleteTopLevel, tasks)
     }
   }
 
   if (selectedType === "project") {
     // Return all tasks for the project (both complete and incomplete)
-    return tasks.filter((task) => task.projectId === selectedId)
+    // Filter to project first, then include subtasks
+    const projectTasks = tasks.filter((task) => task.projectId === selectedId)
+    return projectTasks
   }
 
-  return incompleteTasks
+  return includeSubtasksForMatchingParents(incompleteTopLevel, tasks)
 }
 
 // ============================================================================
