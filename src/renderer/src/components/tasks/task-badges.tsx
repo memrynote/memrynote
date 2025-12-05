@@ -17,11 +17,14 @@ import {
 
 interface ProjectBadgeProps {
   project: Project
+  /** Use fixed width for grid alignment */
+  fixedWidth?: boolean
   className?: string
 }
 
 export const ProjectBadge = ({
   project,
+  fixedWidth = false,
   className,
 }: ProjectBadgeProps): React.JSX.Element => {
   return (
@@ -29,6 +32,7 @@ export const ProjectBadge = ({
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs",
         "bg-muted text-text-secondary",
+        fixedWidth && "w-[120px] justify-start",
         className
       )}
     >
@@ -37,7 +41,7 @@ export const ProjectBadge = ({
         style={{ backgroundColor: project.color }}
         aria-hidden="true"
       />
-      <span className="truncate max-w-[100px]">{project.name}</span>
+      <span className="truncate">{project.name}</span>
     </span>
   )
 }
@@ -48,11 +52,24 @@ export const ProjectBadge = ({
 
 export type PriorityBadgeVariant = "dot" | "label" | "full"
 
+/** Short labels for compact display in grid columns */
+const priorityShortLabels: Record<Priority, string | null> = {
+  none: null,
+  low: "Low",
+  medium: "Med",
+  high: "High",
+  urgent: "Urgent",
+}
+
 interface PriorityBadgeProps {
   priority: Priority
   variant?: PriorityBadgeVariant
   size?: "sm" | "md"
   showTooltip?: boolean
+  /** Use compact short labels (Med instead of Medium) */
+  compact?: boolean
+  /** Use fixed width for grid alignment */
+  fixedWidth?: boolean
   className?: string
 }
 
@@ -61,14 +78,22 @@ export const PriorityBadge = ({
   variant = "full",
   size = "md",
   showTooltip = false,
+  compact = false,
+  fixedWidth = false,
   className,
 }: PriorityBadgeProps): React.JSX.Element | null => {
   const config = priorityConfig[priority]
 
   // Don't render anything for "none" priority
   if (priority === "none" || !config.color) {
+    // Return empty placeholder if fixedWidth to maintain grid alignment
+    if (fixedWidth) {
+      return <span className="w-[70px]" aria-hidden="true" />
+    }
     return null
   }
+
+  const displayLabel = compact ? priorityShortLabels[priority] : config.label
 
   const content = (
     <span
@@ -76,6 +101,7 @@ export const PriorityBadge = ({
         "inline-flex items-center gap-1.5",
         size === "sm" && "text-xs",
         size === "md" && "text-xs",
+        fixedWidth && "w-[70px] justify-start",
         className
       )}
       aria-label={`${config.label} priority`}
@@ -103,14 +129,14 @@ export const PriorityBadge = ({
           )}
           style={{ color: config.color }}
         >
-          {config.label}
+          {displayLabel}
         </span>
       )}
     </span>
   )
 
-  // Wrap with tooltip if needed (only useful for dot variant)
-  if (showTooltip && variant === "dot") {
+  // Wrap with tooltip if needed (only useful for dot variant or compact mode)
+  if (showTooltip && (variant === "dot" || compact)) {
     return (
       <TooltipProvider>
         <Tooltip>
@@ -137,6 +163,8 @@ interface DueDateBadgeProps {
   dueTime: string | null
   isRepeating?: boolean
   variant?: "default" | "compact"
+  /** Use fixed width for grid alignment */
+  fixedWidth?: boolean
   className?: string
 }
 
@@ -163,13 +191,22 @@ export const DueDateBadge = ({
   dueTime,
   isRepeating = false,
   variant = "default",
+  fixedWidth = false,
   className,
 }: DueDateBadgeProps): React.JSX.Element => {
   const formatted = formatDueDate(dueDate, dueTime)
 
   if (!formatted) {
     return (
-      <span className={cn("text-xs text-muted-foreground", className)}>—</span>
+      <span
+        className={cn(
+          "text-xs text-muted-foreground",
+          fixedWidth && "w-[110px] text-right",
+          className
+        )}
+      >
+        —
+      </span>
     )
   }
 
@@ -186,15 +223,16 @@ export const DueDateBadge = ({
           "rounded-md px-1.5 py-0.5",
           dueDateBackgroundStyles[formatted.status]
         ),
+        fixedWidth && "w-[110px] justify-end",
         className
       )}
     >
       {isRepeating && (
         <Repeat className="size-3 shrink-0" aria-label="Repeating task" />
       )}
-      <span>{formatted.label}</span>
+      <span className="truncate">{formatted.label}</span>
       {isOverdue && variant === "default" && (
-        <span className="text-[10px] font-semibold uppercase tracking-wide opacity-80">
+        <span className="text-[10px] font-semibold uppercase tracking-wide opacity-80 shrink-0">
           Overdue
         </span>
       )}
@@ -240,7 +278,7 @@ export const TaskCheckbox = ({
   const getPriorityBorderColor = (): string | undefined => {
     if (checked) return undefined
     if (!priority || priority === "none") return undefined
-    return priorityConfig[priority]?.color
+    return priorityConfig[priority]?.color ?? undefined
   }
 
   const priorityBorderColor = getPriorityBorderColor()

@@ -172,6 +172,10 @@ export const SortableTaskRow = ({
     e.stopPropagation()
   }
 
+  // Determine grid columns based on what's shown
+  // Base: [drag][select?][check][title][project?][priority][due]
+  const showSelection = !!onToggleSelect
+
   return (
     <div
       ref={setRefs}
@@ -181,9 +185,18 @@ export const SortableTaskRow = ({
       onClick={handleRowClick}
       onKeyDown={onClick ? handleRowKeyDown : undefined}
       className={cn(
-        "group flex items-center gap-2 rounded-md px-2 py-2.5 transition-all duration-150",
+        "group rounded-md px-2 py-2.5 transition-all duration-150",
         "hover:bg-accent/50",
         onClick && "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        // Mobile: flex layout for stacked view
+        "flex flex-col gap-1",
+        // Tablet+: grid layout with fixed columns
+        // md: [drag 24px][select 20px][check 20px][title 1fr][priority 70px][due 110px] (no project)
+        // lg: [drag 24px][select 20px][check 20px][title 1fr][project 120px][priority 70px][due 110px]
+        "md:grid md:items-center md:gap-2",
+        showProjectBadge
+          ? "md:grid-cols-[24px_20px_20px_1fr_70px_110px] lg:grid-cols-[24px_20px_20px_1fr_120px_70px_110px]"
+          : "md:grid-cols-[24px_20px_20px_1fr_70px_110px]",
         // Urgency accent class takes priority, otherwise fall back to overdue styling
         accentClass ? accentClass : (isOverdue && !isCompleted && "border-l-2 border-l-destructive"),
         // Selection highlight (when checked for selection)
@@ -196,89 +209,120 @@ export const SortableTaskRow = ({
       )}
       aria-label={`Task: ${task.title}${isCompleted ? ", completed" : ""}`}
     >
-      {/* Drag Handle */}
-      <button
-        type="button"
-        data-drag-handle
-        {...attributes}
-        {...listeners}
-        className={cn(
-          "shrink-0 cursor-grab touch-none p-1 text-muted-foreground/50",
-          "hover:text-muted-foreground active:cursor-grabbing",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:rounded",
-          "opacity-0 group-hover:opacity-100 transition-opacity",
-          isDragging && "cursor-grabbing opacity-100"
-        )}
-        aria-label="Drag to reorder"
-      >
-        <GripVertical className="size-4" />
-      </button>
+      {/* Mobile: Main row with checkbox and title */}
+      {/* Desktop: Grid columns */}
+      <div className="flex items-center gap-2 md:contents">
+        {/* Drag Handle - Column 1 */}
+        <button
+          type="button"
+          data-drag-handle
+          {...attributes}
+          {...listeners}
+          className={cn(
+            "flex items-center justify-center cursor-grab touch-none text-muted-foreground/50",
+            "hover:text-muted-foreground active:cursor-grabbing",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:rounded",
+            "opacity-0 group-hover:opacity-100 transition-opacity",
+            // Hide on mobile
+            "hidden md:flex",
+            isDragging && "cursor-grabbing opacity-100"
+          )}
+          aria-label="Drag to reorder"
+        >
+          <GripVertical className="size-4" />
+        </button>
 
-      {/* Selection Checkbox - visible in selection mode or on hover */}
-      {onToggleSelect && (
+        {/* Selection Checkbox - Column 2 */}
         <div
           className={cn(
-            "shrink-0 transition-opacity",
-            isSelectionMode ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            "flex items-center justify-center transition-opacity",
+            // Hide on mobile
+            "hidden md:flex",
+            showSelection
+              ? (isSelectionMode ? "opacity-100" : "opacity-0 group-hover:opacity-100")
+              : "opacity-0"
           )}
         >
-          <SelectionCheckbox
-            checked={isCheckedForSelection}
-            onChange={handleSelectionCheckboxChange}
-            onClick={handleSelectionCheckboxClick}
-            aria-label={`Select ${task.title}`}
+          {showSelection && (
+            <SelectionCheckbox
+              checked={isCheckedForSelection}
+              onChange={handleSelectionCheckboxChange}
+              onClick={handleSelectionCheckboxClick}
+              aria-label={`Select ${task.title}`}
+            />
+          )}
+        </div>
+
+        {/* Task Completion Checkbox - Column 3 */}
+        <div className="flex items-center justify-center shrink-0">
+          <TaskCheckbox
+            checked={isCompleted}
+            onChange={handleToggleComplete}
           />
         </div>
-      )}
 
-      {/* Task Completion Checkbox */}
-      <TaskCheckbox
-        checked={isCompleted}
-        onChange={handleToggleComplete}
-      />
-
-      {/* Title with Repeat Indicator and Subtask Progress */}
-      <div className="flex flex-1 items-center gap-2 min-w-0">
-        <span
-          className={cn(
-            "truncate text-sm",
-            isCompleted
-              ? "text-text-tertiary line-through"
-              : "text-text-primary"
+        {/* Title with Repeat Indicator and Subtask Progress - Column 4 (flex-1) */}
+        <div className="flex flex-1 items-center gap-2 min-w-0">
+          <span
+            className={cn(
+              "truncate text-sm",
+              isCompleted
+                ? "text-text-tertiary line-through"
+                : "text-text-primary"
+            )}
+          >
+            {task.title}
+          </span>
+          {task.isRepeating && task.repeatConfig && !isCompleted && (
+            <RepeatIndicator config={task.repeatConfig} size="sm" />
           )}
-        >
-          {task.title}
-        </span>
-        {task.isRepeating && task.repeatConfig && !isCompleted && (
-          <RepeatIndicator config={task.repeatConfig} size="sm" />
+          {/* Subtask Progress */}
+          {hasSubtasks && !isCompleted && (
+            <SubtaskProgressBar progress={subtaskProgress} size="sm" className="max-w-[100px]" />
+          )}
+        </div>
+
+        {/* Project Badge - Column 5 (conditional, 120px) - hidden on mobile & tablet */}
+        {showProjectBadge && (
+          <div className="hidden lg:block">
+            <ProjectBadge project={project} fixedWidth />
+          </div>
         )}
-        {/* Subtask Progress */}
-        {hasSubtasks && !isCompleted && (
-          <SubtaskProgressBar progress={subtaskProgress} size="sm" className="max-w-[100px]" />
-        )}
+
+        {/* Priority Badge - Column 6 (70px) - hidden on mobile */}
+        <div className="hidden md:block">
+          <PriorityBadge
+            priority={isCompleted ? "none" : task.priority}
+            compact
+            fixedWidth
+          />
+        </div>
+
+        {/* Due Date Badge - Column 7 (110px) - hidden on mobile */}
+        <div className="hidden md:block">
+          <DueDateBadge
+            dueDate={task.dueDate}
+            dueTime={task.dueTime}
+            isRepeating={task.isRepeating}
+            fixedWidth
+            className={cn(isCompleted && "opacity-60")}
+          />
+        </div>
       </div>
 
-      {/* Right side badges container */}
-      <div className="flex items-center gap-3 shrink-0">
-        {/* Project Badge (conditional) */}
+      {/* Mobile: Stacked metadata row */}
+      <div className="flex items-center gap-2 pl-7 text-xs md:hidden">
         {showProjectBadge && (
           <ProjectBadge project={project} />
         )}
-
-        {/* Priority Badge (hidden when completed) */}
-        {!isCompleted && (
-          <PriorityBadge priority={task.priority} />
+        {!isCompleted && task.priority !== "none" && (
+          <PriorityBadge priority={task.priority} compact />
         )}
-
-        {/* Due Date Badge */}
         <DueDateBadge
           dueDate={task.dueDate}
           dueTime={task.dueTime}
           isRepeating={task.isRepeating}
-          className={cn(
-            "min-w-[80px] text-right",
-            isCompleted && "opacity-60"
-          )}
+          className={cn(isCompleted && "opacity-60")}
         />
       </div>
     </div>
