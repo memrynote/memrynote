@@ -1,0 +1,358 @@
+import { useRef, useEffect } from "react"
+import { useSortable } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { ChevronRight, GripVertical } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+import { formatDueDate } from "@/lib/task-utils"
+import { hasSubtasks, type SubtaskProgress } from "@/lib/subtask-utils"
+import {
+  TaskCheckbox,
+  ProjectBadge,
+  PriorityBadge,
+  DueDateBadge,
+} from "@/components/tasks/task-badges"
+import { RepeatIndicator } from "@/components/tasks/repeat-indicator"
+import { SelectionCheckbox } from "@/components/tasks/bulk-actions"
+import { SubtaskProgressBar } from "@/components/tasks/subtask-progress-bar"
+import { SubtaskRow } from "@/components/tasks/subtask-row"
+import type { Task } from "@/data/sample-tasks"
+import type { Project } from "@/data/tasks-data"
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+interface SortableParentTaskRowProps {
+  task: Task
+  project: Project
+  sectionId: string
+  subtasks: Task[]
+  progress: SubtaskProgress
+  isExpanded: boolean
+  isCompleted: boolean
+  isSelected?: boolean
+  showProjectBadge?: boolean
+  onToggleExpand: (taskId: string) => void
+  onToggleComplete: (taskId: string) => void
+  onClick?: (taskId: string) => void
+  className?: string
+  // Selection props
+  isSelectionMode?: boolean
+  isCheckedForSelection?: boolean
+  onToggleSelect?: (taskId: string) => void
+  onShiftSelect?: (taskId: string) => void
+}
+
+// ============================================================================
+// SORTABLE PARENT TASK ROW COMPONENT
+// ============================================================================
+
+export const SortableParentTaskRow = ({
+  task,
+  project,
+  sectionId,
+  subtasks,
+  progress,
+  isExpanded,
+  isCompleted,
+  isSelected = false,
+  showProjectBadge = false,
+  onToggleExpand,
+  onToggleComplete,
+  onClick,
+  className,
+  isSelectionMode = false,
+  isCheckedForSelection = false,
+  onToggleSelect,
+  onShiftSelect,
+}: SortableParentTaskRowProps): React.JSX.Element => {
+  const rowRef = useRef<HTMLDivElement>(null)
+  const taskHasSubtasks = hasSubtasks(task)
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: task.id,
+    data: {
+      type: "task",
+      task,
+      sectionId,
+      sourceType: "list",
+    },
+  })
+
+  // Scroll into view when focused via keyboard navigation
+  useEffect(() => {
+    if (isSelected && rowRef.current) {
+      rowRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      })
+    }
+  }, [isSelected])
+
+  // Combine refs
+  const setRefs = (node: HTMLDivElement | null): void => {
+    setNodeRef(node)
+      ; (rowRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+  }
+
+  // Apply transform and transition styles
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition: transition || "transform 200ms ease-out",
+  }
+
+  // Check if overdue
+  const formattedDate = formatDueDate(task.dueDate, task.dueTime)
+  const isOverdue = formattedDate?.status === "overdue" && !isCompleted
+
+  const handleRowClick = (e: React.MouseEvent): void => {
+    // Don't trigger if clicking on drag handle or expand button
+    if ((e.target as HTMLElement).closest("[data-drag-handle]")) {
+      return
+    }
+    if ((e.target as HTMLElement).closest("[data-expand-button]")) {
+      return
+    }
+
+    // Shift+click for range selection
+    if (e.shiftKey && isSelectionMode && onShiftSelect) {
+      e.preventDefault()
+      onShiftSelect(task.id)
+      return
+    }
+
+    // Cmd/Ctrl+click for toggle selection
+    if ((e.metaKey || e.ctrlKey) && onToggleSelect) {
+      e.preventDefault()
+      onToggleSelect(task.id)
+      return
+    }
+
+    // In selection mode, clicking toggles selection
+    if (isSelectionMode && onToggleSelect) {
+      onToggleSelect(task.id)
+      return
+    }
+
+    // Normal click behavior
+    onClick?.(task.id)
+  }
+
+  const handleRowKeyDown = (e: React.KeyboardEvent): void => {
+    if (e.key === "Enter" && onClick) {
+      e.preventDefault()
+      onClick(task.id)
+    }
+
+    // Keyboard navigation for expand/collapse
+    if (taskHasSubtasks) {
+      if (e.key === "ArrowRight" && !isExpanded) {
+        e.preventDefault()
+        onToggleExpand(task.id)
+      }
+      if (e.key === "ArrowLeft" && isExpanded) {
+        e.preventDefault()
+        onToggleExpand(task.id)
+      }
+    }
+  }
+
+  const handleExpandClick = (e: React.MouseEvent): void => {
+    e.stopPropagation()
+    if (taskHasSubtasks) {
+      onToggleExpand(task.id)
+    }
+  }
+
+  const handleExpandKeyDown = (e: React.KeyboardEvent): void => {
+    if ((e.key === "Enter" || e.key === " ") && taskHasSubtasks) {
+      e.preventDefault()
+      e.stopPropagation()
+      onToggleExpand(task.id)
+    }
+  }
+
+  const handleToggleComplete = (): void => {
+    onToggleComplete(task.id)
+  }
+
+  const handleSelectionCheckboxChange = (): void => {
+    onToggleSelect?.(task.id)
+  }
+
+  const handleSelectionCheckboxClick = (e: React.MouseEvent): void => {
+    e.stopPropagation()
+  }
+
+  return (
+    <div className={cn("group", className)}>
+      {/* Parent task row */}
+      <div
+        ref={setRefs}
+        style={style}
+        role="button"
+        tabIndex={onClick ? 0 : -1}
+        onClick={handleRowClick}
+        onKeyDown={onClick ? handleRowKeyDown : undefined}
+        className={cn(
+          "flex items-center gap-2 rounded-md px-2 py-2.5 transition-all duration-150",
+          "hover:bg-accent/50",
+          onClick && "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          isOverdue && "border-l-2 border-l-destructive",
+          // Selection highlight (when checked for selection)
+          isCheckedForSelection && "bg-primary/10 hover:bg-primary/15",
+          // Detail panel selected (not the same as selection mode)
+          isSelected && !isCheckedForSelection && "bg-primary/10 ring-2 ring-primary/30",
+          // Dragging state
+          isDragging && "opacity-50 shadow-lg ring-2 ring-primary bg-background z-10"
+        )}
+        aria-label={`Task: ${task.title}${isCompleted ? ", completed" : ""}${taskHasSubtasks ? `, ${subtasks.length} subtasks` : ""}`}
+      >
+        {/* Drag Handle */}
+        <button
+          type="button"
+          data-drag-handle
+          {...attributes}
+          {...listeners}
+          className={cn(
+            "shrink-0 cursor-grab touch-none p-1 text-muted-foreground/50",
+            "hover:text-muted-foreground active:cursor-grabbing",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:rounded",
+            "opacity-0 group-hover:opacity-100 transition-opacity",
+            isDragging && "cursor-grabbing opacity-100"
+          )}
+          aria-label="Drag to reorder"
+        >
+          <GripVertical className="size-4" />
+        </button>
+
+        {/* Selection Checkbox - visible in selection mode or on hover */}
+        {onToggleSelect && (
+          <div
+            className={cn(
+              "shrink-0 transition-opacity",
+              isSelectionMode ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            )}
+          >
+            <SelectionCheckbox
+              checked={isCheckedForSelection}
+              onChange={handleSelectionCheckboxChange}
+              onClick={handleSelectionCheckboxClick}
+              aria-label={`Select ${task.title}`}
+            />
+          </div>
+        )}
+
+        {/* Expand/collapse button */}
+        <button
+          type="button"
+          data-expand-button
+          onClick={handleExpandClick}
+          onKeyDown={handleExpandKeyDown}
+          tabIndex={taskHasSubtasks ? 0 : -1}
+          className={cn(
+            "w-5 h-5 flex items-center justify-center rounded shrink-0",
+            "hover:bg-accent transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            !taskHasSubtasks && "invisible" // Hide but maintain spacing
+          )}
+          aria-expanded={taskHasSubtasks ? isExpanded : undefined}
+          aria-label={isExpanded ? "Collapse subtasks" : "Expand subtasks"}
+          aria-controls={taskHasSubtasks ? `subtasks-${task.id}` : undefined}
+        >
+          <ChevronRight
+            className={cn(
+              "w-4 h-4 text-muted-foreground transition-transform duration-150",
+              isExpanded && "rotate-90"
+            )}
+            aria-hidden="true"
+          />
+        </button>
+
+        {/* Task checkbox */}
+        <TaskCheckbox
+          checked={isCompleted}
+          onChange={handleToggleComplete}
+        />
+
+        {/* Task content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "truncate text-sm",
+                isCompleted && "line-through text-muted-foreground"
+              )}
+            >
+              {task.title}
+            </span>
+            {task.isRepeating && task.repeatConfig && !isCompleted && (
+              <RepeatIndicator config={task.repeatConfig} size="sm" />
+            )}
+          </div>
+
+          {/* Progress bar (only if has subtasks) */}
+          {taskHasSubtasks && (
+            <div className="mt-1">
+              <SubtaskProgressBar progress={progress} size="sm" />
+            </div>
+          )}
+        </div>
+
+        {/* Right side badges container */}
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Project Badge (conditional) */}
+          {showProjectBadge && (
+            <ProjectBadge project={project} />
+          )}
+
+          {/* Priority Badge (hidden when completed) */}
+          {!isCompleted && (
+            <PriorityBadge priority={task.priority} />
+          )}
+
+          {/* Due Date Badge */}
+          <DueDateBadge
+            dueDate={task.dueDate}
+            dueTime={task.dueTime}
+            isRepeating={task.isRepeating}
+            className={cn(
+              "min-w-[80px] text-right",
+              isCompleted && "opacity-60"
+            )}
+          />
+        </div>
+      </div>
+
+      {/* Subtasks (when expanded) */}
+      {isExpanded && taskHasSubtasks && (
+        <div
+          id={`subtasks-${task.id}`}
+          role="group"
+          aria-label={`Subtasks of ${task.title}`}
+          className="ml-7 border-l border-border"
+        >
+          {subtasks.map((subtask, index) => (
+            <SubtaskRow
+              key={subtask.id}
+              subtask={subtask}
+              isLast={index === subtasks.length - 1}
+              onToggleComplete={onToggleComplete}
+              onClick={onClick}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default SortableParentTaskRow

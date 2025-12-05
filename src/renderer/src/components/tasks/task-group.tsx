@@ -3,7 +3,9 @@ import { useDroppable } from "@dnd-kit/core"
 
 import { cn } from "@/lib/utils"
 import { SortableTaskRow } from "@/components/tasks/drag-drop"
+import { SortableParentTaskRow } from "@/components/tasks/sortable-parent-task-row"
 import { isTaskCompleted, startOfDay, addDays } from "@/lib/task-utils"
+import { getTopLevelTasks, getSubtasks, calculateProgress, isSubtask } from "@/lib/subtask-utils"
 import type { Task } from "@/data/sample-tasks"
 import type { Project, Status } from "@/data/tasks-data"
 
@@ -56,6 +58,7 @@ interface TaskGroupHeaderProps {
 interface TaskGroupProps {
   label: string
   tasks: Task[]
+  allTasks: Task[] // All tasks for subtask lookup
   projects: Project[]
   accentColor?: string
   isMuted?: boolean
@@ -71,11 +74,15 @@ interface TaskGroupProps {
   selectedIds?: Set<string>
   onToggleSelect?: (taskId: string) => void
   onShiftSelect?: (taskId: string) => void
+  // Expand/collapse props
+  expandedIds?: Set<string>
+  onToggleExpand?: (taskId: string) => void
 }
 
 interface StatusTaskGroupProps {
   status: Status
   tasks: Task[]
+  allTasks: Task[] // All tasks for subtask lookup
   project: Project
   selectedTaskId?: string | null
   onToggleComplete: (taskId: string) => void
@@ -86,6 +93,9 @@ interface StatusTaskGroupProps {
   selectedIds?: Set<string>
   onToggleSelect?: (taskId: string) => void
   onShiftSelect?: (taskId: string) => void
+  // Expand/collapse props
+  expandedIds?: Set<string>
+  onToggleExpand?: (taskId: string) => void
 }
 
 // ============================================================================
@@ -127,6 +137,7 @@ const TaskGroupHeader = ({
 export const TaskGroup = ({
   label,
   tasks,
+  allTasks,
   projects,
   accentColor,
   isMuted = false,
@@ -141,6 +152,9 @@ export const TaskGroup = ({
   selectedIds,
   onToggleSelect,
   onShiftSelect,
+  // Expand/collapse props
+  expandedIds,
+  onToggleExpand,
 }: TaskGroupProps): React.JSX.Element | null => {
   // Create a unique section ID based on label
   const sectionId = `group-${label.toLowerCase().replace(/\s+/g, "-")}`
@@ -160,11 +174,17 @@ export const TaskGroup = ({
     },
   })
 
-  // Get task IDs for SortableContext
-  const taskIds = tasks.map((t) => t.id)
+  // Filter to only top-level tasks (subtasks are rendered within their parent)
+  const topLevelTasks = getTopLevelTasks(tasks)
 
-  // Don't render if no tasks
-  if (tasks.length === 0) return null
+  // Get task IDs for SortableContext (only top-level)
+  const taskIds = topLevelTasks.map((t) => t.id)
+
+  // Count top-level tasks for header display
+  const topLevelCount = topLevelTasks.length
+
+  // Don't render if no top-level tasks
+  if (topLevelCount === 0) return null
 
   return (
     <section
@@ -178,19 +198,50 @@ export const TaskGroup = ({
     >
       <TaskGroupHeader
         label={label}
-        count={tasks.length}
+        count={topLevelCount}
         accentColor={accentColor}
         isMuted={isMuted}
       />
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
         <div className="flex flex-col">
-          {tasks.map((task) => {
+          {topLevelTasks.map((task) => {
             const project = projects.find((p) => p.id === task.projectId)
             if (!project) return null
 
             const completed = isTaskCompleted(task, projects)
             const isCheckedForSelection = selectedIds?.has(task.id) ?? false
+            const subtasks = getSubtasks(task.id, allTasks || tasks)
+            const progress = calculateProgress(subtasks)
+            const hasSubtasksFlag = subtasks.length > 0
+            const isExpanded = expandedIds?.has(task.id) ?? false
 
+            // If task has subtasks and we have expand/collapse handlers, render with subtask support
+            if (hasSubtasksFlag && onToggleExpand) {
+              return (
+                <SortableParentTaskRow
+                  key={task.id}
+                  task={task}
+                  project={project}
+                  sectionId={sectionId}
+                  subtasks={subtasks}
+                  progress={progress}
+                  isExpanded={isExpanded}
+                  isCompleted={completed}
+                  isSelected={selectedTaskId === task.id}
+                  showProjectBadge={showProjectBadge}
+                  onToggleExpand={onToggleExpand}
+                  onToggleComplete={onToggleComplete}
+                  onClick={onTaskClick}
+                  // Selection props
+                  isSelectionMode={isSelectionMode}
+                  isCheckedForSelection={isCheckedForSelection}
+                  onToggleSelect={onToggleSelect}
+                  onShiftSelect={onShiftSelect}
+                />
+              )
+            }
+
+            // Regular task without subtasks
             return (
               <SortableTaskRow
                 key={task.id}
@@ -223,6 +274,7 @@ export const TaskGroup = ({
 export const StatusTaskGroup = ({
   status,
   tasks,
+  allTasks,
   project,
   selectedTaskId,
   onToggleComplete,
@@ -233,6 +285,9 @@ export const StatusTaskGroup = ({
   selectedIds,
   onToggleSelect,
   onShiftSelect,
+  // Expand/collapse props
+  expandedIds,
+  onToggleExpand,
 }: StatusTaskGroupProps): React.JSX.Element | null => {
   // Create section ID from status
   const sectionId = `status-${status.id}`
@@ -251,15 +306,18 @@ export const StatusTaskGroup = ({
     },
   })
 
-  // Get task IDs for SortableContext
-  const taskIds = tasks.map((t) => t.id)
+  // Filter to only top-level tasks
+  const topLevelTasks = getTopLevelTasks(tasks)
+
+  // Get task IDs for SortableContext (only top-level)
+  const taskIds = topLevelTasks.map((t) => t.id)
 
   const isDoneStatus = status.type === "done"
-  const isEmpty = tasks.length === 0
+  const topLevelCount = topLevelTasks.length
 
   // Don't render empty groups - same as TaskGroup
   // This prevents flickering issues with empty drop targets
-  if (isEmpty) return null
+  if (topLevelCount === 0) return null
 
   return (
     <section
@@ -273,15 +331,45 @@ export const StatusTaskGroup = ({
     >
       <TaskGroupHeader
         label={status.name.toUpperCase()}
-        count={tasks.length}
+        count={topLevelCount}
         accentColor={status.color}
         isMuted={isDoneStatus}
       />
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
         <div className="flex flex-col">
-          {tasks.map((task) => {
+          {topLevelTasks.map((task) => {
             const completed = status.type === "done"
             const isCheckedForSelection = selectedIds?.has(task.id) ?? false
+            const subtasks = getSubtasks(task.id, allTasks || tasks)
+            const progress = calculateProgress(subtasks)
+            const hasSubtasksFlag = subtasks.length > 0
+            const isExpanded = expandedIds?.has(task.id) ?? false
+
+            // If task has subtasks and we have expand/collapse handlers, render with subtask support
+            if (hasSubtasksFlag && onToggleExpand) {
+              return (
+                <SortableParentTaskRow
+                  key={task.id}
+                  task={task}
+                  project={project}
+                  sectionId={sectionId}
+                  subtasks={subtasks}
+                  progress={progress}
+                  isExpanded={isExpanded}
+                  isCompleted={completed}
+                  isSelected={selectedTaskId === task.id}
+                  showProjectBadge={false}
+                  onToggleExpand={onToggleExpand}
+                  onToggleComplete={onToggleComplete}
+                  onClick={onTaskClick}
+                  // Selection props
+                  isSelectionMode={isSelectionMode}
+                  isCheckedForSelection={isCheckedForSelection}
+                  onToggleSelect={onToggleSelect}
+                  onShiftSelect={onShiftSelect}
+                />
+              )
+            }
 
             return (
               <SortableTaskRow

@@ -14,6 +14,8 @@ import {
     type TaskGroupByDate,
     type TaskGroupByCompletion,
 } from "@/lib/task-utils"
+import { getTopLevelTasks } from "@/lib/subtask-utils"
+import { useExpandedTasks } from "@/hooks"
 import type { Task } from "@/data/sample-tasks"
 import type { Project } from "@/data/tasks-data"
 
@@ -52,6 +54,7 @@ interface TaskListProps {
 
 interface TaskListByDueDateProps {
     tasks: Task[]
+    allTasks: Task[] // All tasks for subtask lookup
     projects: Project[]
     showProjectBadge: boolean
     selectedTaskId?: string | null
@@ -62,10 +65,14 @@ interface TaskListByDueDateProps {
     selectedIds?: Set<string>
     onToggleSelect?: (taskId: string) => void
     onShiftSelect?: (taskId: string) => void
+    // Expand/collapse props
+    expandedIds: Set<string>
+    onToggleExpand: (taskId: string) => void
 }
 
 const TaskListByDueDate = ({
     tasks,
+    allTasks,
     projects,
     showProjectBadge,
     selectedTaskId,
@@ -76,6 +83,9 @@ const TaskListByDueDate = ({
     selectedIds,
     onToggleSelect,
     onShiftSelect,
+    // Expand/collapse props
+    expandedIds,
+    onToggleExpand,
 }: TaskListByDueDateProps): React.JSX.Element => {
     const groupedTasks = useMemo(() => groupTasksByDueDate(tasks), [tasks])
 
@@ -99,6 +109,7 @@ const TaskListByDueDate = ({
                         key={groupKey}
                         label={config.label}
                         tasks={tasksInGroup}
+                        allTasks={allTasks}
                         projects={projects}
                         accentColor={config.accentColor}
                         isMuted={config.isMuted}
@@ -111,6 +122,9 @@ const TaskListByDueDate = ({
                         selectedIds={selectedIds}
                         onToggleSelect={onToggleSelect}
                         onShiftSelect={onShiftSelect}
+                        // Expand/collapse props
+                        expandedIds={expandedIds}
+                        onToggleExpand={onToggleExpand}
                     />
                 )
             })}
@@ -124,6 +138,7 @@ const TaskListByDueDate = ({
 
 interface TaskListByCompletionProps {
     tasks: Task[]
+    allTasks: Task[] // All tasks for subtask lookup
     projects: Project[]
     selectedTaskId?: string | null
     onToggleComplete: (taskId: string) => void
@@ -133,10 +148,14 @@ interface TaskListByCompletionProps {
     selectedIds?: Set<string>
     onToggleSelect?: (taskId: string) => void
     onShiftSelect?: (taskId: string) => void
+    // Expand/collapse props
+    expandedIds: Set<string>
+    onToggleExpand: (taskId: string) => void
 }
 
 const TaskListByCompletion = ({
     tasks,
+    allTasks,
     projects,
     selectedTaskId,
     onToggleComplete,
@@ -146,6 +165,9 @@ const TaskListByCompletion = ({
     selectedIds,
     onToggleSelect,
     onShiftSelect,
+    // Expand/collapse props
+    expandedIds,
+    onToggleExpand,
 }: TaskListByCompletionProps): React.JSX.Element => {
     const groupedTasks = useMemo(() => groupTasksByCompletion(tasks), [tasks])
 
@@ -162,6 +184,7 @@ const TaskListByCompletion = ({
                         key={groupKey}
                         label={config.label}
                         tasks={tasksInGroup}
+                        allTasks={allTasks}
                         projects={projects}
                         accentColor={config.accentColor}
                         isMuted={config.isMuted}
@@ -174,6 +197,9 @@ const TaskListByCompletion = ({
                         selectedIds={selectedIds}
                         onToggleSelect={onToggleSelect}
                         onShiftSelect={onShiftSelect}
+                        // Expand/collapse props
+                        expandedIds={expandedIds}
+                        onToggleExpand={onToggleExpand}
                     />
                 )
             })}
@@ -187,6 +213,7 @@ const TaskListByCompletion = ({
 
 interface TaskListByStatusProps {
     tasks: Task[]
+    allTasks: Task[] // All tasks for subtask lookup
     project: Project
     selectedTaskId?: string | null
     onToggleComplete: (taskId: string) => void
@@ -196,10 +223,14 @@ interface TaskListByStatusProps {
     selectedIds?: Set<string>
     onToggleSelect?: (taskId: string) => void
     onShiftSelect?: (taskId: string) => void
+    // Expand/collapse props
+    expandedIds: Set<string>
+    onToggleExpand: (taskId: string) => void
 }
 
 const TaskListByStatus = ({
     tasks,
+    allTasks,
     project,
     selectedTaskId,
     onToggleComplete,
@@ -209,6 +240,9 @@ const TaskListByStatus = ({
     selectedIds,
     onToggleSelect,
     onShiftSelect,
+    // Expand/collapse props
+    expandedIds,
+    onToggleExpand,
 }: TaskListByStatusProps): React.JSX.Element => {
     const groupedTasks = useMemo(
         () => groupTasksByStatus(tasks, project.statuses),
@@ -222,6 +256,7 @@ const TaskListByStatus = ({
                     key={group.status.id}
                     status={group.status}
                     tasks={group.tasks}
+                    allTasks={allTasks}
                     project={project}
                     selectedTaskId={selectedTaskId}
                     onToggleComplete={onToggleComplete}
@@ -231,6 +266,9 @@ const TaskListByStatus = ({
                     selectedIds={selectedIds}
                     onToggleSelect={onToggleSelect}
                     onShiftSelect={onShiftSelect}
+                    // Expand/collapse props
+                    expandedIds={expandedIds}
+                    onToggleExpand={onToggleExpand}
                 />
             ))}
         </>
@@ -258,6 +296,13 @@ export const TaskList = ({
     onToggleSelect,
     onShiftSelect,
 }: TaskListProps): React.JSX.Element => {
+    // Expand/collapse state with persistence per view
+    const storageKey = selectedType === "project" ? `project-${selectedId}` : selectedId
+    const { expandedIds, toggleExpanded } = useExpandedTasks({
+        storageKey,
+        persist: true,
+    })
+
     // Determine if we should show the quick add input
     // Hide for "completed" view since you can't add completed tasks
     const showQuickAdd = selectedId !== "completed"
@@ -277,8 +322,9 @@ export const TaskList = ({
         ? projects.find((p) => p.id === selectedId)
         : null
 
-    // Check if empty
-    const isEmpty = tasks.length === 0
+    // Check if empty (only count top-level tasks)
+    const topLevelTasks = useMemo(() => getTopLevelTasks(tasks), [tasks])
+    const isEmpty = topLevelTasks.length === 0
 
     // Render content based on selection
     const renderContent = (): React.JSX.Element => {
@@ -297,6 +343,7 @@ export const TaskList = ({
             return (
                 <TaskListByStatus
                     tasks={tasks}
+                    allTasks={tasks}
                     project={selectedProject}
                     selectedTaskId={selectedTaskId}
                     onToggleComplete={onToggleComplete}
@@ -306,6 +353,9 @@ export const TaskList = ({
                     selectedIds={selectedIds}
                     onToggleSelect={onToggleSelect}
                     onShiftSelect={onShiftSelect}
+                    // Expand/collapse props
+                    expandedIds={expandedIds}
+                    onToggleExpand={toggleExpanded}
                 />
             )
         }
@@ -315,6 +365,7 @@ export const TaskList = ({
             return (
                 <TaskListByCompletion
                     tasks={tasks}
+                    allTasks={tasks}
                     projects={projects}
                     selectedTaskId={selectedTaskId}
                     onToggleComplete={onToggleComplete}
@@ -324,6 +375,9 @@ export const TaskList = ({
                     selectedIds={selectedIds}
                     onToggleSelect={onToggleSelect}
                     onShiftSelect={onShiftSelect}
+                    // Expand/collapse props
+                    expandedIds={expandedIds}
+                    onToggleExpand={toggleExpanded}
                 />
             )
         }
@@ -332,6 +386,7 @@ export const TaskList = ({
         return (
             <TaskListByDueDate
                 tasks={tasks}
+                allTasks={tasks}
                 projects={projects}
                 showProjectBadge={true}
                 selectedTaskId={selectedTaskId}
@@ -342,6 +397,9 @@ export const TaskList = ({
                 selectedIds={selectedIds}
                 onToggleSelect={onToggleSelect}
                 onShiftSelect={onShiftSelect}
+                // Expand/collapse props
+                expandedIds={expandedIds}
+                onToggleExpand={toggleExpanded}
             />
         )
     }
