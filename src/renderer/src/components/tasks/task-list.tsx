@@ -46,6 +46,9 @@ interface TaskListProps {
     selectedIds?: Set<string>
     onToggleSelect?: (taskId: string) => void
     onShiftSelect?: (taskId: string) => void
+    // Subtask management props
+    onAddSubtask?: (parentId: string, title: string) => void
+    onReorderSubtasks?: (parentId: string, newOrder: string[]) => void
 }
 
 // ============================================================================
@@ -68,6 +71,9 @@ interface TaskListByDueDateProps {
     // Expand/collapse props
     expandedIds: Set<string>
     onToggleExpand: (taskId: string) => void
+    // Subtask management props
+    onAddSubtask?: (parentId: string, title: string) => void
+    onReorderSubtasks?: (parentId: string, newOrder: string[]) => void
 }
 
 const TaskListByDueDate = ({
@@ -86,6 +92,9 @@ const TaskListByDueDate = ({
     // Expand/collapse props
     expandedIds,
     onToggleExpand,
+    // Subtask management props
+    onAddSubtask,
+    onReorderSubtasks,
 }: TaskListByDueDateProps): React.JSX.Element => {
     const groupedTasks = useMemo(() => groupTasksByDueDate(tasks), [tasks])
 
@@ -125,6 +134,9 @@ const TaskListByDueDate = ({
                         // Expand/collapse props
                         expandedIds={expandedIds}
                         onToggleExpand={onToggleExpand}
+                        // Subtask management props
+                        onAddSubtask={onAddSubtask}
+                        onReorderSubtasks={onReorderSubtasks}
                     />
                 )
             })}
@@ -151,6 +163,9 @@ interface TaskListByCompletionProps {
     // Expand/collapse props
     expandedIds: Set<string>
     onToggleExpand: (taskId: string) => void
+    // Subtask management props
+    onAddSubtask?: (parentId: string, title: string) => void
+    onReorderSubtasks?: (parentId: string, newOrder: string[]) => void
 }
 
 const TaskListByCompletion = ({
@@ -168,6 +183,9 @@ const TaskListByCompletion = ({
     // Expand/collapse props
     expandedIds,
     onToggleExpand,
+    // Subtask management props
+    onAddSubtask,
+    onReorderSubtasks,
 }: TaskListByCompletionProps): React.JSX.Element => {
     const groupedTasks = useMemo(() => groupTasksByCompletion(tasks), [tasks])
 
@@ -200,6 +218,9 @@ const TaskListByCompletion = ({
                         // Expand/collapse props
                         expandedIds={expandedIds}
                         onToggleExpand={onToggleExpand}
+                        // Subtask management props
+                        onAddSubtask={onAddSubtask}
+                        onReorderSubtasks={onReorderSubtasks}
                     />
                 )
             })}
@@ -226,6 +247,9 @@ interface TaskListByStatusProps {
     // Expand/collapse props
     expandedIds: Set<string>
     onToggleExpand: (taskId: string) => void
+    // Subtask management props
+    onAddSubtask?: (parentId: string, title: string) => void
+    onReorderSubtasks?: (parentId: string, newOrder: string[]) => void
 }
 
 const TaskListByStatus = ({
@@ -243,6 +267,9 @@ const TaskListByStatus = ({
     // Expand/collapse props
     expandedIds,
     onToggleExpand,
+    // Subtask management props
+    onAddSubtask,
+    onReorderSubtasks,
 }: TaskListByStatusProps): React.JSX.Element => {
     const groupedTasks = useMemo(
         () => groupTasksByStatus(tasks, project.statuses),
@@ -269,6 +296,9 @@ const TaskListByStatus = ({
                     // Expand/collapse props
                     expandedIds={expandedIds}
                     onToggleExpand={onToggleExpand}
+                    // Subtask management props
+                    onAddSubtask={onAddSubtask}
+                    onReorderSubtasks={onReorderSubtasks}
                 />
             ))}
         </>
@@ -295,6 +325,9 @@ export const TaskList = ({
     selectedIds,
     onToggleSelect,
     onShiftSelect,
+    // Subtask management props
+    onAddSubtask,
+    onReorderSubtasks,
 }: TaskListProps): React.JSX.Element => {
     // Expand/collapse state with persistence per view
     const storageKey = selectedType === "project" ? `project-${selectedId}` : selectedId
@@ -356,6 +389,9 @@ export const TaskList = ({
                     // Expand/collapse props
                     expandedIds={expandedIds}
                     onToggleExpand={toggleExpanded}
+                    // Subtask management props
+                    onAddSubtask={onAddSubtask}
+                    onReorderSubtasks={onReorderSubtasks}
                 />
             )
         }
@@ -378,6 +414,9 @@ export const TaskList = ({
                     // Expand/collapse props
                     expandedIds={expandedIds}
                     onToggleExpand={toggleExpanded}
+                    // Subtask management props
+                    onAddSubtask={onAddSubtask}
+                    onReorderSubtasks={onReorderSubtasks}
                 />
             )
         }
@@ -400,6 +439,9 @@ export const TaskList = ({
                 // Expand/collapse props
                 expandedIds={expandedIds}
                 onToggleExpand={toggleExpanded}
+                // Subtask management props
+                onAddSubtask={onAddSubtask}
+                onReorderSubtasks={onReorderSubtasks}
             />
         )
     }

@@ -77,6 +77,9 @@ interface TaskGroupProps {
   // Expand/collapse props
   expandedIds?: Set<string>
   onToggleExpand?: (taskId: string) => void
+  // Subtask management props
+  onAddSubtask?: (parentId: string, title: string) => void
+  onReorderSubtasks?: (parentId: string, newOrder: string[]) => void
 }
 
 interface StatusTaskGroupProps {
@@ -96,6 +99,9 @@ interface StatusTaskGroupProps {
   // Expand/collapse props
   expandedIds?: Set<string>
   onToggleExpand?: (taskId: string) => void
+  // Subtask management props
+  onAddSubtask?: (parentId: string, title: string) => void
+  onReorderSubtasks?: (parentId: string, newOrder: string[]) => void
 }
 
 // ============================================================================
@@ -155,6 +161,9 @@ export const TaskGroup = ({
   // Expand/collapse props
   expandedIds,
   onToggleExpand,
+  // Subtask management props
+  onAddSubtask,
+  onReorderSubtasks,
 }: TaskGroupProps): React.JSX.Element | null => {
   // Create a unique section ID based on label
   const sectionId = `group-${label.toLowerCase().replace(/\s+/g, "-")}`
@@ -237,6 +246,9 @@ export const TaskGroup = ({
                   isCheckedForSelection={isCheckedForSelection}
                   onToggleSelect={onToggleSelect}
                   onShiftSelect={onShiftSelect}
+                  // Subtask management props
+                  onAddSubtask={onAddSubtask}
+                  onReorderSubtasks={onReorderSubtasks}
                 />
               )
             }
@@ -288,6 +300,9 @@ export const StatusTaskGroup = ({
   // Expand/collapse props
   expandedIds,
   onToggleExpand,
+  // Subtask management props
+  onAddSubtask,
+  onReorderSubtasks,
 }: StatusTaskGroupProps): React.JSX.Element | null => {
   // Create section ID from status
   const sectionId = `status-${status.id}`
@@ -367,6 +382,9 @@ export const StatusTaskGroup = ({
                   isCheckedForSelection={isCheckedForSelection}
                   onToggleSelect={onToggleSelect}
                   onShiftSelect={onShiftSelect}
+                  // Subtask management props
+                  onAddSubtask={onAddSubtask}
+                  onReorderSubtasks={onReorderSubtasks}
                 />
               )
             }

@@ -65,7 +65,7 @@ import { sampleTasks, createDefaultTask, generateTaskId, type Task, type Priorit
 import { addDays } from "@/lib/task-utils"
 import { calculateNextOccurrence, shouldCreateNextOccurrence } from "@/lib/repeat-utils"
 import type { StopRepeatOption } from "@/components/tasks/stop-repeating-dialog"
-import { useFilterState, useSavedFilters, useFilteredAndSortedTasks, useTaskSelection, useBulkActions, useDragHandlers } from "@/hooks"
+import { useFilterState, useSavedFilters, useFilteredAndSortedTasks, useTaskSelection, useBulkActions, useDragHandlers, useSubtaskManagement } from "@/hooks"
 import { BulkActionToolbar, BulkDeleteDialog, BulkDueDatePicker } from "@/components/tasks/bulk-actions"
 
 // ============================================================================
@@ -652,6 +652,13 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
         },
         [onDragEndHandler, deselectAll]
     )
+
+    // Subtask management hook
+    const subtaskManagement = useSubtaskManagement({
+        tasks,
+        projects: projectsWithCounts,
+        onTasksChange: setTasks,
+    })
 
     // Derived: task counts for header
     const taskCounts = useMemo(() => {
@@ -1816,6 +1823,7 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
             <TaskDetailPanel
                 isOpen={isDetailPanelOpen}
                 task={selectedTask}
+                allTasks={tasks}
                 projects={projectsWithCounts}
                 isCompleted={isSelectedTaskCompleted}
                 onClose={handleCloseDetailPanel}
@@ -1825,6 +1833,12 @@ export const TasksPage = ({ className }: TasksPageProps): React.JSX.Element => {
                 onDuplicateTask={handleDuplicateTask}
                 onSkipOccurrence={handleSkipOccurrence}
                 onStopRepeating={handleStopRepeating}
+                onAddSubtask={subtaskManagement.handleAddSubtask}
+                onBulkAddSubtasks={subtaskManagement.handleBulkAddSubtasks}
+                onUpdateSubtask={handleUpdateTask}
+                onDeleteSubtask={subtaskManagement.handleDeleteSubtask}
+                onReorderSubtasks={subtaskManagement.handleReorderSubtasks}
+                onPromoteSubtask={subtaskManagement.handlePromoteToTask}
             />
 
             {/* Clear Completed Menu */}

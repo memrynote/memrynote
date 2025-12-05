@@ -15,7 +15,7 @@ import {
 import { RepeatIndicator } from "@/components/tasks/repeat-indicator"
 import { SelectionCheckbox } from "@/components/tasks/bulk-actions"
 import { SubtaskProgressBar } from "@/components/tasks/subtask-progress-bar"
-import { SubtaskRow } from "@/components/tasks/subtask-row"
+import { SortableSubtaskList } from "@/components/tasks/sortable-subtask-list"
 import type { Task } from "@/data/sample-tasks"
 import type { Project } from "@/data/tasks-data"
 
@@ -42,6 +42,9 @@ interface SortableParentTaskRowProps {
   isCheckedForSelection?: boolean
   onToggleSelect?: (taskId: string) => void
   onShiftSelect?: (taskId: string) => void
+  // Subtask management props
+  onAddSubtask?: (parentId: string, title: string) => void
+  onReorderSubtasks?: (parentId: string, newOrder: string[]) => void
 }
 
 // ============================================================================
@@ -66,6 +69,8 @@ export const SortableParentTaskRow = ({
   isCheckedForSelection = false,
   onToggleSelect,
   onShiftSelect,
+  onAddSubtask,
+  onReorderSubtasks,
 }: SortableParentTaskRowProps): React.JSX.Element => {
   const rowRef = useRef<HTMLDivElement>(null)
   const taskHasSubtasks = hasSubtasks(task)
@@ -333,23 +338,16 @@ export const SortableParentTaskRow = ({
       </div>
 
       {/* Subtasks (when expanded) */}
-      {isExpanded && taskHasSubtasks && (
-        <div
-          id={`subtasks-${task.id}`}
-          role="group"
-          aria-label={`Subtasks of ${task.title}`}
-          className="ml-7 border-l border-border"
-        >
-          {subtasks.map((subtask, index) => (
-            <SubtaskRow
-              key={subtask.id}
-              subtask={subtask}
-              isLast={index === subtasks.length - 1}
-              onToggleComplete={onToggleComplete}
-              onClick={onClick}
-            />
-          ))}
-        </div>
+      {isExpanded && (
+        <SortableSubtaskList
+          parentId={task.id}
+          parentTitle={task.title}
+          subtasks={subtasks}
+          onReorder={onReorderSubtasks || (() => { })}
+          onToggleComplete={onToggleComplete}
+          onAddSubtask={onAddSubtask}
+          onClick={onClick}
+        />
       )}
     </div>
   )

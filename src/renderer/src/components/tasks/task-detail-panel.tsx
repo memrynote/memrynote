@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -11,7 +11,9 @@ import { TaskMetadata } from "./task-metadata"
 import { TaskDetailFooter } from "./task-detail-footer"
 import { DeleteTaskDialog } from "./delete-task-dialog"
 import { StopRepeatingDialog, type StopRepeatOption } from "./stop-repeating-dialog"
+import { SubtasksSection } from "./detail-panel"
 import { cn } from "@/lib/utils"
+import { getSubtasks, calculateProgress, canHaveSubtasks } from "@/lib/subtask-utils"
 import type { Task, Priority, RepeatConfig } from "@/data/sample-tasks"
 import type { Project } from "@/data/tasks-data"
 
@@ -22,6 +24,7 @@ import type { Project } from "@/data/tasks-data"
 interface TaskDetailPanelProps {
   isOpen: boolean
   task: Task | null
+  allTasks: Task[]
   projects: Project[]
   isCompleted: boolean
   onClose: () => void
@@ -31,6 +34,13 @@ interface TaskDetailPanelProps {
   onDuplicateTask: (taskId: string) => void
   onSkipOccurrence?: (taskId: string) => void
   onStopRepeating?: (taskId: string, option: StopRepeatOption) => void
+  // Subtask management props
+  onAddSubtask?: (parentId: string, title: string) => void
+  onBulkAddSubtasks?: (parentId: string, titles: string[]) => void
+  onUpdateSubtask?: (subtaskId: string, updates: Partial<Task>) => void
+  onDeleteSubtask?: (subtaskId: string) => void
+  onReorderSubtasks?: (parentId: string, newOrder: string[]) => void
+  onPromoteSubtask?: (subtaskId: string) => void
   className?: string
 }
 
@@ -41,6 +51,7 @@ interface TaskDetailPanelProps {
 export const TaskDetailPanel = ({
   isOpen,
   task,
+  allTasks,
   projects,
   isCompleted,
   onClose,
@@ -50,10 +61,29 @@ export const TaskDetailPanel = ({
   onDuplicateTask,
   onSkipOccurrence,
   onStopRepeating,
+  onAddSubtask,
+  onBulkAddSubtasks,
+  onUpdateSubtask,
+  onDeleteSubtask,
+  onReorderSubtasks,
+  onPromoteSubtask,
   className,
 }: TaskDetailPanelProps): React.JSX.Element => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isStopRepeatDialogOpen, setIsStopRepeatDialogOpen] = useState(false)
+
+  // Calculate subtasks and progress
+  const subtasks = useMemo(() => {
+    if (!task) return []
+    return getSubtasks(task.id, allTasks)
+  }, [task, allTasks])
+
+  const subtaskProgress = useMemo(() => {
+    return calculateProgress(subtasks)
+  }, [subtasks])
+
+  // Check if task can have subtasks (top-level tasks only)
+  const showSubtasksSection = task ? canHaveSubtasks(task) : false
 
   // Handle escape key to close
   useEffect(() => {
@@ -220,6 +250,49 @@ export const TaskDetailPanel = ({
     }
   }, [task])
 
+  // Subtask handlers
+  const handleAddSubtask = useCallback(
+    (parentId: string, title: string): void => {
+      onAddSubtask?.(parentId, title)
+    },
+    [onAddSubtask]
+  )
+
+  const handleBulkAddSubtasks = useCallback(
+    (parentId: string, titles: string[]): void => {
+      onBulkAddSubtasks?.(parentId, titles)
+    },
+    [onBulkAddSubtasks]
+  )
+
+  const handleUpdateSubtask = useCallback(
+    (subtaskId: string, updates: Partial<Task>): void => {
+      onUpdateSubtask?.(subtaskId, updates)
+    },
+    [onUpdateSubtask]
+  )
+
+  const handleDeleteSubtask = useCallback(
+    (subtaskId: string): void => {
+      onDeleteSubtask?.(subtaskId)
+    },
+    [onDeleteSubtask]
+  )
+
+  const handleReorderSubtasks = useCallback(
+    (parentId: string, newOrder: string[]): void => {
+      onReorderSubtasks?.(parentId, newOrder)
+    },
+    [onReorderSubtasks]
+  )
+
+  const handlePromoteSubtask = useCallback(
+    (subtaskId: string): void => {
+      onPromoteSubtask?.(subtaskId)
+    },
+    [onPromoteSubtask]
+  )
+
   return (
     <>
       <AnimatePresence>
@@ -285,6 +358,26 @@ export const TaskDetailPanel = ({
 
                   {/* Divider */}
                   <div className="h-px bg-border" />
+
+                  {/* Subtasks Section (only for top-level tasks) */}
+                  {showSubtasksSection && onAddSubtask && (
+                    <>
+                      <SubtasksSection
+                        parentTask={task}
+                        subtasks={subtasks}
+                        progress={subtaskProgress}
+                        onAddSubtask={handleAddSubtask}
+                        onBulkAddSubtasks={handleBulkAddSubtasks}
+                        onUpdateSubtask={handleUpdateSubtask}
+                        onDeleteSubtask={handleDeleteSubtask}
+                        onReorderSubtasks={handleReorderSubtasks}
+                        onPromoteSubtask={handlePromoteSubtask}
+                      />
+
+                      {/* Divider */}
+                      <div className="h-px bg-border" />
+                    </>
+                  )}
 
                   {/* Repeat */}
                   <TaskRepeatDisplay
