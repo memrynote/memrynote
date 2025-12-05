@@ -654,36 +654,43 @@ export const TasksPage = ({
                     completedCount: newCompletedCount,
                 })
 
-                setTasks((prev) =>
-                    prev.map((task) =>
+                // Update tasks in a single setState call to avoid race conditions
+                setTasks((prev) => {
+                    // First, mark the completed task as done
+                    const updatedTasks = prev.map((task) =>
                         task.id === taskId
                             ? {
                                 ...task,
                                 statusId: doneStatus?.id || task.statusId,
                                 completedAt: new Date(),
-                                repeatConfig: {
-                                    ...config,
-                                    completedCount: newCompletedCount,
-                                },
+                                // Mark completed occurrence as non-repeating so it shows in Done section
+                                isRepeating: false,
+                                repeatConfig: null,
                             }
                             : task
                     )
-                )
+
+                    // Then, if we should create the next occurrence, add it
+                    if (shouldCreateNext && nextDate) {
+                        const newTask: Task = {
+                            ...taskToComplete,
+                            id: generateTaskId(),
+                            dueDate: nextDate,
+                            statusId: getDefaultTodoStatus(project)?.id || taskToComplete.statusId,
+                            completedAt: null,
+                            createdAt: new Date(),
+                            repeatConfig: {
+                                ...config,
+                                completedCount: newCompletedCount,
+                            },
+                        }
+                        return [...updatedTasks, newTask]
+                    }
+
+                    return updatedTasks
+                })
 
                 if (shouldCreateNext && nextDate) {
-                    const newTask: Task = {
-                        ...taskToComplete,
-                        id: generateTaskId(),
-                        dueDate: nextDate,
-                        statusId: getDefaultTodoStatus(project)?.id || taskToComplete.statusId,
-                        completedAt: null,
-                        createdAt: new Date(),
-                        repeatConfig: {
-                            ...config,
-                            completedCount: newCompletedCount,
-                        },
-                    }
-                    setTasks((prev) => [...prev, newTask])
                     toast.success("Task completed!", {
                         description: `Next occurrence: ${formatDateShort(nextDate)}`,
                     })
@@ -1282,7 +1289,7 @@ export const TasksPage = ({
                                 />
                             ) : (
                                 <KanbanBoard
-                                    tasks={filteredTasks}
+                                    tasks={projectListTasks}
                                     projects={projects}
                                     selectedId={selectedId}
                                     selectedType={selectedType}

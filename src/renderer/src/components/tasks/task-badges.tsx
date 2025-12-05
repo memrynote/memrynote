@@ -1,4 +1,4 @@
-import { Repeat } from "lucide-react"
+import { Repeat, Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { formatDueDate, type DueDateStatus } from "@/lib/task-utils"
@@ -10,6 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { Checkbox } from "@/components/ui/checkbox"
 
 // ============================================================================
 // PROJECT BADGE
@@ -261,15 +262,10 @@ export const TaskCheckbox = ({
 }: TaskCheckboxProps): React.JSX.Element => {
   const handleClick = (e: React.MouseEvent): void => {
     e.stopPropagation()
-    if (!disabled) {
-      onChange()
-    }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent): void => {
-    if ((e.key === "Enter" || e.key === " ") && !disabled) {
-      e.preventDefault()
-      e.stopPropagation()
+  const handleCheckedChange = (): void => {
+    if (!disabled) {
       onChange()
     }
   }
@@ -284,40 +280,32 @@ export const TaskCheckbox = ({
   const priorityBorderColor = getPriorityBorderColor()
 
   return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
+    <div
+      className="group/checkbox relative"
       onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      disabled={disabled}
-      tabIndex={0}
-      className={cn(
-        "size-5 shrink-0 rounded-full border-2 transition-all duration-150",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-        checked
-          ? "border-primary bg-primary"
-          : "border-muted-foreground/40 hover:border-primary",
-        disabled && "cursor-not-allowed opacity-50",
-        className
-      )}
-      style={priorityBorderColor ? { borderColor: priorityBorderColor } : undefined}
-      aria-label={checked ? "Mark as incomplete" : "Mark as complete"}
     >
-      {checked && (
-        <svg
-          className="size-full text-primary-foreground"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
+      <Checkbox
+        checked={checked}
+        onCheckedChange={handleCheckedChange}
+        disabled={disabled}
+        className={cn(
+          "size-[18px] rounded-[4px] border-[1.5px] transition-all duration-200",
+          "data-[state=unchecked]:border-muted-foreground/40",
+          "data-[state=unchecked]:hover:border-primary/70 data-[state=unchecked]:hover:bg-primary/8",
+          "data-[state=checked]:border-primary data-[state=checked]:bg-primary",
+          className
+        )}
+        style={priorityBorderColor ? { borderColor: priorityBorderColor } : undefined}
+        aria-label={checked ? "Mark as incomplete" : "Mark as complete"}
+      />
+      {/* Hover state - soft checkmark preview */}
+      {!checked && !disabled && (
+        <Check
+          className="absolute inset-0 m-auto size-3 text-primary/25 opacity-0 group-hover/checkbox:opacity-100 transition-opacity duration-200 pointer-events-none"
+          strokeWidth={3}
+        />
       )}
-    </button>
+    </div>
   )
 }
 

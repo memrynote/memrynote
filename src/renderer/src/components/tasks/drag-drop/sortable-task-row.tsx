@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from "react"
+import { useRef, useEffect, useMemo, useState } from "react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical } from "lucide-react"
@@ -45,6 +45,9 @@ interface SortableTaskRowProps {
   accentClass?: string
 }
 
+// Exit animation duration in ms (matches --duration-normal CSS variable)
+const EXIT_ANIMATION_DURATION = 200
+
 // ============================================================================
 // SORTABLE TASK ROW COMPONENT
 // ============================================================================
@@ -67,6 +70,7 @@ export const SortableTaskRow = ({
   accentClass,
 }: SortableTaskRowProps): React.JSX.Element => {
   const rowRef = useRef<HTMLDivElement>(null)
+  const [isExiting, setIsExiting] = useState(false)
 
   // Calculate subtasks and progress
   const subtasks = useMemo(() => {
@@ -161,7 +165,17 @@ export const SortableTaskRow = ({
   }
 
   const handleToggleComplete = (): void => {
-    onToggleComplete(task.id)
+    // If task is not completed (about to be completed), play exit animation
+    if (!isCompleted) {
+      setIsExiting(true)
+      // Delay the actual toggle to allow animation to play
+      setTimeout(() => {
+        onToggleComplete(task.id)
+      }, EXIT_ANIMATION_DURATION)
+    } else {
+      // If unchecking, no animation needed
+      onToggleComplete(task.id)
+    }
   }
 
   const handleSelectionCheckboxChange = (): void => {
@@ -191,12 +205,17 @@ export const SortableTaskRow = ({
         // Mobile: flex layout for stacked view
         "flex flex-col gap-1",
         // Tablet+: grid layout with fixed columns
-        // md: [drag 24px][select 20px][check 20px][title 1fr][priority 70px][due 110px] (no project)
-        // lg: [drag 24px][select 20px][check 20px][title 1fr][project 120px][priority 70px][due 110px]
-        "md:grid md:items-center md:gap-2",
-        showProjectBadge
-          ? "md:grid-cols-[24px_20px_20px_1fr_70px_110px] lg:grid-cols-[24px_20px_20px_1fr_120px_70px_110px]"
-          : "md:grid-cols-[24px_20px_20px_1fr_70px_110px]",
+        // When selection mode is active: [drag][select][check][title][project?][priority][due]
+        // When selection mode is inactive: [drag][check][title][project?][priority][due]
+        "md:grid md:items-center md:gap-1",
+        // Dynamic grid columns based on selection mode
+        isSelectionMode
+          ? showProjectBadge
+            ? "md:grid-cols-[24px_20px_20px_1fr_70px_110px] lg:grid-cols-[24px_20px_20px_1fr_120px_70px_110px]"
+            : "md:grid-cols-[24px_20px_20px_1fr_70px_110px]"
+          : showProjectBadge
+            ? "md:grid-cols-[24px_20px_1fr_70px_110px] lg:grid-cols-[24px_20px_1fr_120px_70px_110px]"
+            : "md:grid-cols-[24px_20px_1fr_70px_110px]",
         // Urgency accent class takes priority, otherwise fall back to overdue styling
         accentClass ? accentClass : (isOverdue && !isCompleted && "border-l-2 border-l-destructive"),
         // Selection highlight (when checked for selection)
@@ -205,6 +224,8 @@ export const SortableTaskRow = ({
         isSelected && !isCheckedForSelection && "bg-primary/10 ring-2 ring-primary/30",
         // Dragging state
         isDragging && "opacity-50 shadow-lg ring-2 ring-primary bg-background z-10",
+        // Exit animation - uses CSS keyframe that collapses height
+        isExiting && "item-removing overflow-hidden",
         className
       )}
       aria-label={`Task: ${task.title}${isCompleted ? ", completed" : ""}`}
@@ -232,24 +253,19 @@ export const SortableTaskRow = ({
           <GripVertical className="size-4" />
         </button>
 
-        {/* Selection Checkbox - Column 2 (visible only in selection mode) */}
-        <div
-          className={cn(
-            "flex items-center justify-center",
-            // Hide on mobile
-            "hidden md:flex",
-            showSelection && isSelectionMode ? "opacity-100" : "hidden"
-          )}
-        >
-          {showSelection && isSelectionMode && (
-            <SelectionCheckbox
-              checked={isCheckedForSelection}
-              onChange={handleSelectionCheckboxChange}
-              onClick={handleSelectionCheckboxClick}
-              aria-label={`Select ${task.title}`}
-            />
-          )}
-        </div>
+        {/* Selection Checkbox - Column 2 (only rendered in selection mode) */}
+        {isSelectionMode && (
+          <div className="hidden md:flex items-center justify-center">
+            {showSelection && (
+              <SelectionCheckbox
+                checked={isCheckedForSelection}
+                onChange={handleSelectionCheckboxChange}
+                onClick={handleSelectionCheckboxClick}
+                aria-label={`Select ${task.title}`}
+              />
+            )}
+          </div>
+        )}
 
         {/* Task Completion Checkbox - Column 3 */}
         <div className="flex items-center justify-center shrink-0">
