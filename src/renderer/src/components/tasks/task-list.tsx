@@ -123,6 +123,7 @@ const TaskListByDueDate = ({
                         tasks={tasksInGroup}
                         allTasks={allTasks}
                         projects={projects}
+                        urgency={config.urgency}
                         accentColor={config.accentColor}
                         isMuted={config.isMuted}
                         showProjectBadge={showProjectBadge}

@@ -46,6 +46,8 @@ interface SortableParentTaskRowProps {
   // Subtask management props
   onAddSubtask?: (parentId: string, title: string) => void
   onReorderSubtasks?: (parentId: string, newOrder: string[]) => void
+  /** Optional accent class for urgency styling (e.g., left border) */
+  accentClass?: string
 }
 
 // ============================================================================
@@ -73,6 +75,7 @@ export const SortableParentTaskRow = ({
   onShiftSelect,
   onAddSubtask,
   onReorderSubtasks,
+  accentClass,
 }: SortableParentTaskRowProps): React.JSX.Element => {
   const rowRef = useRef<HTMLDivElement>(null)
   const taskHasSubtasks = hasSubtasks(task)
@@ -213,7 +216,8 @@ export const SortableParentTaskRow = ({
           "flex items-center gap-2 rounded-md px-2 py-2.5 transition-all duration-150",
           "hover:bg-accent/50",
           onClick && "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          isOverdue && "border-l-2 border-l-destructive",
+          // Urgency accent class takes priority, otherwise fall back to overdue styling
+          accentClass ? accentClass : (isOverdue && "border-l-2 border-l-destructive"),
           // Selection highlight (when checked for selection)
           isCheckedForSelection && "bg-primary/10 hover:bg-primary/15",
           // Detail panel selected (not the same as selection mode)

@@ -41,6 +41,8 @@ interface SortableTaskRowProps {
   onToggleSelect?: (taskId: string) => void
   /** Handle shift+click for range selection */
   onShiftSelect?: (taskId: string) => void
+  /** Optional accent class for urgency styling (e.g., left border) */
+  accentClass?: string
 }
 
 // ============================================================================
@@ -62,6 +64,7 @@ export const SortableTaskRow = ({
   isCheckedForSelection = false,
   onToggleSelect,
   onShiftSelect,
+  accentClass,
 }: SortableTaskRowProps): React.JSX.Element => {
   const rowRef = useRef<HTMLDivElement>(null)
 
@@ -181,7 +184,8 @@ export const SortableTaskRow = ({
         "group flex items-center gap-2 rounded-md px-2 py-2.5 transition-all duration-150",
         "hover:bg-accent/50",
         onClick && "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        isOverdue && !isCompleted && "border-l-2 border-l-destructive",
+        // Urgency accent class takes priority, otherwise fall back to overdue styling
+        accentClass ? accentClass : (isOverdue && !isCompleted && "border-l-2 border-l-destructive"),
         // Selection highlight (when checked for selection)
         isCheckedForSelection && "bg-primary/10 hover:bg-primary/15",
         // Detail panel selected (not the same as selection mode)

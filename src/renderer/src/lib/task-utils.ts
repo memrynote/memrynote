@@ -764,20 +764,30 @@ export const formatTaskSubtitle = (
 // GROUP HEADER CONFIGURATION
 // ============================================================================
 
+/**
+ * Urgency levels for visual hierarchy
+ * - critical: Demands immediate attention (OVERDUE)
+ * - high: Important, should be addressed (TODAY)
+ * - normal: Standard importance (TOMORROW, UPCOMING)
+ * - low: Informational, least urgent (LATER, NO DUE DATE)
+ */
+export type UrgencyLevel = "critical" | "high" | "normal" | "low"
+
 export interface GroupHeaderConfig {
   id: string
   label: string
+  urgency: UrgencyLevel
   accentColor?: string
   isMuted?: boolean
 }
 
 export const dueDateGroupConfig: Record<keyof TaskGroupByDate, GroupHeaderConfig> = {
-  overdue: { id: "overdue", label: "OVERDUE", accentColor: "#ef4444" },
-  today: { id: "today", label: "TODAY", accentColor: "#f59e0b" },
-  tomorrow: { id: "tomorrow", label: "TOMORROW" },
-  upcoming: { id: "upcoming", label: "UPCOMING" },
-  later: { id: "later", label: "LATER", isMuted: true },
-  noDueDate: { id: "noDueDate", label: "NO DUE DATE", isMuted: true },
+  overdue: { id: "overdue", label: "OVERDUE", urgency: "critical", accentColor: "#ef4444" },
+  today: { id: "today", label: "TODAY", urgency: "high", accentColor: "#3b82f6" },
+  tomorrow: { id: "tomorrow", label: "TOMORROW", urgency: "normal" },
+  upcoming: { id: "upcoming", label: "UPCOMING", urgency: "normal" },
+  later: { id: "later", label: "LATER", urgency: "low", isMuted: true },
+  noDueDate: { id: "noDueDate", label: "NO DUE DATE", urgency: "low", isMuted: true },
 }
 
 export const completionGroupConfig: Record<keyof TaskGroupByCompletion, GroupHeaderConfig> = {

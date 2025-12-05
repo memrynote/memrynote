@@ -1,13 +1,57 @@
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { useDroppable } from "@dnd-kit/core"
+import { AlertTriangle, Star } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { SortableTaskRow } from "@/components/tasks/drag-drop"
 import { SortableParentTaskRow } from "@/components/tasks/sortable-parent-task-row"
-import { isTaskCompleted, startOfDay, addDays } from "@/lib/task-utils"
+import { isTaskCompleted, startOfDay, addDays, type UrgencyLevel } from "@/lib/task-utils"
 import { getTopLevelTasks, getSubtasks, calculateProgress, isSubtask } from "@/lib/subtask-utils"
 import type { Task } from "@/data/sample-tasks"
 import type { Project, Status } from "@/data/tasks-data"
+
+// ============================================================================
+// URGENCY-BASED STYLING CONFIG
+// ============================================================================
+
+interface UrgencyStyleConfig {
+  containerClass: string
+  headerClass: string
+  countClass: string
+  accentClass: string
+  icon: React.ReactNode | null
+}
+
+const urgencyStyles: Record<UrgencyLevel, UrgencyStyleConfig> = {
+  critical: {
+    containerClass: "bg-red-50/30 dark:bg-red-950/20 border border-red-200/50 dark:border-red-900/50 rounded-lg",
+    headerClass: "text-red-700 dark:text-red-400 font-semibold",
+    countClass: "bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400",
+    accentClass: "border-l-[3px] border-l-red-500",
+    icon: <AlertTriangle className="size-4" aria-hidden="true" />,
+  },
+  high: {
+    containerClass: "bg-blue-50/30 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-900/50 rounded-lg",
+    headerClass: "text-blue-700 dark:text-blue-400 font-semibold",
+    countClass: "bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400",
+    accentClass: "border-l-[3px] border-l-blue-500",
+    icon: <Star className="size-4" aria-hidden="true" />,
+  },
+  normal: {
+    containerClass: "",
+    headerClass: "text-gray-600 dark:text-gray-400 font-medium",
+    countClass: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
+    accentClass: "",
+    icon: null,
+  },
+  low: {
+    containerClass: "",
+    headerClass: "text-gray-400 dark:text-gray-500 font-medium",
+    countClass: "bg-gray-50 dark:bg-gray-800/50 text-gray-400 dark:text-gray-500",
+    accentClass: "",
+    icon: null,
+  },
+}
 
 // ============================================================================
 // HELPER: Get date from label
@@ -50,6 +94,7 @@ const getDateFromLabel = (label: string): Date | null => {
 interface TaskGroupHeaderProps {
   label: string
   count: number
+  urgency?: UrgencyLevel
   accentColor?: string
   isMuted?: boolean
   className?: string
@@ -60,6 +105,7 @@ interface TaskGroupProps {
   tasks: Task[]
   allTasks: Task[] // All tasks for subtask lookup
   projects: Project[]
+  urgency?: UrgencyLevel
   accentColor?: string
   isMuted?: boolean
   showProjectBadge?: boolean
@@ -113,10 +159,14 @@ interface StatusTaskGroupProps {
 const TaskGroupHeader = ({
   label,
   count,
+  urgency = "normal",
   accentColor,
   isMuted = false,
   className,
 }: TaskGroupHeaderProps): React.JSX.Element => {
+  const styles = urgencyStyles[urgency]
+  const hasUrgentStyling = urgency === "critical" || urgency === "high"
+
   return (
     <div
       className={cn(
@@ -124,16 +174,33 @@ const TaskGroupHeader = ({
         className
       )}
     >
-      <h3
-        className={cn(
-          "text-xs font-semibold uppercase tracking-wide",
-          isMuted ? "text-text-tertiary" : "text-text-secondary"
+      <div className="flex items-center gap-2">
+        {/* Urgency Icon */}
+        {styles.icon && (
+          <span className={styles.headerClass}>
+            {styles.icon}
+          </span>
         )}
-        style={accentColor ? { color: accentColor } : undefined}
+        <h3
+          className={cn(
+            "text-xs uppercase tracking-wide",
+            hasUrgentStyling ? styles.headerClass : (
+              isMuted ? "text-text-tertiary font-medium" : "text-text-secondary font-semibold"
+            )
+          )}
+          style={!hasUrgentStyling && accentColor ? { color: accentColor } : undefined}
+        >
+          {label}
+        </h3>
+      </div>
+      <span
+        className={cn(
+          "text-xs px-1.5 py-0.5 rounded-full",
+          hasUrgentStyling ? styles.countClass : "text-text-tertiary"
+        )}
       >
-        {label}
-      </h3>
-      <span className="text-xs text-text-tertiary">({count})</span>
+        {hasUrgentStyling ? count : `(${count})`}
+      </span>
     </div>
   )
 }
@@ -147,6 +214,7 @@ export const TaskGroup = ({
   tasks,
   allTasks,
   projects,
+  urgency = "normal",
   accentColor,
   isMuted = false,
   showProjectBadge = false,
@@ -198,12 +266,18 @@ export const TaskGroup = ({
   // Don't render if no top-level tasks
   if (topLevelCount === 0) return null
 
+  // Get urgency-based styles
+  const styles = urgencyStyles[urgency]
+  const hasUrgentStyling = urgency === "critical" || urgency === "high"
+
   return (
     <section
       ref={setNodeRef}
       className={cn(
-        "mb-4 rounded-lg transition-colors",
-        isOver && "bg-primary/5 ring-2 ring-primary/30",
+        "mb-4 transition-colors",
+        hasUrgentStyling ? styles.containerClass : "rounded-lg",
+        isOver && "ring-2 ring-primary/30",
+        isOver && !hasUrgentStyling && "bg-primary/5",
         className
       )}
       aria-labelledby={sectionId}
@@ -211,11 +285,15 @@ export const TaskGroup = ({
       <TaskGroupHeader
         label={label}
         count={topLevelCount}
+        urgency={urgency}
         accentColor={accentColor}
         isMuted={isMuted}
       />
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-        <div className="flex flex-col">
+        <div className={cn(
+          "flex flex-col",
+          hasUrgentStyling && "px-1 pb-1"
+        )}>
           {topLevelTasks.map((task) => {
             const project = projects.find((p) => p.id === task.projectId)
             if (!project) return null
@@ -253,6 +331,8 @@ export const TaskGroup = ({
                   // Subtask management props
                   onAddSubtask={onAddSubtask}
                   onReorderSubtasks={onReorderSubtasks}
+                  // Urgency styling
+                  accentClass={hasUrgentStyling ? styles.accentClass : undefined}
                 />
               )
             }
@@ -274,6 +354,8 @@ export const TaskGroup = ({
                 isCheckedForSelection={isCheckedForSelection}
                 onToggleSelect={onToggleSelect}
                 onShiftSelect={onShiftSelect}
+                // Urgency styling
+                accentClass={hasUrgentStyling ? styles.accentClass : undefined}
               />
             )
           })}
