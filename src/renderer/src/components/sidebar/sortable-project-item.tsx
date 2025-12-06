@@ -1,4 +1,5 @@
 import { useSortable } from "@dnd-kit/sortable"
+import { useDroppable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -9,6 +10,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { useDragContext } from "@/contexts/drag-context"
 import type { Project } from "@/data/tasks-data"
 
 interface SortableProjectItemProps {
@@ -23,6 +25,7 @@ interface SortableProjectItemProps {
 /**
  * A draggable project item for the sidebar
  * Supports drag-to-reorder with visual feedback
+ * Also acts as a drop zone for tasks to move them to this project
  */
 export const SortableProjectItem = ({
   project,
@@ -34,47 +37,88 @@ export const SortableProjectItem = ({
 }: SortableProjectItemProps): React.JSX.Element => {
   const { isMobile } = useSidebar()
 
+  // Try to get drag context - may not be available if not wrapped in DragProvider
+  let dragState = { isDragging: false }
+  try {
+    const context = useDragContext()
+    dragState = context.dragState
+  } catch {
+    // Not in DragProvider context - that's okay, just no drop zone features
+  }
+
+  // Sortable for reordering projects
   const {
     attributes,
     listeners,
-    setNodeRef,
+    setNodeRef: setSortableRef,
     transform,
     transition,
-    isDragging,
+    isDragging: isSortableDragging,
   } = useSortable({ id: project.id })
+
+  // Droppable for receiving tasks
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+    id: `project-${project.id}`,
+    data: {
+      type: "project",
+      projectId: project.id,
+      project,
+    },
+  })
+
+  // Combine refs
+  const setRefs = (node: HTMLLIElement | null): void => {
+    setSortableRef(node)
+    setDroppableRef(node)
+  }
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   }
 
+  // Show as drop zone when a task is being dragged (not a project)
+  const showAsDropZone = dragState.isDragging && !isSortableDragging
+
   return (
     <SidebarMenuItem
-      ref={setNodeRef}
+      ref={setRefs}
       style={style}
       className={cn(
-        "group/project relative",
-        isDragging && "opacity-50 z-50"
+        "group/project relative transition-all duration-150",
+        isSortableDragging && "opacity-50 z-50",
+        // Drop zone visual feedback
+        showAsDropZone && "ring-1 ring-dashed ring-muted-foreground/30 rounded-md",
+        isOver && "bg-primary/10 ring-2 ring-primary rounded-md shadow-sm"
       )}
     >
-      {/* Drag Handle - visible on hover */}
-      <button
-        type="button"
-        className={cn(
-          "absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1",
-          "p-0.5 rounded opacity-0 group-hover/project:opacity-100",
-          "cursor-grab active:cursor-grabbing",
-          "text-sidebar-foreground/40 hover:text-sidebar-foreground/70",
-          "transition-opacity focus-visible:opacity-100",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        )}
-        {...attributes}
-        {...listeners}
-        tabIndex={-1}
-        aria-label={`Drag to reorder ${project.name}`}
-      >
-        <GripVertical className="size-3" />
-      </button>
+      {/* Drop indicator when hovering */}
+      {isOver && (
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-primary font-medium z-10">
+          Drop here
+        </span>
+      )}
+
+      {/* Drag Handle - visible on hover, hidden when drop zone active */}
+      {!showAsDropZone && (
+        <button
+          type="button"
+          className={cn(
+            "absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1",
+            "p-0.5 rounded opacity-0 group-hover/project:opacity-100",
+            "cursor-grab active:cursor-grabbing",
+            "text-sidebar-foreground/40 hover:text-sidebar-foreground/70",
+            "transition-opacity focus-visible:opacity-100",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          )}
+          {...attributes}
+          {...listeners}
+          tabIndex={-1}
+          aria-label={`Drag to reorder ${project.name}`}
+        >
+          <GripVertical className="size-3" />
+        </button>
+      )}
 
       <SidebarMenuButton
         tooltip={project.name}
@@ -89,28 +133,32 @@ export const SortableProjectItem = ({
         <span className="truncate">{project.name}</span>
       </SidebarMenuButton>
 
-      {/* Task count badge */}
-      <SidebarMenuBadge className={cn(
-        !isActive && "group-hover/project:hidden"
-      )}>
-        {project.taskCount > 0 ? project.taskCount : ""}
-      </SidebarMenuBadge>
+      {/* Task count badge - hide when showing drop indicator */}
+      {!isOver && (
+        <SidebarMenuBadge className={cn(
+          !isActive && "group-hover/project:hidden"
+        )}>
+          {project.taskCount > 0 ? project.taskCount : ""}
+        </SidebarMenuBadge>
+      )}
 
-      {/* Edit project button */}
-      <SidebarMenuAction
-        showOnHover
-        className={cn(
-          !isActive && "opacity-0 group-hover/project:opacity-100",
-          isActive && "hidden"
-        )}
-        onClick={(e) => {
-          e.stopPropagation()
-          onEdit(project)
-        }}
-      >
-        <Settings className="size-4 text-muted-foreground" />
-        <span className="sr-only">Edit project</span>
-      </SidebarMenuAction>
+      {/* Edit project button - hide when drop zone active */}
+      {!showAsDropZone && (
+        <SidebarMenuAction
+          showOnHover
+          className={cn(
+            !isActive && "opacity-0 group-hover/project:opacity-100",
+            isActive && "hidden"
+          )}
+          onClick={(e) => {
+            e.stopPropagation()
+            onEdit(project)
+          }}
+        >
+          <Settings className="size-4 text-muted-foreground" />
+          <span className="sr-only">Edit project</span>
+        </SidebarMenuAction>
+      )}
     </SidebarMenuItem>
   )
 }

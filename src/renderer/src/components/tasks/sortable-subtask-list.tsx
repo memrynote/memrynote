@@ -96,7 +96,7 @@ export const SortableSubtaskList = ({
       id={`subtasks-${parentId}`}
       role="group"
       aria-label={`Subtasks of ${parentTitle}`}
-      className={cn("ml-7 border-l border-border", className)}
+      className={cn("ml-[62px]", className)}
     >
       <DndContext
         sensors={sensors}
