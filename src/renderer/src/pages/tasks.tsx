@@ -6,7 +6,7 @@ import {
     CalendarDays,
     Settings,
 } from "lucide-react"
-import type { DragEndEvent } from "@dnd-kit/core"
+
 
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -27,8 +27,6 @@ import {
     DeleteCompletedDialog,
 } from "@/components/tasks/completed"
 import { FilterBar, FilterEmptyState, type FilterBarRef } from "@/components/tasks/filters"
-import { TaskDragOverlay } from "@/components/tasks/drag-drop"
-import { DragProvider, type DragState } from "@/contexts/drag-context"
 import { cn } from "@/lib/utils"
 import {
     getFilteredTasks,
@@ -55,7 +53,7 @@ import { createDefaultTask, generateTaskId, type Task, type Priority } from "@/d
 import { addDays } from "@/lib/task-utils"
 import { calculateNextOccurrence, shouldCreateNextOccurrence } from "@/lib/repeat-utils"
 import type { StopRepeatOption } from "@/components/tasks/stop-repeating-dialog"
-import { useFilterState, useSavedFilters, useFilteredAndSortedTasks, useTaskSelection, useBulkActions, useDragHandlers, useSubtaskManagement } from "@/hooks"
+import { useFilterState, useSavedFilters, useFilteredAndSortedTasks, useTaskSelection, useBulkActions, useSubtaskManagement } from "@/hooks"
 import { BulkActionToolbar, BulkDeleteDialog, BulkDueDatePicker } from "@/components/tasks/bulk-actions"
 import {
     AllSubtasksCompleteDialog,
@@ -78,6 +76,10 @@ interface TasksPageProps {
     projects: Project[]
     onTasksChange: (tasks: Task[]) => void
     onSelectionChange: (id: string, type: TaskSelectionType) => void
+    /** Task IDs currently selected for multi-drag (passed from App level) */
+    selectedTaskIds?: Set<string>
+    /** Callback to sync selection state with App level */
+    onSelectedTaskIdsChange?: (ids: Set<string>) => void
 }
 
 interface TasksContentHeaderProps {
@@ -218,6 +220,8 @@ export const TasksPage = ({
     projects,
     onTasksChange,
     onSelectionChange,
+    selectedTaskIds: externalSelectedIds,
+    onSelectedTaskIdsChange,
 }: TasksPageProps): React.JSX.Element => {
     // Local setter that updates via parent callback
     const setTasks = useCallback((updater: Task[] | ((prev: Task[]) => Task[])) => {
@@ -351,6 +355,13 @@ export const TasksPage = ({
         exitSelectionMode,
     } = useTaskSelection(visibleTaskIds)
 
+    // Sync selection state with App level for drag-drop
+    useEffect(() => {
+        if (onSelectedTaskIdsChange) {
+            onSelectedTaskIdsChange(selection.selectedIds)
+        }
+    }, [selection.selectedIds, onSelectedTaskIdsChange])
+
     // Bulk actions hook
     const bulkActions = useBulkActions({
         selectedIds: selectedTaskIds,
@@ -366,31 +377,6 @@ export const TasksPage = ({
         },
         onComplete: deselectAll,
     })
-
-    // Drag handlers hook
-    const { handleDragEnd: onDragEndHandler } = useDragHandlers({
-        tasks,
-        projects,
-        onUpdateTask: (taskId, updates) => {
-            setTasks((prev) =>
-                prev.map((task) => (task.id === taskId ? { ...task, ...updates } : task))
-            )
-        },
-        onDeleteTask: (taskId) => {
-            setTasks((prev) => prev.filter((t) => t.id !== taskId))
-        },
-    })
-
-    // Drag event handlers for DragProvider
-    const handleDragEnd = useCallback(
-        (event: DragEndEvent, dragState: DragState) => {
-            onDragEndHandler(event, dragState)
-            if (dragState.activeIds.length > 1) {
-                deselectAll()
-            }
-        },
-        [onDragEndHandler, deselectAll]
-    )
 
     // Toggle selection mode handler
     const handleToggleSelectionMode = useCallback(() => {
@@ -1135,199 +1121,190 @@ export const TasksPage = ({
 
     return (
         <>
-            <DragProvider
-                tasks={tasks}
-                selectedIds={selection.selectedIds}
-                onDragEnd={handleDragEnd}
-            >
-                <div className={cn("flex h-full", className)}>
-                    {/* Main Content Area - Full Width */}
-                    <main className="flex flex-1 flex-col overflow-hidden">
-                        {/* Content Header */}
-                        <TasksContentHeader
-                            title={headerTitle}
-                            subtitle={headerSubtitle}
-                            activeView={activeView}
-                            availableViews={availableViews}
-                            showProjectSettings={selectedType === "project" && !!selectedProject}
-                            onViewChange={handleViewChange}
-                            onAddTask={handleAddTask}
-                            onProjectSettings={handleProjectSettings}
+            <div className={cn("flex h-full", className)}>
+                {/* Main Content Area - Full Width */}
+                <main className="flex flex-1 flex-col overflow-hidden">
+                    {/* Content Header */}
+                    <TasksContentHeader
+                        title={headerTitle}
+                        subtitle={headerSubtitle}
+                        activeView={activeView}
+                        availableViews={availableViews}
+                        showProjectSettings={selectedType === "project" && !!selectedProject}
+                        onViewChange={handleViewChange}
+                        onAddTask={handleAddTask}
+                        onProjectSettings={handleProjectSettings}
+                    />
+
+                    {/* Filter Bar */}
+                    {showFilterBar && (
+                        <FilterBar
+                            ref={filterBarRef}
+                            filters={filters}
+                            sort={sort}
+                            onUpdateFilters={updateFilters}
+                            onUpdateSort={updateSort}
+                            onClearFilters={clearFilters}
+                            projects={projects}
+                            tasks={baseFilteredTasks}
+                            savedFilters={savedFilters}
+                            onSaveFilter={handleSaveFilter}
+                            onDeleteSavedFilter={handleDeleteSavedFilter}
+                            onApplySavedFilter={handleApplySavedFilter}
+                            showStatusFilter={activeView === "kanban"}
+                            statuses={currentProjectStatuses}
+                            isSelectionMode={selection.isSelectionMode}
+                            onToggleSelectionMode={handleToggleSelectionMode}
                         />
+                    )}
 
-                        {/* Filter Bar */}
-                        {showFilterBar && (
-                            <FilterBar
-                                ref={filterBarRef}
+                    {/* Bulk Action Toolbar - shown when tasks are selected */}
+                    {hasSelection && (
+                        <BulkActionToolbar
+                            selectedCount={selectedCount}
+                            allSelected={allSelected}
+                            someSelected={someSelected}
+                            onToggleSelectAll={toggleSelectAll}
+                            onComplete={bulkActions.bulkComplete}
+                            onChangePriority={handleBulkChangePriority}
+                            onChangeDueDate={handleBulkChangeDueDate}
+                            onMoveToProject={handleBulkMoveToProject}
+                            onChangeStatus={handleBulkChangeStatus}
+                            onArchive={bulkActions.bulkArchive}
+                            onDelete={() => setIsBulkDeleteDialogOpen(true)}
+                            onCancel={deselectAll}
+                            projects={projects}
+                            statuses={currentProjectStatuses}
+                            showStatusAction={activeView === "kanban" && selectedType === "project"}
+                        />
+                    )}
+
+                    {/* Content Body - Today View */}
+                    {activeView === "list" && selectedId === "today" && (
+                        <TodayView
+                            tasks={tasks}
+                            projects={projects}
+                            selectedTaskId={selectedTaskId}
+                            onToggleComplete={handleToggleComplete}
+                            onTaskClick={handleTaskClick}
+                            onQuickAdd={handleQuickAdd}
+                            onOpenModal={handleOpenAddTaskModal}
+                            onViewUpcoming={() => handleSelectView("upcoming")}
+                        />
+                    )}
+
+                    {/* Content Body - Upcoming View */}
+                    {activeView === "list" && selectedId === "upcoming" && (
+                        <UpcomingView
+                            tasks={tasks}
+                            projects={projects}
+                            selectedTaskId={selectedTaskId}
+                            onToggleComplete={handleToggleComplete}
+                            onTaskClick={handleTaskClick}
+                            onQuickAdd={handleQuickAdd}
+                            onOpenModal={handleOpenAddTaskModal}
+                            onAddTaskWithDate={handleAddTaskWithDate}
+                        />
+                    )}
+
+                    {/* Content Body - Completed View */}
+                    {activeView === "list" && selectedId === "completed" && !showArchivedView && (
+                        <CompletedView
+                            tasks={tasks}
+                            projects={projects}
+                            onUncomplete={handleUncompleteTask}
+                            onArchive={handleArchiveTask}
+                            onDelete={handleDeleteCompletedTask}
+                            onViewArchived={handleViewArchived}
+                            onOpenClearMenu={handleOpenClearMenu}
+                        />
+                    )}
+
+                    {/* Content Body - Archived View */}
+                    {activeView === "list" && selectedId === "completed" && showArchivedView && (
+                        <ArchivedView
+                            tasks={tasks}
+                            projects={projects}
+                            onBack={handleBackFromArchived}
+                            onRestore={handleUnarchiveTask}
+                            onDelete={handleDeleteCompletedTask}
+                            onDeleteAll={handleDeleteAllArchived}
+                        />
+                    )}
+
+                    {/* Content Body - Task List (for other views) */}
+                    {activeView === "list" && selectedId !== "today" && selectedId !== "upcoming" && selectedId !== "completed" && (
+                        showFilterEmptyState ? (
+                            <FilterEmptyState
                                 filters={filters}
-                                sort={sort}
-                                onUpdateFilters={updateFilters}
-                                onUpdateSort={updateSort}
+                                projects={projects}
                                 onClearFilters={clearFilters}
-                                projects={projects}
-                                tasks={baseFilteredTasks}
-                                savedFilters={savedFilters}
-                                onSaveFilter={handleSaveFilter}
-                                onDeleteSavedFilter={handleDeleteSavedFilter}
-                                onApplySavedFilter={handleApplySavedFilter}
-                                showStatusFilter={activeView === "kanban"}
-                                statuses={currentProjectStatuses}
-                                isSelectionMode={selection.isSelectionMode}
-                                onToggleSelectionMode={handleToggleSelectionMode}
                             />
-                        )}
-
-                        {/* Bulk Action Toolbar - shown when tasks are selected */}
-                        {hasSelection && (
-                            <BulkActionToolbar
-                                selectedCount={selectedCount}
-                                allSelected={allSelected}
-                                someSelected={someSelected}
-                                onToggleSelectAll={toggleSelectAll}
-                                onComplete={bulkActions.bulkComplete}
-                                onChangePriority={handleBulkChangePriority}
-                                onChangeDueDate={handleBulkChangeDueDate}
-                                onMoveToProject={handleBulkMoveToProject}
-                                onChangeStatus={handleBulkChangeStatus}
-                                onArchive={bulkActions.bulkArchive}
-                                onDelete={() => setIsBulkDeleteDialogOpen(true)}
-                                onCancel={deselectAll}
-                                projects={projects}
-                                statuses={currentProjectStatuses}
-                                showStatusAction={activeView === "kanban" && selectedType === "project"}
-                            />
-                        )}
-
-                        {/* Content Body - Today View */}
-                        {activeView === "list" && selectedId === "today" && (
-                            <TodayView
-                                tasks={tasks}
-                                projects={projects}
-                                selectedTaskId={selectedTaskId}
-                                onToggleComplete={handleToggleComplete}
-                                onTaskClick={handleTaskClick}
-                                onQuickAdd={handleQuickAdd}
-                                onOpenModal={handleOpenAddTaskModal}
-                                onViewUpcoming={() => handleSelectView("upcoming")}
-                            />
-                        )}
-
-                        {/* Content Body - Upcoming View */}
-                        {activeView === "list" && selectedId === "upcoming" && (
-                            <UpcomingView
-                                tasks={tasks}
-                                projects={projects}
-                                selectedTaskId={selectedTaskId}
-                                onToggleComplete={handleToggleComplete}
-                                onTaskClick={handleTaskClick}
-                                onQuickAdd={handleQuickAdd}
-                                onOpenModal={handleOpenAddTaskModal}
-                                onAddTaskWithDate={handleAddTaskWithDate}
-                            />
-                        )}
-
-                        {/* Content Body - Completed View */}
-                        {activeView === "list" && selectedId === "completed" && !showArchivedView && (
-                            <CompletedView
-                                tasks={tasks}
-                                projects={projects}
-                                onUncomplete={handleUncompleteTask}
-                                onArchive={handleArchiveTask}
-                                onDelete={handleDeleteCompletedTask}
-                                onViewArchived={handleViewArchived}
-                                onOpenClearMenu={handleOpenClearMenu}
-                            />
-                        )}
-
-                        {/* Content Body - Archived View */}
-                        {activeView === "list" && selectedId === "completed" && showArchivedView && (
-                            <ArchivedView
-                                tasks={tasks}
-                                projects={projects}
-                                onBack={handleBackFromArchived}
-                                onRestore={handleUnarchiveTask}
-                                onDelete={handleDeleteCompletedTask}
-                                onDeleteAll={handleDeleteAllArchived}
-                            />
-                        )}
-
-                        {/* Content Body - Task List (for other views) */}
-                        {activeView === "list" && selectedId !== "today" && selectedId !== "upcoming" && selectedId !== "completed" && (
-                            showFilterEmptyState ? (
-                                <FilterEmptyState
-                                    filters={filters}
-                                    projects={projects}
-                                    onClearFilters={clearFilters}
-                                />
-                            ) : (
-                                <TaskList
-                                    tasks={selectedType === "project" ? projectListTasks : filteredTasks}
-                                    projects={projects}
-                                    selectedId={selectedId}
-                                    selectedType={selectedType}
-                                    selectedTaskId={selectedTaskId}
-                                    onToggleComplete={handleToggleComplete}
-                                    onToggleSubtaskComplete={subtaskManagement.handleCompleteSubtask}
-                                    onTaskClick={handleTaskClick}
-                                    onQuickAdd={handleQuickAdd}
-                                    onOpenModal={handleOpenAddTaskModal}
-                                    isSelectionMode={selection.isSelectionMode}
-                                    selectedIds={selection.selectedIds}
-                                    onToggleSelect={toggleTask}
-                                    onShiftSelect={selectRange}
-                                />
-                            )
-                        )}
-
-                        {/* Kanban View */}
-                        {activeView === "kanban" && (
-                            showFilterEmptyState ? (
-                                <FilterEmptyState
-                                    filters={filters}
-                                    projects={projects}
-                                    onClearFilters={clearFilters}
-                                />
-                            ) : (
-                                <KanbanBoard
-                                    tasks={projectListTasks}
-                                    projects={projects}
-                                    selectedId={selectedId}
-                                    selectedType={selectedType}
-                                    selectedTaskId={selectedTaskId}
-                                    onUpdateTask={handleUpdateTask}
-                                    onTaskClick={handleTaskClick}
-                                    onToggleComplete={handleToggleComplete}
-                                    onDeleteTask={handleDeleteTask}
-                                    onQuickAdd={handleQuickAdd}
-                                    isSelectionMode={selection.isSelectionMode}
-                                    selectedIds={selection.selectedIds}
-                                    onToggleSelect={toggleTask}
-                                />
-                            )
-                        )}
-
-                        {/* Calendar view */}
-                        {activeView === "calendar" && (
-                            <CalendarView
-                                tasks={calendarTasks}
+                        ) : (
+                            <TaskList
+                                tasks={selectedType === "project" ? projectListTasks : filteredTasks}
                                 projects={projects}
                                 selectedId={selectedId}
                                 selectedType={selectedType}
+                                selectedTaskId={selectedTaskId}
+                                onToggleComplete={handleToggleComplete}
+                                onToggleSubtaskComplete={subtaskManagement.handleCompleteSubtask}
+                                onTaskClick={handleTaskClick}
+                                onQuickAdd={handleQuickAdd}
+                                onOpenModal={handleOpenAddTaskModal}
+                                isSelectionMode={selection.isSelectionMode}
+                                selectedIds={selection.selectedIds}
+                                onToggleSelect={toggleTask}
+                                onShiftSelect={selectRange}
+                            />
+                        )
+                    )}
+
+                    {/* Kanban View */}
+                    {activeView === "kanban" && (
+                        showFilterEmptyState ? (
+                            <FilterEmptyState
+                                filters={filters}
+                                projects={projects}
+                                onClearFilters={clearFilters}
+                            />
+                        ) : (
+                            <KanbanBoard
+                                tasks={projectListTasks}
+                                projects={projects}
+                                selectedId={selectedId}
+                                selectedType={selectedType}
+                                selectedTaskId={selectedTaskId}
                                 onUpdateTask={handleUpdateTask}
                                 onTaskClick={handleTaskClick}
-                                onAddTaskWithDate={handleAddTaskWithDate}
                                 onToggleComplete={handleToggleComplete}
+                                onDeleteTask={handleDeleteTask}
+                                onQuickAdd={handleQuickAdd}
                                 isSelectionMode={selection.isSelectionMode}
                                 selectedIds={selection.selectedIds}
                                 onToggleSelect={toggleTask}
                             />
-                        )}
-                    </main>
+                        )
+                    )}
 
-                    {/* Drag Overlay */}
-                    <TaskDragOverlay projects={projects} />
-                </div>
-            </DragProvider>
+                    {/* Calendar view */}
+                    {activeView === "calendar" && (
+                        <CalendarView
+                            tasks={calendarTasks}
+                            projects={projects}
+                            selectedId={selectedId}
+                            selectedType={selectedType}
+                            onUpdateTask={handleUpdateTask}
+                            onTaskClick={handleTaskClick}
+                            onAddTaskWithDate={handleAddTaskWithDate}
+                            onToggleComplete={handleToggleComplete}
+                            isSelectionMode={selection.isSelectionMode}
+                            selectedIds={selection.selectedIds}
+                            onToggleSelect={toggleTask}
+                        />
+                    )}
+                </main>
+            </div>
 
             {/* Add Task Modal */}
             <AddTaskModal

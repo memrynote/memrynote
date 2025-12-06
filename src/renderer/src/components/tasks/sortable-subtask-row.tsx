@@ -72,104 +72,121 @@ export const SortableSubtaskRow = ({
     <div
       ref={setNodeRef}
       style={style}
-      role="button"
-      tabIndex={onClick ? 0 : -1}
-      onClick={handleClick}
-      onKeyDown={onClick ? handleKeyDown : undefined}
       className={cn(
-        "group/subtask flex items-center gap-2 px-2 py-1.5 ml-2",
-        "hover:bg-accent/50 cursor-pointer rounded-r-lg",
-        "transition-all duration-150",
-        onClick && "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        isDragging && "opacity-50 shadow-lg ring-2 ring-primary bg-background z-10",
+        "relative",
         className
       )}
-      aria-label={`Subtask: ${subtask.title}${isCompleted ? ", completed" : ""}`}
     >
-      {/* Drag Handle */}
-      <button
-        type="button"
-        data-drag-handle
-        {...attributes}
-        {...listeners}
-        className={cn(
-          "shrink-0 cursor-grab touch-none p-0.5 text-muted-foreground/50",
-          "hover:text-muted-foreground active:cursor-grabbing",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:rounded",
-          "opacity-0 group-hover/subtask:opacity-100 transition-opacity",
-          isDragging && "cursor-grabbing opacity-100"
-        )}
-        aria-label="Drag to reorder subtask"
-      >
-        <GripVertical className="size-3.5" />
-      </button>
-
-      {/* Tree connector */}
-      <span
-        className="text-muted-foreground/50 text-sm font-mono w-4 select-none"
+      {/* Tree connector lines - CSS based for seamless connection */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-5"
         aria-hidden="true"
       >
-        {isLast ? "└─" : "├─"}
-      </span>
-
-      {/* Subtask checkbox */}
-      <div onClick={(e) => e.stopPropagation()}>
-        <TaskCheckbox
-          checked={isCompleted}
-          onChange={() => onToggleComplete(subtask.id)}
+        {/* Vertical line - extends full height for non-last items, half height for last */}
+        <div
+          className={cn(
+            "absolute left-2 w-px bg-border",
+            isLast ? "top-0 h-[50%]" : "top-0 bottom-0"
+          )}
+        />
+        {/* Horizontal line - connects vertical line to content */}
+        <div
+          className="absolute left-2 top-1/2 w-3 h-px bg-border"
         />
       </div>
 
-      {/* Subtask title */}
-      <span
+      {/* Content container */}
+      <div
+        role="button"
+        tabIndex={onClick ? 0 : -1}
+        onClick={handleClick}
+        onKeyDown={onClick ? handleKeyDown : undefined}
         className={cn(
-          "flex-1 text-sm truncate",
-          isCompleted && "line-through text-muted-foreground"
+          "group/subtask flex items-center gap-2 pl-7 pr-2 py-1.5",
+          "hover:bg-accent/50 cursor-pointer rounded-r-lg",
+          "transition-all duration-150",
+          onClick && "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          isDragging && "opacity-50 shadow-lg ring-2 ring-primary bg-background z-10"
         )}
+        aria-label={`Subtask: ${subtask.title}${isCompleted ? ", completed" : ""}`}
       >
-        {subtask.title}
-      </span>
+        {/* Drag Handle */}
+        <button
+          type="button"
+          data-drag-handle
+          {...attributes}
+          {...listeners}
+          className={cn(
+            "shrink-0 cursor-grab touch-none p-0.5 text-muted-foreground/50",
+            "hover:text-muted-foreground active:cursor-grabbing",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:rounded",
+            "opacity-0 group-hover/subtask:opacity-100 transition-opacity",
+            isDragging && "cursor-grabbing opacity-100"
+          )}
+          aria-label="Drag to reorder subtask"
+        >
+          <GripVertical className="size-3.5" />
+        </button>
 
-      {/* Metadata badges - aligned with parent task columns */}
-      {isCompleted ? (
-        <span className="text-xs text-green-600 dark:text-green-500 flex items-center gap-1 w-[180px] justify-end">
-          <Check className="w-3 h-3" aria-hidden="true" />
-          <span>Done</span>
+        {/* Subtask checkbox */}
+        <div onClick={(e) => e.stopPropagation()}>
+          <TaskCheckbox
+            checked={isCompleted}
+            onChange={() => onToggleComplete(subtask.id)}
+          />
+        </div>
+
+        {/* Subtask title */}
+        <span
+          className={cn(
+            "flex-1 text-sm truncate",
+            isCompleted && "line-through text-muted-foreground"
+          )}
+        >
+          {subtask.title}
         </span>
-      ) : (
-        <>
-          {/* Desktop: badges with gap to match parent task grid */}
-          <div className="hidden md:flex items-center gap-1">
-            {/* Priority Badge - 70px fixed width to align with parent */}
-            <PriorityBadge
-              priority={subtask.priority}
-              compact
-              fixedWidth
-              size="sm"
-            />
 
-            {/* Due Date Badge - 110px fixed width to align with parent */}
-            <DueDateBadge
-              dueDate={subtask.dueDate}
-              dueTime={subtask.dueTime}
-              isRepeating={subtask.isRepeating}
-              fixedWidth
-            />
-          </div>
+        {/* Metadata badges - aligned with parent task columns */}
+        {isCompleted ? (
+          <span className="text-xs text-green-600 dark:text-green-500 flex items-center gap-1 w-[180px] justify-end">
+            <Check className="w-3 h-3" aria-hidden="true" />
+            <span>Done</span>
+          </span>
+        ) : (
+          <>
+            {/* Desktop: badges with gap to match parent task grid */}
+            <div className="hidden md:flex items-center gap-1">
+              {/* Priority Badge - 70px fixed width to align with parent */}
+              <PriorityBadge
+                priority={subtask.priority}
+                compact
+                fixedWidth
+                size="sm"
+              />
 
-          {/* Mobile: compact inline badges */}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground md:hidden">
-            {subtask.priority !== "none" && (
-              <PriorityBadge priority={subtask.priority} size="sm" compact />
-            )}
-            <DueDateBadge
-              dueDate={subtask.dueDate}
-              dueTime={subtask.dueTime}
-              isRepeating={subtask.isRepeating}
-            />
-          </div>
-        </>
-      )}
+              {/* Due Date Badge - 110px fixed width to align with parent */}
+              <DueDateBadge
+                dueDate={subtask.dueDate}
+                dueTime={subtask.dueTime}
+                isRepeating={subtask.isRepeating}
+                fixedWidth
+              />
+            </div>
+
+            {/* Mobile: compact inline badges */}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground md:hidden">
+              {subtask.priority !== "none" && (
+                <PriorityBadge priority={subtask.priority} size="sm" compact />
+              )}
+              <DueDateBadge
+                dueDate={subtask.dueDate}
+                dueTime={subtask.dueTime}
+                isRepeating={subtask.isRepeating}
+              />
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

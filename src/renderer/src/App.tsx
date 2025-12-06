@@ -1,4 +1,6 @@
 import { useState, useMemo, useCallback } from "react"
+import type { DragEndEvent } from "@dnd-kit/core"
+import { arrayMove } from "@dnd-kit/sortable"
 import { AppSidebar } from "@/components/app-sidebar"
 import {
   Breadcrumb,
@@ -17,9 +19,12 @@ import {
 import { Toaster } from "@/components/ui/sonner"
 import { InboxPage } from "@/pages/inbox"
 import { TasksPage } from "@/pages/tasks"
+import { DragProvider, type DragState } from "@/contexts/drag-context"
+import { TaskDragOverlay } from "@/components/tasks/drag-drop"
 import { initialProjects, taskViews, type Project } from "@/data/tasks-data"
 import { sampleTasks, type Task } from "@/data/sample-tasks"
 import { getFilteredTasks } from "@/lib/task-utils"
+import { toast } from "sonner"
 
 // Base pages (non-task)
 export type BasePage = "inbox" | "home"
@@ -47,6 +52,9 @@ function App(): React.JSX.Element {
   const [taskSelectedType, setTaskSelectedType] = useState<TaskSelectionType>("view")
   const [projects, setProjects] = useState<Project[]>(initialProjects)
   const [tasks, setTasks] = useState<Task[]>(sampleTasks)
+
+  // Task selection state for drag-drop (lifted from TasksPage)
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
 
   // Calculate view counts dynamically
   const viewCounts = useMemo(() => {
@@ -96,6 +104,71 @@ function App(): React.JSX.Element {
     setProjects(newProjects)
   }, [])
 
+  // Drag-drop handler for App level (handles sidebar drops)
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent, dragState: DragState) => {
+      const { active, over } = event
+      if (!over) return
+
+      const overData = over.data.current
+      const activeData = active.data.current
+
+      // Handle dropping task on project in sidebar
+      if (overData?.type === "project" && activeData?.type === "task") {
+        const taskId = active.id as string
+        const newProjectId = overData.projectId as string
+        const task = tasks.find((t) => t.id === taskId)
+        if (!task) return
+
+        // Get the new project's default status
+        const newProject = projects.find((p) => p.id === newProjectId)
+        if (!newProject) return
+
+        const defaultStatus = newProject.statuses.find((s) => s.type === "todo") || newProject.statuses[0]
+
+        // Handle multi-select drag
+        if (dragState.activeIds.length > 1) {
+          setTasks((prev) =>
+            prev.map((t) =>
+              dragState.activeIds.includes(t.id)
+                ? { ...t, projectId: newProjectId, statusId: defaultStatus?.id || t.statusId }
+                : t
+            )
+          )
+          toast.success(`Moved ${dragState.activeIds.length} tasks to ${newProject.name}`)
+          setSelectedTaskIds(new Set())
+        } else {
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId
+                ? { ...t, projectId: newProjectId, statusId: defaultStatus?.id || t.statusId }
+                : t
+            )
+          )
+          toast.success(`Moved task to ${newProject.name}`)
+        }
+        return
+      }
+
+      // Handle project reordering in sidebar
+      if (activeData?.type === undefined && over.id !== active.id) {
+        // Check if this is a project reorder (active.id matches a project id)
+        const activeIndex = projects.findIndex((p) => p.id === active.id)
+        const overIndex = projects.findIndex((p) => p.id === over.id)
+        if (activeIndex !== -1 && overIndex !== -1) {
+          setProjects((prev) => arrayMove(prev, activeIndex, overIndex))
+          return
+        }
+      }
+    },
+    [tasks, projects]
+  )
+
+  // Update selection from TasksPage
+  const handleSelectionChange = useCallback((ids: Set<string>): void => {
+    setSelectedTaskIds(ids)
+  }, [])
+
   const handleTaskSelectionChange = useCallback((id: string, type: TaskSelectionType): void => {
     setTaskSelectedId(id)
     setTaskSelectedType(type)
@@ -112,6 +185,8 @@ function App(): React.JSX.Element {
             projects={projectsWithCounts}
             onTasksChange={handleTasksChange}
             onSelectionChange={handleTaskSelectionChange}
+            selectedTaskIds={selectedTaskIds}
+            onSelectedTaskIdsChange={handleSelectionChange}
           />
         )
       case "inbox":
@@ -124,49 +199,68 @@ function App(): React.JSX.Element {
   const isTasksPage = currentPage === "tasks"
   const pageTitle = isTasksPage ? "Tasks" : pageTitles[currentPage as BasePage]
 
+  // Wrap content with DragProvider when on tasks page
+  const tasksContent = (
+    <>
+      <AppSidebar
+        currentPage={currentPage}
+        taskSelectedId={taskSelectedId}
+        taskSelectedType={taskSelectedType}
+        onNavigate={handleNavigate}
+        onSelectTaskView={handleSelectTaskView}
+        onSelectProject={handleSelectProject}
+        viewCounts={viewCounts}
+        projects={projectsWithCounts}
+        onProjectsChange={handleProjectsChange}
+      />
+      <SidebarInset>
+        {!isTasksPage && (
+          <header className="drag-region flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+            <div className="flex items-center gap-2 px-4">
+              <SidebarTrigger className="-ml-1" />
+              <Separator
+                orientation="vertical"
+                className="mr-2 data-[orientation=vertical]:h-4"
+              />
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem className="hidden md:block">
+                    <BreadcrumbLink href="#">
+                      Building Your Application
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator className="hidden md:block" />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{pageTitle}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+            </div>
+          </header>
+        )}
+        <div className={isTasksPage ? "flex flex-1 flex-col" : "flex flex-1 flex-col gap-4 p-4 pt-0"}>
+          {renderPage()}
+        </div>
+      </SidebarInset>
+      {/* Drag Overlay - only for task drag to sidebar */}
+      {isTasksPage && <TaskDragOverlay projects={projectsWithCounts} />}
+    </>
+  )
+
   return (
     <>
       <SidebarProvider>
-        <AppSidebar
-          currentPage={currentPage}
-          taskSelectedId={taskSelectedId}
-          taskSelectedType={taskSelectedType}
-          onNavigate={handleNavigate}
-          onSelectTaskView={handleSelectTaskView}
-          onSelectProject={handleSelectProject}
-          viewCounts={viewCounts}
-          projects={projectsWithCounts}
-          onProjectsChange={handleProjectsChange}
-        />
-        <SidebarInset>
-          {!isTasksPage && (
-            <header className="drag-region flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-              <div className="flex items-center gap-2 px-4">
-                <SidebarTrigger className="-ml-1" />
-                <Separator
-                  orientation="vertical"
-                  className="mr-2 data-[orientation=vertical]:h-4"
-                />
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    <BreadcrumbItem className="hidden md:block">
-                      <BreadcrumbLink href="#">
-                        Building Your Application
-                      </BreadcrumbLink>
-                    </BreadcrumbItem>
-                    <BreadcrumbSeparator className="hidden md:block" />
-                    <BreadcrumbItem>
-                      <BreadcrumbPage>{pageTitle}</BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </BreadcrumbList>
-                </Breadcrumb>
-              </div>
-            </header>
-          )}
-          <div className={isTasksPage ? "flex flex-1 flex-col" : "flex flex-1 flex-col gap-4 p-4 pt-0"}>
-            {renderPage()}
-          </div>
-        </SidebarInset>
+        {isTasksPage ? (
+          <DragProvider
+            tasks={tasks}
+            selectedIds={selectedTaskIds}
+            onDragEnd={handleDragEnd}
+          >
+            {tasksContent}
+          </DragProvider>
+        ) : (
+          tasksContent
+        )}
       </SidebarProvider>
       <Toaster />
     </>
