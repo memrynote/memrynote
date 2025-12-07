@@ -276,9 +276,23 @@ export type TabAction =
  * Sidebar item that can be opened as a tab
  */
 export interface SidebarItem {
+  /** Unique identifier */
+  id: string;
+  /** Content type */
   type: TabType;
+  /** Display title */
   title: string;
+  /** Icon name (lucide icon) */
   icon?: string;
+  /** Route/path for navigation */
   path: string;
+  /** Entity ID for notes/projects/journals */
   entityId?: string;
+  /** Color for projects (hex or name) */
+  color?: string;
+  /** Item count (e.g., task count) */
+  count?: number;
+  /** Nested children items */
+  children?: SidebarItem[];
 }
+
