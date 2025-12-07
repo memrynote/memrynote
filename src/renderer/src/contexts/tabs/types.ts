@@ -257,7 +257,19 @@ export type TabAction =
       payload: {
         tabId: string;
         fromGroupId: string;
-        direction: 'left' | 'right' | 'up' | 'down';
+        /** Target group to split (if different from fromGroupId) */
+        targetGroupId?: string;
+        direction: 'horizontal' | 'vertical' | 'left' | 'right' | 'up' | 'down';
+        /** Position of new pane relative to target */
+        position?: 'first' | 'second';
+      };
+    }
+  | {
+      type: 'SET_LAYOUT';
+      payload: {
+        tabGroups: Record<string, TabGroup>;
+        layout: SplitLayout;
+        activeGroupId: string;
       };
     }
 

@@ -1085,6 +1085,16 @@ export function tabReducer(
       return createInitialState();
     }
 
+    case 'SET_LAYOUT': {
+      const { tabGroups, layout, activeGroupId } = action.payload;
+      return {
+        ...state,
+        tabGroups,
+        layout,
+        activeGroupId,
+      };
+    }
+
     default:
       return state;
   }

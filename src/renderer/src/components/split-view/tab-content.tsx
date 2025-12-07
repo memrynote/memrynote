@@ -155,7 +155,7 @@ interface PlaceholderViewProps {
 
 const PlaceholderView = ({
     title,
-    icon,
+    icon: _icon,
     subtitle,
 }: PlaceholderViewProps): React.JSX.Element => {
     return (
