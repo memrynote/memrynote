@@ -13,3 +13,14 @@ export * from "./use-overdue-celebration"
 export * from "./use-sidebar-navigation"
 export * from "./use-reveal-in-sidebar"
 
+// Keyboard navigation
+export {
+  useKeyboardShortcuts,
+  getModifierSymbol,
+  type KeyboardShortcut,
+} from "./use-keyboard-shortcuts-base"
+// Note: isMac is also exported from use-keyboard-shortcuts, using that one
+export * from "./use-tab-keyboard-shortcuts"
+export * from "./use-chord-shortcuts"
+export * from "./use-pane-navigation"
+
