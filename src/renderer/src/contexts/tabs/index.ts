@@ -36,6 +36,8 @@ export {
   insertSplitAtGroup,
   removeGroupFromLayout,
   getAllGroupIds,
+  getGroupWidthPercentages,
+  getOrderedGroupWidths,
   updateSplitRatio,
   sortTabsWithPinnedFirst,
   getInsertIndexAfterPinned,

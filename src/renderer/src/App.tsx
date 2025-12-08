@@ -19,7 +19,7 @@ import { getFilteredTasks } from "@/lib/task-utils"
 import { toast } from "sonner"
 
 // Tab System imports
-import { TabProvider, useTabs, useActiveTab } from "@/contexts/tabs"
+import { TabProvider, useTabs, useActiveTab, getOrderedGroupWidths } from "@/contexts/tabs"
 import { TasksProvider } from "@/contexts/tasks"
 import { TabBarWithDrag, RecentlyClosedMenu } from "@/components/tabs"
 import { SplitViewContainer } from "@/components/split-view"
@@ -140,6 +140,12 @@ const AppContent = ({
   const groupIds = Object.keys(state.tabGroups)
   const isSplitView = groupIds.length > 1
 
+  // Calculate ordered group widths from layout (syncs with split panel ratios)
+  const orderedGroupWidths = useMemo(
+    () => getOrderedGroupWidths(state.layout),
+    [state.layout]
+  )
+
   return (
     <>
       {/* Header with Tab Bar(s) */}
@@ -155,15 +161,16 @@ const AppContent = ({
 
         {/* Tab Bar(s) - single or split */}
         {isSplitView ? (
-          // Split view: show tab bars side by side with divider
+          // Split view: show tab bars side by side with divider, widths synced with split panel ratios
           <div className="flex-1 flex h-full">
-            {groupIds.map((gId, index) => (
+            {orderedGroupWidths.map(({ groupId, width }, index) => (
               <div
-                key={gId}
-                className={`flex-1 h-full overflow-hidden ${index > 0 ? 'border-l border-gray-300 dark:border-gray-600' : ''
+                key={groupId}
+                style={{ width: `${width}%` }}
+                className={`h-full overflow-hidden shrink-0 ${index > 0 ? 'border-l border-gray-300 dark:border-gray-600' : ''
                   }`}
               >
-                <TabBarWithDrag groupId={gId} />
+                <TabBarWithDrag groupId={groupId} />
               </div>
             ))}
           </div>

@@ -12,7 +12,7 @@ interface SplitPaneProps {
     direction: 'horizontal' | 'vertical';
     /** Current split ratio (0-1) */
     ratio: number;
-    /** Callback when ratio changes */
+    /** Callback when ratio changes (called during drag for real-time updates) */
     onResize: (ratio: number) => void;
     /** Minimum pane size in pixels */
     minSize?: number;
@@ -37,12 +37,16 @@ export const SplitPane = ({
     const [isResizing, setIsResizing] = useState(false);
     const [localRatio, setLocalRatio] = useState(ratio);
 
+    // Use ref to track latest ratio for mouseup handler (avoids stale closure)
+    const latestRatioRef = useRef(ratio);
+
     const isHorizontal = direction === 'horizontal';
 
     // Sync local ratio with prop when not resizing
     useEffect(() => {
         if (!isResizing) {
             setLocalRatio(ratio);
+            latestRatioRef.current = ratio;
         }
     }, [ratio, isResizing]);
 
@@ -71,11 +75,16 @@ export const SplitPane = ({
             const newRatio = Math.max(minRatio, Math.min(maxRatio, position / containerSize));
 
             setLocalRatio(newRatio);
+            latestRatioRef.current = newRatio;
+
+            // Dispatch ratio change during drag for real-time header sync
+            onResize(newRatio);
         };
 
         const handleMouseUp = () => {
             setIsResizing(false);
-            onResize(localRatio);
+            // Final update with latest ratio (ensures consistency)
+            onResize(latestRatioRef.current);
         };
 
         document.addEventListener('mousemove', handleMouseMove);
@@ -91,7 +100,7 @@ export const SplitPane = ({
             document.body.style.userSelect = '';
             document.body.style.cursor = '';
         };
-    }, [isResizing, isHorizontal, minSize, localRatio, onResize]);
+    }, [isResizing, isHorizontal, minSize, onResize]);
 
     // Calculate sizes
     const firstSize = `${localRatio * 100}%`;

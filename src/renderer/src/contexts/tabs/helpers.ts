@@ -322,6 +322,84 @@ export const getAllGroupIds = (layout: SplitLayout): string[] => {
 };
 
 /**
+ * Calculate the width percentage each tab group should occupy in the header
+ * This accounts for:
+ * - Horizontal splits: ratio determines width distribution
+ * - Vertical splits: children share parent's width equally
+ * - Nested splits: widths are calculated multiplicatively
+ *
+ * @param layout - The split layout tree
+ * @returns Map of groupId to width percentage (0-100)
+ */
+export const getGroupWidthPercentages = (
+  layout: SplitLayout
+): Map<string, number> => {
+  const result = new Map<string, number>();
+
+  const traverse = (node: SplitLayout, availableWidth: number): void => {
+    if (node.type === 'leaf') {
+      // Leaf node: this group gets the full available width
+      result.set(node.tabGroupId, availableWidth);
+      return;
+    }
+
+    if (node.type === 'horizontal') {
+      // Horizontal split: divide width by ratio
+      const firstWidth = availableWidth * node.ratio;
+      const secondWidth = availableWidth * (1 - node.ratio);
+      traverse(node.first, firstWidth);
+      traverse(node.second, secondWidth);
+    } else {
+      // Vertical split: both children share the same width
+      // Each vertical child gets the full available width
+      traverse(node.first, availableWidth);
+      traverse(node.second, availableWidth);
+    }
+  };
+
+  traverse(layout, 100);
+  return result;
+};
+
+/**
+ * Get ordered group IDs with their widths for header rendering
+ * Groups are ordered left-to-right as they appear in the layout
+ * Vertical splits are flattened (both get same width)
+ *
+ * @param layout - The split layout tree
+ * @returns Array of { groupId, width } objects in display order
+ */
+export const getOrderedGroupWidths = (
+  layout: SplitLayout
+): Array<{ groupId: string; width: number }> => {
+  const result: Array<{ groupId: string; width: number }> = [];
+
+  const traverse = (node: SplitLayout, availableWidth: number): void => {
+    if (node.type === 'leaf') {
+      result.push({ groupId: node.tabGroupId, width: availableWidth });
+      return;
+    }
+
+    if (node.type === 'horizontal') {
+      // Horizontal split: first on left, second on right
+      const firstWidth = availableWidth * node.ratio;
+      const secondWidth = availableWidth * (1 - node.ratio);
+      traverse(node.first, firstWidth);
+      traverse(node.second, secondWidth);
+    } else {
+      // Vertical split: both share the width, but we need to show them side by side in header
+      // Split the available width equally between vertical children
+      const childWidth = availableWidth / 2;
+      traverse(node.first, childWidth);
+      traverse(node.second, childWidth);
+    }
+  };
+
+  traverse(layout, 100);
+  return result;
+};
+
+/**
  * Update split ratio at a specific path in the layout tree
  * Path is an array of indices (0 = first, 1 = second) for each level
  */
