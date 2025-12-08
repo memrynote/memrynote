@@ -854,7 +854,7 @@ export function InboxPage({ className }: InboxPageProps): React.JSX.Element {
   }, [items])
 
   return (
-    <div className={cn("flex flex-col h-full", className)}>
+    <div className={cn("flex flex-col h-full px-6 pt-6", className)}>
       {/* Header: Title + Badge + View Toggle OR Bulk Selection Header */}
       <div className="flex items-center justify-between mb-6">
         {isInBulkMode ? (
@@ -929,7 +929,7 @@ export function InboxPage({ className }: InboxPageProps): React.JSX.Element {
       </div>
 
       {/* Content: Scrollable area with view-based rendering or empty state */}
-      <div className={cn("flex-1 overflow-y-auto px-1", isInBulkMode && "pb-32")}>
+      <div className={cn("flex-1 overflow-y-auto", isInBulkMode && "pb-32")}>
         {showEmptyState ? (
           <EmptyState
             itemsProcessedToday={itemsProcessedToday}
