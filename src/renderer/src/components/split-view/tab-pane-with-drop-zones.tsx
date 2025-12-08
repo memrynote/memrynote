@@ -129,9 +129,9 @@ export const TabPaneWithDropZones = ({
                 });
             }
         } else {
-            // Create split and move tab
-            const direction = zone === 'left' || zone === 'right' ? 'horizontal' : 'vertical';
-            const position = zone === 'left' || zone === 'top' ? 'first' : 'second';
+            // Create horizontal split and move tab
+            const direction = 'horizontal';
+            const position = zone === 'left' ? 'first' : 'second';
 
             dispatch({
                 type: 'MOVE_TAB_TO_NEW_SPLIT',

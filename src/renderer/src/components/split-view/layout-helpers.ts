@@ -105,7 +105,7 @@ export const insertSplitAtGroup = (
   layout: SplitLayout,
   targetGroupId: string,
   newGroupId: string,
-  direction: 'horizontal' | 'vertical',
+  direction: 'horizontal',
   position: 'first' | 'second' = 'second'
 ): SplitLayout => {
   if (layout.type === 'leaf') {

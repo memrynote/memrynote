@@ -111,8 +111,7 @@ export interface TabGroup {
  */
 export type SplitLayout =
   | { type: 'leaf'; tabGroupId: string }
-  | { type: 'horizontal'; ratio: number; first: SplitLayout; second: SplitLayout }
-  | { type: 'vertical'; ratio: number; first: SplitLayout; second: SplitLayout };
+  | { type: 'horizontal'; ratio: number; first: SplitLayout; second: SplitLayout };
 
 // =============================================================================
 // RECENTLY CLOSED
@@ -250,7 +249,7 @@ export type TabAction =
   | { type: 'CLEAR_RECENTLY_CLOSED' }
 
   // Split view
-  | { type: 'SPLIT_VIEW'; payload: { direction: 'horizontal' | 'vertical'; groupId: string } }
+  | { type: 'SPLIT_VIEW'; payload: { direction: 'horizontal'; groupId: string } }
   | { type: 'RESIZE_SPLIT'; payload: { path: number[]; ratio: number } }
   | { type: 'CLOSE_SPLIT'; payload: { groupId: string } }
   | {
@@ -260,7 +259,7 @@ export type TabAction =
         fromGroupId: string;
         /** Target group to split (if different from fromGroupId) */
         targetGroupId?: string;
-        direction: 'horizontal' | 'vertical' | 'left' | 'right' | 'up' | 'down';
+        direction: 'horizontal' | 'left' | 'right';
         /** Position of new pane relative to target */
         position?: 'first' | 'second';
       };

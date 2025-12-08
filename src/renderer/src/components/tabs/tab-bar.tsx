@@ -4,7 +4,7 @@
  */
 
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, PanelRight, LayoutGrid, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, PanelRight, Plus } from 'lucide-react';
 import { useTabGroup, useTabs } from '@/contexts/tabs';
 import { RegularTab } from './regular-tab';
 import { PinnedTab } from './pinned-tab';
@@ -96,10 +96,6 @@ export const TabBar = ({ groupId, className }: TabBarProps): React.JSX.Element |
     // Handle split view
     const handleSplitRight = (): void => {
         splitView('horizontal', groupId);
-    };
-
-    const handleSplitDown = (): void => {
-        splitView('vertical', groupId);
     };
 
     return (
@@ -206,11 +202,6 @@ export const TabBar = ({ groupId, className }: TabBarProps): React.JSX.Element |
                     icon={<PanelRight className="w-4 h-4" />}
                     tooltip="Split Right"
                     onClick={handleSplitRight}
-                />
-                <TabBarAction
-                    icon={<LayoutGrid className="w-4 h-4" />}
-                    tooltip="Split Down"
-                    onClick={handleSplitDown}
                 />
                 <TabBarAction
                     icon={<Plus className="w-4 h-4" />}

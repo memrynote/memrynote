@@ -199,14 +199,6 @@ export const useTabKeyboardShortcuts = (): void => {
         description: 'Split right',
       },
 
-      // Split down (⌘⇧\)
-      {
-        key: '\\',
-        modifiers: { meta: true, shift: true },
-        action: () => splitView('vertical', state.activeGroupId),
-        description: 'Split down',
-      },
-
       // Close split (⌘⌥W)
       {
         key: 'w',

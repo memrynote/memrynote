@@ -1036,12 +1036,11 @@ export function tabReducer(
       // Remove tab from source
       const newFromTabs = fromGroup.tabs.filter((t) => t.id !== tabId);
 
-      // Map direction to split type
-      const splitDirection: 'horizontal' | 'vertical' =
-        direction === 'left' || direction === 'right' ? 'horizontal' : 'vertical';
+      // Map direction to split type (always horizontal now)
+      const splitDirection: 'horizontal' = 'horizontal';
 
       // Determine layout order
-      const isFirst = direction === 'left' || direction === 'up';
+      const isFirst = direction === 'left';
 
       // Update layout
       const insertSplit = (layout: typeof state.layout): typeof state.layout => {

@@ -265,7 +265,7 @@ export const insertSplitAtGroup = (
   layout: SplitLayout,
   targetGroupId: string,
   newGroupId: string,
-  direction: 'horizontal' | 'vertical'
+  direction: 'horizontal'
 ): SplitLayout => {
   if (layout.type === 'leaf') {
     if (layout.tabGroupId === targetGroupId) {
@@ -343,18 +343,11 @@ export const getGroupWidthPercentages = (
       return;
     }
 
-    if (node.type === 'horizontal') {
-      // Horizontal split: divide width by ratio
-      const firstWidth = availableWidth * node.ratio;
-      const secondWidth = availableWidth * (1 - node.ratio);
-      traverse(node.first, firstWidth);
-      traverse(node.second, secondWidth);
-    } else {
-      // Vertical split: both children share the same width
-      // Each vertical child gets the full available width
-      traverse(node.first, availableWidth);
-      traverse(node.second, availableWidth);
-    }
+    // Horizontal split: divide width by ratio
+    const firstWidth = availableWidth * node.ratio;
+    const secondWidth = availableWidth * (1 - node.ratio);
+    traverse(node.first, firstWidth);
+    traverse(node.second, secondWidth);
   };
 
   traverse(layout, 100);
@@ -380,19 +373,11 @@ export const getOrderedGroupWidths = (
       return;
     }
 
-    if (node.type === 'horizontal') {
-      // Horizontal split: first on left, second on right
-      const firstWidth = availableWidth * node.ratio;
-      const secondWidth = availableWidth * (1 - node.ratio);
-      traverse(node.first, firstWidth);
-      traverse(node.second, secondWidth);
-    } else {
-      // Vertical split: both share the width, but we need to show them side by side in header
-      // Split the available width equally between vertical children
-      const childWidth = availableWidth / 2;
-      traverse(node.first, childWidth);
-      traverse(node.second, childWidth);
-    }
+    // Horizontal split: first on left, second on right
+    const firstWidth = availableWidth * node.ratio;
+    const secondWidth = availableWidth * (1 - node.ratio);
+    traverse(node.first, firstWidth);
+    traverse(node.second, secondWidth);
   };
 
   traverse(layout, 100);
@@ -414,7 +399,7 @@ export const updateSplitRatio = (
 
   const [currentIndex, ...remainingPath] = path;
 
-  if (layout.type === 'horizontal' || layout.type === 'vertical') {
+  if (layout.type === 'horizontal') {
     // If we're at the target level (remainingPath is empty), update ratio
     if (remainingPath.length === 0) {
       return { ...layout, ratio };

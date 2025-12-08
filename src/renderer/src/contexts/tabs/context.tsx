@@ -167,7 +167,7 @@ interface TabContextType {
     /**
      * Split the view
      */
-    splitView: (direction: 'horizontal' | 'vertical', groupId?: string) => void;
+    splitView: (direction: 'horizontal', groupId?: string) => void;
 
     /**
      * Close a split pane
@@ -180,7 +180,7 @@ interface TabContextType {
     moveTabToNewSplit: (
         tabId: string,
         fromGroupId: string,
-        direction: 'left' | 'right' | 'up' | 'down'
+        direction: 'left' | 'right'
     ) => void;
 
     /**
@@ -513,7 +513,7 @@ export const TabProvider = ({
     }, []);
 
     const splitView = useCallback(
-        (direction: 'horizontal' | 'vertical', groupId?: string) => {
+        (direction: 'horizontal', groupId?: string) => {
             const actualGroupId = groupId ?? state.activeGroupId;
             dispatch({
                 type: 'SPLIT_VIEW',
@@ -534,7 +534,7 @@ export const TabProvider = ({
         (
             tabId: string,
             fromGroupId: string,
-            direction: 'left' | 'right' | 'up' | 'down'
+            direction: 'left' | 'right'
         ) => {
             dispatch({
                 type: 'MOVE_TAB_TO_NEW_SPLIT',

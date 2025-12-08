@@ -19,7 +19,7 @@ import {
     SortableContext,
     horizontalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, PanelRight, PanelBottom, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, PanelRight, Plus } from 'lucide-react';
 import { useTabGroup, useTabs } from '@/contexts/tabs';
 import { SortableTab } from './sortable-tab';
 import { PinnedTab } from './pinned-tab';
@@ -181,10 +181,6 @@ export const TabBarWithDrag = ({
         splitView('horizontal', groupId);
     };
 
-    const handleSplitDown = (): void => {
-        splitView('vertical', groupId);
-    };
-
     return (
         <DndContext
             sensors={sensors}
@@ -301,11 +297,6 @@ export const TabBarWithDrag = ({
                             icon={<PanelRight className="w-4 h-4" />}
                             tooltip="Split Right"
                             onClick={handleSplitRight}
-                        />
-                        <TabBarAction
-                            icon={<PanelBottom className="w-4 h-4" />}
-                            tooltip="Split Down"
-                            onClick={handleSplitDown}
                         />
                         <TabBarAction
                             icon={<Plus className="w-4 h-4" />}

@@ -13,9 +13,7 @@ import { generateId, createDefaultTab } from '@/contexts/tabs/helpers';
 export type LayoutPreset =
   | 'single'
   | 'two-columns'
-  | 'two-rows'
   | 'three-columns'
-  | 'grid-2x2'
   | 'main-sidebar';
 
 export interface LayoutPresetConfig {
@@ -40,19 +38,9 @@ export const layoutPresets: LayoutPresetConfig[] = [
     description: 'Side by side',
   },
   {
-    id: 'two-rows',
-    label: 'Two Rows',
-    description: 'Stacked',
-  },
-  {
     id: 'three-columns',
     label: 'Three Columns',
     description: 'Three panes',
-  },
-  {
-    id: 'grid-2x2',
-    label: 'Grid',
-    description: 'Four panes',
   },
   {
     id: 'main-sidebar',
@@ -139,26 +127,6 @@ export const applyLayoutPreset = (
       };
     }
 
-    case 'two-rows': {
-      const group1Id = generateId();
-      const group2Id = generateId();
-      const [firstTabs, secondTabs] = splitArray(allTabs, 2);
-
-      return {
-        tabGroups: {
-          [group1Id]: createGroup(group1Id, firstTabs, true),
-          [group2Id]: createGroup(group2Id, secondTabs, false),
-        },
-        layout: {
-          type: 'vertical',
-          ratio: 0.5,
-          first: { type: 'leaf', tabGroupId: group1Id },
-          second: { type: 'leaf', tabGroupId: group2Id },
-        },
-        activeGroupId: group1Id,
-      };
-    }
-
     case 'three-columns': {
       const group1Id = generateId();
       const group2Id = generateId();
@@ -183,40 +151,6 @@ export const applyLayoutPreset = (
           },
         },
         activeGroupId: group1Id,
-      };
-    }
-
-    case 'grid-2x2': {
-      const g1 = generateId();
-      const g2 = generateId();
-      const g3 = generateId();
-      const g4 = generateId();
-      const chunks = splitArray(allTabs, 4);
-
-      return {
-        tabGroups: {
-          [g1]: createGroup(g1, chunks[0], true),
-          [g2]: createGroup(g2, chunks[1], false),
-          [g3]: createGroup(g3, chunks[2], false),
-          [g4]: createGroup(g4, chunks[3], false),
-        },
-        layout: {
-          type: 'vertical',
-          ratio: 0.5,
-          first: {
-            type: 'horizontal',
-            ratio: 0.5,
-            first: { type: 'leaf', tabGroupId: g1 },
-            second: { type: 'leaf', tabGroupId: g2 },
-          },
-          second: {
-            type: 'horizontal',
-            ratio: 0.5,
-            first: { type: 'leaf', tabGroupId: g3 },
-            second: { type: 'leaf', tabGroupId: g4 },
-          },
-        },
-        activeGroupId: g1,
       };
     }
 
