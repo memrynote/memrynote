@@ -31,7 +31,7 @@ export const TabPaneWithDropZones = ({
     isActive,
     className,
 }: TabPaneWithDropZonesProps): React.JSX.Element | null => {
-    const { dispatch, state } = useTabs();
+    const { dispatch } = useTabs();
     const group = useTabGroup(groupId);
 
     // Drag state
@@ -96,9 +96,6 @@ export const TabPaneWithDropZones = ({
     // Find active tab
     const activeTab = group.tabs.find((t) => t.id === group.activeTabId);
 
-    // Check if there are multiple groups (show active indicator)
-    const hasMultipleGroups = Object.keys(state.tabGroups).length > 1;
-
     // Handle focus when clicking on pane
     const handleFocus = (): void => {
         if (!isActive) {
@@ -153,12 +150,6 @@ export const TabPaneWithDropZones = ({
         <div
             className={cn(
                 'relative flex flex-col h-full w-full',
-                // Active group indicator (only when multiple groups)
-                hasMultipleGroups && [
-                    isActive
-                        ? 'ring-1 ring-blue-500 ring-inset'
-                        : 'ring-1 ring-transparent',
-                ],
                 className
             )}
             onClick={handleFocus}
