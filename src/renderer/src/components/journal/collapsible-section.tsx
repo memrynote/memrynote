@@ -1,10 +1,11 @@
 /**
  * Collapsible Section Component
  * Reusable collapsible section for day card (Calendar Events, Overdue Tasks)
+ * With smooth animations and accessibility
  */
 
-import { useState, memo } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useRef, useEffect, memo, useId } from 'react'
+import { ChevronDown, Pencil, Link, Image } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface CollapsibleSectionProps {
@@ -25,7 +26,7 @@ export interface CollapsibleSectionProps {
 }
 
 /**
- * Collapsible section with header toggle
+ * Collapsible section with animated header toggle
  * Used for Calendar Events and Overdue Tasks in day cards
  */
 export const CollapsibleSection = memo(function CollapsibleSection({
@@ -38,19 +39,33 @@ export const CollapsibleSection = memo(function CollapsibleSection({
     className,
 }: CollapsibleSectionProps): React.JSX.Element {
     const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
+    const contentRef = useRef<HTMLDivElement>(null)
+    const [contentHeight, setContentHeight] = useState<number>(0)
+    const headerId = useId()
+    const contentId = useId()
+
+    // Measure content height for animation
+    useEffect(() => {
+        if (contentRef.current) {
+            setContentHeight(contentRef.current.scrollHeight)
+        }
+    }, [children])
 
     const toggleCollapse = () => setIsCollapsed(prev => !prev)
 
     return (
-        <div className={cn("rounded-lg border border-border/40 bg-muted/20", className)}>
+        <div className={cn("rounded-lg border border-border/40 bg-muted/20 overflow-hidden", className)}>
             {/* Header - always visible */}
             <button
+                id={headerId}
                 type="button"
                 onClick={toggleCollapse}
+                aria-expanded={!isCollapsed}
+                aria-controls={contentId}
                 className={cn(
                     "w-full flex items-center justify-between px-4 py-3",
-                    "hover:bg-muted/40 transition-colors",
-                    "text-left"
+                    "hover:bg-muted/40 transition-colors duration-150",
+                    "text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                 )}
             >
                 <div className="flex items-center gap-2">
@@ -64,90 +79,33 @@ export const CollapsibleSection = memo(function CollapsibleSection({
                             {count} {countLabel || 'items'}
                         </span>
                     )}
-                    {isCollapsed ? (
-                        <ChevronDown className="size-4 text-muted-foreground" />
-                    ) : (
-                        <ChevronUp className="size-4 text-muted-foreground" />
-                    )}
+                    <ChevronDown
+                        className={cn(
+                            "size-4 text-muted-foreground transition-transform duration-200",
+                            !isCollapsed && "rotate-180"
+                        )}
+                    />
                 </div>
             </button>
 
-            {/* Content - collapsible */}
-            {!isCollapsed && (
-                <div className="px-4 pb-4 pt-1 border-t border-border/30">
+            {/* Content - animated */}
+            <div
+                id={contentId}
+                role="region"
+                aria-labelledby={headerId}
+                aria-hidden={isCollapsed}
+                style={{
+                    maxHeight: isCollapsed ? 0 : contentHeight,
+                    opacity: isCollapsed ? 0 : 1,
+                }}
+                className={cn(
+                    "transition-all duration-250 ease-out overflow-hidden",
+                    isCollapsed ? "invisible" : "visible"
+                )}
+            >
+                <div ref={contentRef} className="px-4 pb-4 pt-1 border-t border-border/30">
                     {children}
                 </div>
-            )}
-        </div>
-    )
-})
-
-// =============================================================================
-// NOTES SECTION (Always visible, not collapsible)
-// =============================================================================
-
-export interface NotesSectionProps {
-    /** Notes for this day */
-    notes: { id: string; time: string; title: string; preview?: string }[]
-    /** Callback when a note is clicked */
-    onNoteClick?: (noteId: string) => void
-}
-
-export const NotesSection = memo(function NotesSection({
-    notes,
-    onNoteClick,
-}: NotesSectionProps): React.JSX.Element {
-    return (
-        <div className="rounded-lg border border-border/40 bg-muted/20">
-            {/* Header */}
-            <div className="px-4 py-3 border-b border-border/30">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <span className="text-base">📝</span>
-                        <span className="text-sm font-medium text-foreground">Notes</span>
-                    </div>
-                    {notes.length > 0 && (
-                        <span className="text-xs text-muted-foreground">({notes.length})</span>
-                    )}
-                </div>
-            </div>
-
-            {/* Content */}
-            <div className="p-4">
-                {notes.length > 0 ? (
-                    <div className="flex flex-col gap-2">
-                        {notes.map(note => (
-                            <button
-                                key={note.id}
-                                type="button"
-                                onClick={() => onNoteClick?.(note.id)}
-                                className={cn(
-                                    "flex flex-col gap-1 p-3 rounded-md",
-                                    "bg-background/50 hover:bg-background transition-colors",
-                                    "text-left w-full group"
-                                )}
-                            >
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs text-muted-foreground">{note.time}</span>
-                                    <span className="text-muted-foreground/50 group-hover:text-muted-foreground transition-colors">→</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm">📄</span>
-                                    <span className="text-sm font-medium text-foreground">{note.title}</span>
-                                </div>
-                                {note.preview && (
-                                    <p className="text-xs text-muted-foreground line-clamp-1 pl-6">
-                                        "{note.preview}"
-                                    </p>
-                                )}
-                            </button>
-                        ))}
-                    </div>
-                ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                        No notes from this day
-                    </p>
-                )}
             </div>
         </div>
     )
@@ -173,7 +131,7 @@ export const JournalSection = memo(function JournalSection({
             {/* Header */}
             <div className="px-4 py-3 border-b border-border/30">
                 <div className="flex items-center gap-2">
-                    <span className="text-base">✍️</span>
+                    <Pencil className="size-4 text-muted-foreground" />
                     <span className="text-sm font-medium text-foreground">Journal</span>
                 </div>
             </div>
@@ -192,16 +150,20 @@ export const JournalSection = memo(function JournalSection({
                     {/* Toolbar placeholder */}
                     <div className="px-4 py-2 border-t border-border/30 flex items-center justify-between">
                         <div className="flex items-center gap-1">
-                            <ToolbarButton>B</ToolbarButton>
-                            <ToolbarButton>I</ToolbarButton>
-                            <ToolbarButton>U</ToolbarButton>
-                            <ToolbarButton>S</ToolbarButton>
+                            <ToolbarButton title="Bold">B</ToolbarButton>
+                            <ToolbarButton title="Italic">I</ToolbarButton>
+                            <ToolbarButton title="Underline">U</ToolbarButton>
+                            <ToolbarButton title="Strikethrough">S</ToolbarButton>
                             <span className="w-px h-4 bg-border mx-1" />
-                            <ToolbarButton>🔗</ToolbarButton>
-                            <ToolbarButton>📷</ToolbarButton>
+                            <ToolbarButton title="Link">
+                                <Link className="size-3.5" />
+                            </ToolbarButton>
+                            <ToolbarButton title="Image">
+                                <Image className="size-3.5" />
+                            </ToolbarButton>
                         </div>
                         <div className="flex items-center gap-1">
-                            <ToolbarButton>⋮</ToolbarButton>
+                            <ToolbarButton title="More options">⋮</ToolbarButton>
                             <ToolbarButton title="Focus mode">◱</ToolbarButton>
                         </div>
                     </div>
