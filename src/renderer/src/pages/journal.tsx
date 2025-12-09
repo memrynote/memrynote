@@ -1,10 +1,13 @@
 /**
  * Journal Page Component
- * Two-column layout with scrollable day cards area and sticky sidebar
+ * Two-column layout with infinite scroll day cards and sticky sidebar
  */
 
-import { cn } from "@/lib/utils"
-import { Calendar, Sparkles, FileText } from "lucide-react"
+import { useCallback } from 'react'
+import { cn } from '@/lib/utils'
+import { Calendar, Sparkles, FileText, Loader2 } from 'lucide-react'
+import { DayCard } from '@/components/journal/day-card'
+import { useJournalScroll } from '@/hooks/use-journal-scroll'
 
 interface JournalPageProps {
     className?: string
@@ -12,10 +15,12 @@ interface JournalPageProps {
 
 /**
  * Main Journal Page with two-column layout
- * Left: Scrollable area for day cards (infinite scroll)
+ * Left: Infinite scroll area for day cards
  * Right: Sticky sidebar with calendar, AI connections, and notes
  */
 export function JournalPage({ className }: JournalPageProps): React.JSX.Element {
+    const journal = useJournalScroll()
+
     return (
         <div
             className={cn(
@@ -24,20 +29,38 @@ export function JournalPage({ className }: JournalPageProps): React.JSX.Element 
             )}
         >
             {/* Left Section - Scrollable Day Cards Area */}
-            <JournalScrollArea />
+            <JournalScrollArea journal={journal} />
 
             {/* Right Section - Sticky Sidebar */}
-            <JournalSidebar />
+            <JournalSidebar
+                activeDate={journal.state.activeDate}
+                onTodayClick={() => journal.scrollToToday(true)}
+            />
         </div>
     )
 }
 
-/**
- * Left section - Scrollable container for day cards
- */
-function JournalScrollArea(): React.JSX.Element {
+// =============================================================================
+// SCROLL AREA
+// =============================================================================
+
+interface JournalScrollAreaProps {
+    journal: ReturnType<typeof useJournalScroll>
+}
+
+function JournalScrollArea({ journal }: JournalScrollAreaProps): React.JSX.Element {
+    const { state, scrollContainerRef, registerDayCardRef, getOpacity } = journal
+
+    // Create ref callback for each day card
+    const createRefCallback = useCallback((date: string) => {
+        return (element: HTMLDivElement | null) => {
+            registerDayCardRef(date, element)
+        }
+    }, [registerDayCardRef])
+
     return (
         <div
+            ref={scrollContainerRef}
             className={cn(
                 // Layout
                 "flex-1 min-w-0",
@@ -47,28 +70,59 @@ function JournalScrollArea(): React.JSX.Element {
                 "max-md:w-full max-md:min-w-0",
                 // Scrolling
                 "overflow-y-auto overflow-x-hidden",
-                "scroll-smooth",
                 // Hide scrollbar but keep functionality
                 "scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700",
                 // Padding
                 "px-6 py-10"
             )}
         >
-            {/* Day Cards Container - centered with max-width */}
+            {/* Loading indicator for past days */}
+            {state.isLoadingPast && (
+                <div className="flex items-center justify-center py-4 mb-4">
+                    <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-sm text-muted-foreground">Loading past days...</span>
+                </div>
+            )}
+
+            {/* Day Cards Container */}
             <div className="mx-auto max-w-[800px] flex flex-col gap-6">
-                {/* Placeholder for day cards - will be replaced in Prompt 02 & 03 */}
-                <DayCardPlaceholder label="Past Day" variant="past" />
-                <DayCardPlaceholder label="Today (Active)" variant="active" />
-                <DayCardPlaceholder label="Future Day" variant="future" />
+                {state.days.map((day) => (
+                    <DayCard
+                        key={day.date}
+                        ref={createRefCallback(day.date)}
+                        date={day.date}
+                        isActive={day.date === state.activeDate}
+                        isToday={day.isToday}
+                        isFuture={day.isFuture}
+                        opacity={getOpacity(day.date)}
+                    />
+                ))}
             </div>
+
+            {/* Loading indicator for future days */}
+            {state.isLoadingFuture && (
+                <div className="flex items-center justify-center py-4 mt-4">
+                    <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-sm text-muted-foreground">Loading future days...</span>
+                </div>
+            )}
         </div>
     )
 }
 
-/**
- * Right section - Sticky sidebar with calendar, AI, and notes
- */
-function JournalSidebar(): React.JSX.Element {
+// =============================================================================
+// SIDEBAR
+// =============================================================================
+
+interface JournalSidebarProps {
+    activeDate: string
+    onTodayClick: () => void
+}
+
+function JournalSidebar({
+    activeDate,
+    onTodayClick,
+}: JournalSidebarProps): React.JSX.Element {
     return (
         <aside
             className={cn(
@@ -92,18 +146,28 @@ function JournalSidebar(): React.JSX.Element {
                 "flex flex-col gap-5"
             )}
         >
-            {/* Calendar Section Placeholder */}
+            {/* Calendar Section */}
             <SidebarSection
                 icon={Calendar}
                 title="Calendar"
                 iconColor="text-accent-blue"
+                action={
+                    <button
+                        type="button"
+                        onClick={onTodayClick}
+                        className="text-xs text-primary hover:underline"
+                    >
+                        Today
+                    </button>
+                }
             >
-                <div className="h-48 rounded-lg border border-dashed border-border/60 flex items-center justify-center text-muted-foreground text-sm">
-                    Calendar Heatmap
+                <div className="h-48 rounded-lg border border-dashed border-border/60 flex flex-col items-center justify-center text-muted-foreground text-sm gap-2">
+                    <span>Calendar Heatmap</span>
+                    <span className="text-xs">Active: {activeDate}</span>
                 </div>
             </SidebarSection>
 
-            {/* AI Connections Section Placeholder */}
+            {/* AI Connections Section */}
             <SidebarSection
                 icon={Sparkles}
                 title="AI Connections"
@@ -114,7 +178,7 @@ function JournalSidebar(): React.JSX.Element {
                 </div>
             </SidebarSection>
 
-            {/* Today's Notes Section Placeholder */}
+            {/* Today's Notes Section */}
             <SidebarSection
                 icon={FileText}
                 title="Today's Notes"
@@ -129,70 +193,32 @@ function JournalSidebar(): React.JSX.Element {
 }
 
 // =============================================================================
-// PLACEHOLDER COMPONENTS
+// SIDEBAR SECTION
 // =============================================================================
-
-interface DayCardPlaceholderProps {
-    label: string
-    variant: "past" | "active" | "future"
-}
-
-/**
- * Placeholder for day cards - will be replaced in Prompt 03
- */
-function DayCardPlaceholder({ label, variant }: DayCardPlaceholderProps): React.JSX.Element {
-    return (
-        <div
-            className={cn(
-                // Base styling
-                "rounded-xl p-6 min-h-[200px]",
-                "flex flex-col items-center justify-center gap-2",
-                "transition-all duration-300",
-                // Variant-specific styling
-                variant === "past" && [
-                    "opacity-50",
-                    "bg-card border border-border/40",
-                ],
-                variant === "active" && [
-                    "opacity-100",
-                    "bg-card border-2 border-primary/30",
-                    "shadow-lg shadow-primary/5",
-                ],
-                variant === "future" && [
-                    "opacity-40",
-                    "bg-card/50 border border-dashed border-border/60",
-                ]
-            )}
-        >
-            <span className="text-lg font-medium text-foreground/80">{label}</span>
-            <span className="text-sm text-muted-foreground">
-                Day cards will appear here
-            </span>
-        </div>
-    )
-}
 
 interface SidebarSectionProps {
     icon: typeof Calendar
     title: string
     iconColor?: string
+    action?: React.ReactNode
     children: React.ReactNode
 }
 
-/**
- * Reusable sidebar section with icon header
- */
 function SidebarSection({
     icon: Icon,
     title,
     iconColor = "text-muted-foreground",
+    action,
     children,
 }: SidebarSectionProps): React.JSX.Element {
     return (
         <section className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-                <Icon className={cn("size-4", iconColor)} />
-                <h3 className="text-sm font-medium text-foreground">{title}</h3>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <Icon className={cn("size-4", iconColor)} />
+                    <h3 className="text-sm font-medium text-foreground">{title}</h3>
+                </div>
+                {action}
             </div>
             {children}
         </section>

@@ -28,3 +28,6 @@ export * from "./use-pane-navigation"
 export * from "./use-reduced-motion"
 export * from "./use-focus-management"
 export * from "./use-throttled-tab-switch"
+
+// Journal
+export * from "./use-journal-scroll"
