@@ -5,8 +5,9 @@
  */
 
 import { useState, useRef, useEffect, memo, useId } from 'react'
-import { ChevronDown, Pencil, Link, Image } from 'lucide-react'
+import { ChevronDown, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { JournalEditor } from './journal-editor'
 
 export interface CollapsibleSectionProps {
     /** Section icon */
@@ -112,7 +113,7 @@ export const CollapsibleSection = memo(function CollapsibleSection({
 })
 
 // =============================================================================
-// JOURNAL SECTION (Always visible, editor placeholder)
+// JOURNAL SECTION (Always visible, uses real Tiptap editor)
 // =============================================================================
 
 export interface JournalSectionProps {
@@ -120,11 +121,17 @@ export interface JournalSectionProps {
     isActive?: boolean
     /** Placeholder text */
     placeholder?: string
+    /** Initial content */
+    content?: string
+    /** Content change callback */
+    onContentChange?: (content: string) => void
 }
 
 export const JournalSection = memo(function JournalSection({
     isActive = false,
     placeholder = "Start writing...",
+    content = '',
+    onContentChange,
 }: JournalSectionProps): React.JSX.Element {
     return (
         <div className="rounded-lg border border-border/40 bg-muted/20">
@@ -136,64 +143,17 @@ export const JournalSection = memo(function JournalSection({
                 </div>
             </div>
 
-            {/* Editor placeholder */}
+            {/* Tiptap Editor */}
             <div className="p-4">
-                <div className={cn(
-                    "rounded-lg border bg-background",
-                    isActive ? "border-border" : "border-border/50"
-                )}>
-                    {/* Content area */}
-                    <div className="p-4 min-h-[120px]">
-                        <p className="text-sm text-muted-foreground italic">{placeholder}</p>
-                    </div>
-
-                    {/* Toolbar placeholder */}
-                    <div className="px-4 py-2 border-t border-border/30 flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                            <ToolbarButton title="Bold">B</ToolbarButton>
-                            <ToolbarButton title="Italic">I</ToolbarButton>
-                            <ToolbarButton title="Underline">U</ToolbarButton>
-                            <ToolbarButton title="Strikethrough">S</ToolbarButton>
-                            <span className="w-px h-4 bg-border mx-1" />
-                            <ToolbarButton title="Link">
-                                <Link className="size-3.5" />
-                            </ToolbarButton>
-                            <ToolbarButton title="Image">
-                                <Image className="size-3.5" />
-                            </ToolbarButton>
-                        </div>
-                        <div className="flex items-center gap-1">
-                            <ToolbarButton title="More options">⋮</ToolbarButton>
-                            <ToolbarButton title="Focus mode">◱</ToolbarButton>
-                        </div>
-                    </div>
-                </div>
+                <JournalEditor
+                    content={content}
+                    placeholder={placeholder}
+                    isActive={isActive}
+                    onContentChange={onContentChange}
+                />
             </div>
         </div>
     )
 })
-
-// Helper component for toolbar buttons
-function ToolbarButton({
-    children,
-    title
-}: {
-    children: React.ReactNode
-    title?: string
-}): React.JSX.Element {
-    return (
-        <button
-            type="button"
-            title={title}
-            className={cn(
-                "size-7 flex items-center justify-center rounded",
-                "text-xs text-muted-foreground",
-                "hover:bg-muted/50 transition-colors"
-            )}
-        >
-            {children}
-        </button>
-    )
-}
 
 export default CollapsibleSection
