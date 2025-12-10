@@ -4,13 +4,20 @@
  */
 
 import { useEffect, memo } from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, ReactRenderer } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
+import tippy from 'tippy.js'
+import type { Instance } from 'tippy.js'
+import 'tippy.js/dist/tippy.css'
 import { cn } from '@/lib/utils'
 import { EditorToolbar } from './editor-toolbar'
+import { WikiLink, wikiLinkStyles, WikiLinkAutocomplete } from './extensions/wiki-link'
+import { Tag, tagStyles, TagAutocomplete } from './extensions/tag'
+import { usePages } from '@/hooks/use-pages'
+import { useTags } from '@/hooks/use-tags'
 
 // =============================================================================
 // TYPES
@@ -46,6 +53,9 @@ export const JournalEditor = memo(function JournalEditor({
     className,
     readOnly = false,
 }: JournalEditorProps): React.JSX.Element {
+    // Hooks for pages and tags
+    const { searchPages } = usePages()
+    const { searchTags } = useTags()
 
     // Initialize Tiptap editor
     const editor = useEditor({
@@ -73,6 +83,106 @@ export const JournalEditor = memo(function JournalEditor({
             Placeholder.configure({
                 placeholder,
                 emptyEditorClass: 'is-editor-empty',
+            }),
+            // WikiLink extension with autocomplete
+            WikiLink.configure({
+                suggestion: {
+                    items: ({ query }) => {
+                        return searchPages(query)
+                    },
+                    render: () => {
+                        let component: ReactRenderer | null = null
+                        let popup: Instance[] | null = null
+
+                        return {
+                            onStart: (props) => {
+                                component = new ReactRenderer(WikiLinkAutocomplete, {
+                                    props,
+                                    editor: props.editor,
+                                })
+
+                                popup = tippy('body', {
+                                    getReferenceClientRect: props.clientRect as () => DOMRect,
+                                    appendTo: () => document.body,
+                                    content: component.element,
+                                    showOnCreate: true,
+                                    interactive: true,
+                                    trigger: 'manual',
+                                    placement: 'bottom-start',
+                                })
+                            },
+                            onUpdate: (props) => {
+                                component?.updateProps(props)
+                                popup?.[0]?.setProps({
+                                    getReferenceClientRect: props.clientRect as () => DOMRect,
+                                })
+                            },
+                            onKeyDown: (props) => {
+                                if (props.event.key === 'Escape') {
+                                    popup?.[0]?.hide()
+                                    return true
+                                }
+                                return component?.ref?.onKeyDown?.(props) ?? false
+                            },
+                            onExit: () => {
+                                popup?.[0]?.destroy()
+                                component?.destroy()
+                                component = null
+                                popup = null
+                            },
+                        }
+                    },
+                },
+            }),
+            // Tag extension with autocomplete
+            Tag.configure({
+                suggestion: {
+                    items: ({ query }) => {
+                        return searchTags(query)
+                    },
+                    render: () => {
+                        let component: ReactRenderer | null = null
+                        let popup: Instance[] | null = null
+
+                        return {
+                            onStart: (props) => {
+                                component = new ReactRenderer(TagAutocomplete, {
+                                    props: { ...props, query: props.query },
+                                    editor: props.editor,
+                                })
+
+                                popup = tippy('body', {
+                                    getReferenceClientRect: props.clientRect as () => DOMRect,
+                                    appendTo: () => document.body,
+                                    content: component.element,
+                                    showOnCreate: true,
+                                    interactive: true,
+                                    trigger: 'manual',
+                                    placement: 'bottom-start',
+                                })
+                            },
+                            onUpdate: (props) => {
+                                component?.updateProps({ ...props, query: props.query })
+                                popup?.[0]?.setProps({
+                                    getReferenceClientRect: props.clientRect as () => DOMRect,
+                                })
+                            },
+                            onKeyDown: (props) => {
+                                if (props.event.key === 'Escape') {
+                                    popup?.[0]?.hide()
+                                    return true
+                                }
+                                return component?.ref?.onKeyDown?.(props) ?? false
+                            },
+                            onExit: () => {
+                                popup?.[0]?.destroy()
+                                component?.destroy()
+                                component = null
+                                popup = null
+                            },
+                        }
+                    },
+                },
             }),
         ],
         content,
@@ -120,22 +230,28 @@ export const JournalEditor = memo(function JournalEditor({
     }, [isActive, editor])
 
     return (
-        <div
-            className={cn(
-                "rounded-lg border bg-background overflow-hidden",
-                isActive ? "border-border ring-1 ring-primary/20" : "border-border/50",
-                className
-            )}
-        >
-            {/* Editor Content */}
-            <EditorContent
-                editor={editor}
-                className="[&_.is-editor-empty:first-child::before]:text-muted-foreground [&_.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.is-editor-empty:first-child::before]:float-left [&_.is-editor-empty:first-child::before]:h-0 [&_.is-editor-empty:first-child::before]:pointer-events-none"
-            />
+        <>
+            {/* Inject CSS styles for wiki-links and tags */}
+            <style>{wikiLinkStyles}</style>
+            <style>{tagStyles}</style>
 
-            {/* Toolbar */}
-            <EditorToolbar editor={editor} />
-        </div>
+            <div
+                className={cn(
+                    "rounded-lg border bg-background overflow-hidden",
+                    isActive ? "border-border ring-1 ring-primary/20" : "border-border/50",
+                    className
+                )}
+            >
+                {/* Editor Content */}
+                <EditorContent
+                    editor={editor}
+                    className="[&_.is-editor-empty:first-child::before]:text-muted-foreground [&_.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.is-editor-empty:first-child::before]:float-left [&_.is-editor-empty:first-child::before]:h-0 [&_.is-editor-empty:first-child::before]:pointer-events-none"
+                />
+
+                {/* Toolbar */}
+                <EditorToolbar editor={editor} />
+            </div>
+        </>
     )
 })
 
