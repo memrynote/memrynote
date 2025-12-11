@@ -1,5 +1,4 @@
 import { useCallback, useState } from "react"
-import { arrayMove } from "@dnd-kit/sortable"
 import type { DragEndEvent, DragStartEvent, DragOverEvent } from "@dnd-kit/core"
 import { toast } from "sonner"
 
@@ -132,32 +131,6 @@ export const useDragHandlers = ({
     setUndoStack((prev) => prev.slice(0, -1))
     toast.success("Undone")
   }, [undoStack, tasks, projects, onUpdateTask, onReorder])
-
-  // Handle reordering within the same section
-  const handleReorder = useCallback(
-    (activeId: string, overId: string, sectionId: string, currentOrder: string[]) => {
-      const oldIndex = currentOrder.indexOf(activeId)
-      const newIndex = currentOrder.indexOf(overId)
-
-      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return
-
-      const newOrder = arrayMove(currentOrder, oldIndex, newIndex)
-
-      // Record for undo
-      recordAction(
-        {
-          type: "reorder",
-          taskIds: [activeId],
-          sectionId,
-          previousOrder: currentOrder,
-        },
-        "Reordered task"
-      )
-
-      onReorder?.(sectionId, newOrder)
-    },
-    [onReorder, recordAction]
-  )
 
   // Handle dropping on a section (reschedule)
   const handleSectionDrop = useCallback(
@@ -410,16 +383,22 @@ export const useDragHandlers = ({
 
       switch (overType) {
         case "task": {
-          // Reorder within section
-          const sectionId = overData?.sectionId || dragState.sourceContainerId
-          if (sectionId && taskIds.length === 1) {
-            // Get current order of tasks in section
-            const sectionTasks = tasks.filter((t) => {
-              // This is simplified - actual implementation depends on how sections are defined
-              return true
-            })
-            const currentOrder = sectionTasks.map((t) => t.id)
-            handleReorder(taskIds[0], over.id as string, sectionId, currentOrder)
+          // Check if we're dropping within the same section (reorder) or different section (move)
+          const overSectionId = overData?.sectionId
+          const sourceSectionId = dragState.sourceContainerId
+
+          // Only reorder if dropping within the same section
+          if (overSectionId && sourceSectionId && overSectionId === sourceSectionId && taskIds.length === 1) {
+            // Same section - this is a reorder operation
+            // Pass the reorder to the callback which should handle it via useTaskOrder
+            onReorder?.(overSectionId, [taskIds[0], over.id as string])
+          } else if (overSectionId && overSectionId !== sourceSectionId) {
+            // Different section - treat as a section drop (change due date)
+            // Get the date from the over task's section if available
+            const overTask = overData?.task as Task | undefined
+            if (overTask?.dueDate) {
+              handleSectionDrop(taskIds, overTask.dueDate, overSectionId)
+            }
           }
           break
         }
@@ -472,7 +451,7 @@ export const useDragHandlers = ({
     [
       tasks,
       projects,
-      handleReorder,
+      onReorder,
       handleSectionDrop,
       handleColumnDrop,
       handleDateDrop,

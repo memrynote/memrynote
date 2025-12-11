@@ -72,12 +72,22 @@ export const KanbanColumn = ({
   const [isAddingTask, setIsAddingTask] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState("")
 
+  const droppableData =
+    column.type === "project"
+      ? {
+          type: "project" as const,
+          projectId: column.id,
+          project: { id: column.id, name: column.title },
+        }
+      : {
+          type: "column" as const,
+          columnId: column.id,
+          column,
+        }
+
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
-    data: {
-      type: "column",
-      column,
-    },
+    data: droppableData,
   })
 
   const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks])
@@ -133,8 +143,8 @@ export const KanbanColumn = ({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex h-full w-[280px] shrink-0 flex-col rounded-lg bg-muted/30 transition-colors",
-        isOver && "bg-primary/5 ring-2 ring-primary/20"
+        "flex h-full w-[280px] shrink-0 flex-col rounded-lg bg-muted/30 transition-colors border border-transparent",
+        isOver && "bg-primary/5 border-dotted border-primary/60"
       )}
     >
       {/* Column Header */}
@@ -201,6 +211,7 @@ export const KanbanColumn = ({
                   <KanbanCard
                     key={task.id}
                     task={task}
+                    columnId={column.id}
                     allTasks={allTasks}
                     isSelected={selectedTaskId === task.id}
                     isFocused={focusedTaskId === task.id}

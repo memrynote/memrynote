@@ -18,7 +18,6 @@ import { TaskDragOverlay } from "@/components/tasks/drag-drop"
 import { initialProjects, taskViews, type Project } from "@/data/tasks-data"
 import { sampleTasks, type Task } from "@/data/sample-tasks"
 import { getFilteredTasks } from "@/lib/task-utils"
-import { toast } from "sonner"
 import { ThemeProvider } from "next-themes"
 
 
@@ -28,7 +27,7 @@ import { TasksProvider } from "@/contexts/tasks"
 import { TabBarWithDrag, RecentlyClosedMenu, TabDragProvider } from "@/components/tabs"
 import { SplitViewContainer } from "@/components/split-view"
 import { ChordIndicator, KeyboardShortcutsDialog } from "@/components/keyboard"
-import { useTabKeyboardShortcuts, useChordShortcuts } from "@/hooks"
+import { useTabKeyboardShortcuts, useChordShortcuts, useDragHandlers, useTaskOrder } from "@/hooks"
 
 // Base pages (non-task)
 export type BasePage = "inbox" | "home" | "journal"
@@ -318,106 +317,44 @@ function App(): React.JSX.Element {
     setProjects(newProjects)
   }, [])
 
-  // Drag-drop handler for App level (handles sidebar drops)
+  // Task order persistence hook
+  const taskOrder = useTaskOrder({ persist: true })
+
+  // Task update handler
+  const handleUpdateTask = useCallback((taskId: string, updates: Partial<Task>) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t))
+    )
+  }, [])
+
+  // Task delete handler
+  const handleDeleteTask = useCallback((taskId: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId))
+  }, [])
+
+  // Use the comprehensive drag handlers hook
+  const { handleDragEnd: taskDragEnd } = useDragHandlers({
+    tasks,
+    projects,
+    onUpdateTask: handleUpdateTask,
+    onDeleteTask: handleDeleteTask,
+    onReorder: (sectionId, taskIdsPair) => {
+      // taskIdsPair is [activeId, overId] from the drag operation
+      const [activeId, overId] = taskIdsPair
+      taskOrder.reorderByDrag(sectionId, activeId, overId, tasks)
+    },
+  })
+
+  // Combined drag-drop handler (task operations + project reordering)
   const handleDragEnd = useCallback(
     (event: DragEndEvent, dragState: DragState) => {
       const { active, over } = event
       if (!over) return
 
-      const overData = over.data.current
       const activeData = active.data.current
 
-      // Handle dropping task on project in sidebar
-      if (overData?.type === "project" && activeData?.type === "task") {
-        const taskId = active.id as string
-        const newProjectId = overData.projectId as string
-        const task = tasks.find((t) => t.id === taskId)
-        if (!task) return
-
-        // Get the new project's default status
-        const newProject = projects.find((p) => p.id === newProjectId)
-        if (!newProject) return
-
-        const defaultStatus = newProject.statuses.find((s) => s.type === "todo") || newProject.statuses[0]
-
-        // Handle multi-select drag
-        if (dragState.activeIds.length > 1) {
-          setTasks((prev) =>
-            prev.map((t) =>
-              dragState.activeIds.includes(t.id)
-                ? { ...t, projectId: newProjectId, statusId: defaultStatus?.id || t.statusId }
-                : t
-            )
-          )
-          toast.success(`Moved ${dragState.activeIds.length} tasks to ${newProject.name}`)
-          setSelectedTaskIds(new Set())
-        } else {
-          setTasks((prev) =>
-            prev.map((t) =>
-              t.id === taskId
-                ? { ...t, projectId: newProjectId, statusId: defaultStatus?.id || t.statusId }
-                : t
-            )
-          )
-          toast.success(`Moved task to ${newProject.name}`)
-        }
-        return
-      }
-
-      // Handle dropping task on a status column (for status change)
-      if (overData?.type === "column" && activeData?.type === "task") {
-        const taskId = active.id as string
-        const newStatusId = overData.statusId as string || overData.columnId as string
-        const task = tasks.find((t) => t.id === taskId)
-        if (!task) return
-
-        // Find the project for this task
-        const project = projects.find((p) => p.id === task.projectId)
-        if (!project) return
-
-        // Find the target status
-        const targetStatus = project.statuses.find((s) => s.id === newStatusId)
-        if (!targetStatus) return
-
-        // Don't update if already in the same status
-        if (task.statusId === newStatusId) return
-
-        // Handle multi-select drag
-        if (dragState.activeIds.length > 1) {
-          setTasks((prev) =>
-            prev.map((t) =>
-              dragState.activeIds.includes(t.id)
-                ? {
-                  ...t,
-                  statusId: newStatusId,
-                  // Mark as completed if moving to done status
-                  completedAt: targetStatus.type === "done" ? new Date() : null
-                }
-                : t
-            )
-          )
-          toast.success(`Moved ${dragState.activeIds.length} tasks to ${targetStatus.name}`)
-          setSelectedTaskIds(new Set())
-        } else {
-          setTasks((prev) =>
-            prev.map((t) =>
-              t.id === taskId
-                ? {
-                  ...t,
-                  statusId: newStatusId,
-                  completedAt: targetStatus.type === "done" ? new Date() : null
-                }
-                : t
-            )
-          )
-          toast.success(`Moved task to ${targetStatus.name}`)
-        }
-        return
-      }
-
-      // Handle project reordering in sidebar
+      // Handle project reordering in sidebar (not handled by useDragHandlers)
       if (activeData?.type === undefined && over.id !== active.id) {
-        // Check if this is a project reorder (active.id matches a project id)
         const activeIndex = projects.findIndex((p) => p.id === active.id)
         const overIndex = projects.findIndex((p) => p.id === over.id)
         if (activeIndex !== -1 && overIndex !== -1) {
@@ -425,8 +362,16 @@ function App(): React.JSX.Element {
           return
         }
       }
+
+      // Delegate all task operations to useDragHandlers
+      taskDragEnd(event, dragState)
+
+      // Clear selection after task drag
+      if (dragState.isDragging) {
+        setSelectedTaskIds(new Set())
+      }
     },
-    [tasks, projects]
+    [projects, taskDragEnd]
   )
 
   // Update selection from TasksPage
@@ -439,9 +384,6 @@ function App(): React.JSX.Element {
   const handleTaskSelectionChange = useCallback((_id: string, _type: TaskSelectionType): void => {
     // No-op - internal tabs manage selection now
   }, [])
-
-  // Tasks page needs DragProvider
-  const isTasksPage = currentPage === "tasks"
 
   // Main content with TabProvider and TasksProvider wrapping everything
   const mainContent = (
@@ -462,12 +404,12 @@ function App(): React.JSX.Element {
             projects={projectsWithCounts}
             selectedTaskIds={selectedTaskIds}
             onTasksChange={handleTasksChange}
-            onSelectionChange={handleTaskSelectionChange}
-            onSelectedTaskIdsChange={handleSelectionChange}
-          />
-        </SidebarInset>
+          onSelectionChange={handleTaskSelectionChange}
+          onSelectedTaskIdsChange={handleSelectionChange}
+        />
+      </SidebarInset>
         {/* Drag Overlay - only for task drag to sidebar */}
-        {isTasksPage && <TaskDragOverlay projects={projectsWithCounts} />}
+        <TaskDragOverlay projects={projectsWithCounts} />
       </TabProvider>
     </TasksProvider>
   )
@@ -475,17 +417,13 @@ function App(): React.JSX.Element {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       <SidebarProvider>
-        {isTasksPage ? (
-          <DragProvider
-            tasks={tasks}
-            selectedIds={selectedTaskIds}
-            onDragEnd={handleDragEnd}
-          >
-            {mainContent}
-          </DragProvider>
-        ) : (
-          mainContent
-        )}
+        <DragProvider
+          tasks={tasks}
+          selectedIds={selectedTaskIds}
+          onDragEnd={handleDragEnd}
+        >
+          {mainContent}
+        </DragProvider>
       </SidebarProvider>
       <Toaster />
     </ThemeProvider>

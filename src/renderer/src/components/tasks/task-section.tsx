@@ -167,7 +167,7 @@ export const TaskSection = ({
         "border-l-2",
         accentBorderColor,
         accentBgColor,
-        isOver && "ring-2 ring-primary/50 border-primary/50",
+        isOver && "border-dotted border-primary/60 bg-primary/5",
         className
       )}
       aria-labelledby={sectionId}

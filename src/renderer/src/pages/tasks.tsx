@@ -321,10 +321,30 @@ export const TasksPage = ({
         return getFilteredTasks(tasks, selectedId, selectedType, projects)
     }, [tasks, selectedId, selectedType, projects])
 
+    // Projects tab: scope tasks to selected project for filtering/counts
+    const projectsTabBaseTasks = useMemo(() => {
+        if (!selectedProjectId) return []
+        return getFilteredTasks(tasks, selectedProjectId, "project", projects)
+    }, [tasks, selectedProjectId, projects])
+
+    // In Projects tab, ignore projectIds filter (already scoped) and include completed by default
+    const projectsTabFilters = useMemo(() => {
+        if (activeInternalTab !== "projects") return filters
+        return { ...filters, projectIds: [], completion: "all" }
+    }, [filters, activeInternalTab])
+
     // Apply advanced filters and sort to base filtered tasks
     const { filteredTasks: advancedFilteredTasks, totalCount, filteredCount } = useFilteredAndSortedTasks({
         tasks: baseFilteredTasks,
         filters,
+        sort,
+        projects,
+    })
+
+    // Apply advanced filters and sort to selected project tasks (Projects tab)
+    const { filteredTasks: projectsTabFilteredTasks } = useFilteredAndSortedTasks({
+        tasks: projectsTabBaseTasks,
+        filters: projectsTabFilters,
         sort,
         projects,
     })
@@ -342,8 +362,12 @@ export const TasksPage = ({
 
     // Visible task IDs for selection (used by multi-select)
     const visibleTaskIds = useMemo(() => {
-        return filteredTasks.map((t) => t.id)
-    }, [filteredTasks])
+        const scopeTasks =
+            activeInternalTab === "projects" && selectedProjectId
+                ? projectsTabFilteredTasks
+                : filteredTasks
+        return scopeTasks.map((t) => t.id)
+    }, [activeInternalTab, selectedProjectId, projectsTabFilteredTasks, filteredTasks])
 
     // Task selection hook
     const {
@@ -1204,7 +1228,11 @@ export const TasksPage = ({
                             onUpdateSort={updateSort}
                             onClearFilters={clearFilters}
                             projects={projects}
-                            tasks={baseFilteredTasks}
+                            tasks={
+                                activeInternalTab === "projects" && selectedProjectId
+                                    ? projectsTabBaseTasks
+                                    : baseFilteredTasks
+                            }
                             savedFilters={savedFilters}
                             onSaveFilter={handleSaveFilter}
                             onDeleteSavedFilter={handleDeleteSavedFilter}
@@ -1307,6 +1335,7 @@ export const TasksPage = ({
                             selectedTaskId={selectedTaskId}
                             selectedProjectId={selectedProjectId}
                             onProjectSelect={setSelectedProjectId}
+                            filteredProjectTasks={selectedProjectId ? projectsTabFilteredTasks : undefined}
                             onToggleComplete={handleToggleComplete}
                             onUpdateTask={handleUpdateTask}
                             onToggleSubtaskComplete={subtaskManagement.handleCompleteSubtask}
@@ -1361,7 +1390,7 @@ export const TasksPage = ({
                             <div className="flex-1 overflow-hidden">
                                 {selectedProjectId ? (
                                     <KanbanBoard
-                                        tasks={getFilteredTasks(tasks, selectedProjectId, "project", projects)}
+                                        tasks={projectsTabFilteredTasks}
                                         projects={projects}
                                         selectedId={selectedProjectId}
                                         selectedType="project"
@@ -1416,7 +1445,7 @@ export const TasksPage = ({
                             <div className="flex-1 overflow-hidden">
                                 {selectedProjectId ? (
                                     <CalendarView
-                                        tasks={getFilteredTasks(tasks, selectedProjectId, "project", projects)}
+                                        tasks={projectsTabFilteredTasks}
                                         projects={projects}
                                         selectedId={selectedProjectId}
                                         selectedType="project"

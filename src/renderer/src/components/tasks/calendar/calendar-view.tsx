@@ -1,18 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
-import {
-    DndContext,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    type DragEndEvent,
-    type DragStartEvent,
-} from "@dnd-kit/core"
-import { toast } from "sonner"
 
 import { CalendarHeader } from "./calendar-header"
 import { CalendarGrid } from "./calendar-grid"
 import { DayDetailPopover } from "./day-detail-popover"
-import { CalendarDragOverlay } from "./calendar-drag-overlay"
 import {
     addDays,
     addMonths,
@@ -88,16 +78,9 @@ export const CalendarView = ({
     const [focusedDate, setFocusedDate] = useState<Date | null>(null)
     const [isDayDetailOpen, setIsDayDetailOpen] = useState(false)
     const [showCompleted, setShowCompleted] = useState(false)
-    const [activeTask, setActiveTask] = useState<Task | null>(null)
     const [projectFilter, setProjectFilter] = useState<string | null>(null)
 
     const isCompact = useIsCompact()
-
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: { distance: 8 },
-        })
-    )
 
     const calendarDays: CalendarDay[] = useMemo(
         () => getCalendarDays(currentMonth),
@@ -209,40 +192,7 @@ export const CalendarView = ({
         },
         [onAddTaskWithDate]
     )
-
-    const handleDragStart = useCallback(
-        (event: DragStartEvent) => {
-            const taskId = event.active.id as string
-            const task = tasks.find((t) => t.id === taskId) || null
-            setActiveTask(task)
-        },
-        [tasks]
-    )
-
-    const handleDragEnd = useCallback(
-        (event: DragEndEvent) => {
-            const { active, over } = event
-            setActiveTask(null)
-
-            if (!over) return
-
-            const taskId = active.id as string
-            const targetDate = over.data.current?.date as Date | undefined
-            if (!targetDate) return
-
-            const task = tasks.find((t) => t.id === taskId)
-            const oldDate = task?.dueDate
-
-            // Skip if dropping on same date
-            if (oldDate && startOfDay(oldDate).getTime() === startOfDay(targetDate).getTime()) {
-                return
-            }
-
-            onUpdateTask(taskId, { dueDate: startOfDay(targetDate) })
-            toast.success(`Rescheduled to ${formatDateShort(targetDate)}`)
-        },
-        [onUpdateTask, tasks]
-    )
+    // Drag-and-drop (rescheduling and project moves) is handled by the shared DragProvider.
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
         // Skip if in an input/textarea
@@ -345,21 +295,18 @@ export const CalendarView = ({
             />
 
             <ScrollArea className="h-full">
-                <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-                    <CalendarGrid
-                        days={calendarDays}
-                        tasksByDate={tasksByDate}
-                        allTasks={tasks}
-                        selectedDate={selectedDate}
-                        focusedDate={focusedDate}
-                        maxVisibleTasks={isCompact ? 2 : 3}
-                        isCompact={isCompact}
-                        onOpenDay={handleOpenDay}
-                        onTaskClick={onTaskClick}
-                        onAddTask={handleAddTask}
-                    />
-                    <CalendarDragOverlay activeTask={activeTask} />
-                </DndContext>
+                <CalendarGrid
+                    days={calendarDays}
+                    tasksByDate={tasksByDate}
+                    allTasks={tasks}
+                    selectedDate={selectedDate}
+                    focusedDate={focusedDate}
+                    maxVisibleTasks={isCompact ? 2 : 3}
+                    isCompact={isCompact}
+                    onOpenDay={handleOpenDay}
+                    onTaskClick={onTaskClick}
+                    onAddTask={handleAddTask}
+                />
             </ScrollArea>
 
             <DayDetailPopover
@@ -381,4 +328,3 @@ export const CalendarView = ({
 }
 
 export default CalendarView
-

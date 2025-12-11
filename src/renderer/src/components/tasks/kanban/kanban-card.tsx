@@ -18,6 +18,7 @@ import type { Task } from "@/data/sample-tasks"
 
 interface KanbanCardProps {
   task: Task
+  columnId: string
   allTasks?: Task[]
   isSelected?: boolean
   isFocused?: boolean
@@ -52,6 +53,7 @@ const animateLayoutChanges: AnimateLayoutChanges = (args) => {
 
 export const KanbanCard = ({
   task,
+  columnId,
   allTasks = [],
   isSelected = false,
   isFocused = false,
@@ -90,6 +92,8 @@ export const KanbanCard = ({
     data: {
       type: "task",
       task,
+      columnId,
+      sourceType: "kanban",
     },
     animateLayoutChanges,
   })

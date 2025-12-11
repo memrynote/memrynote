@@ -98,7 +98,7 @@ export const DroppableProjectItem = ({
         "hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         isSelected && "bg-accent border-l-3 border-l-primary font-medium",
         // Drop zone styling
-        showAsDropZone && "ring-1 ring-dashed ring-muted-foreground/30",
+        showAsDropZone && "border border-dotted border-muted-foreground/40",
         isOver && "bg-primary/10 ring-2 ring-primary shadow-sm"
       )}
     >
@@ -283,7 +283,6 @@ export const SidebarDropZones = ({
 }
 
 export default SidebarDropZones
-
 
 
 

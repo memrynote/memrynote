@@ -88,7 +88,7 @@ export const SortableProjectItem = ({
         "group/project relative transition-all duration-150",
         isSortableDragging && "opacity-50 z-50",
         // Drop zone visual feedback
-        showAsDropZone && "ring-1 ring-dashed ring-muted-foreground/30 rounded-md",
+        showAsDropZone && "border border-dotted border-muted-foreground/40 rounded-md",
         isOver && "bg-primary/10 ring-2 ring-primary rounded-md shadow-sm"
       )}
     >
@@ -164,5 +164,4 @@ export const SortableProjectItem = ({
 }
 
 export default SortableProjectItem
-
 

@@ -277,9 +277,9 @@ export const TaskGroup = ({
     <section
       ref={setNodeRef}
       className={cn(
-        "mb-4 transition-colors",
+        "mb-4 transition-colors border border-transparent",
         hasUrgentStyling ? styles.containerClass : "rounded-lg",
-        isOver && "ring-2 ring-primary/30",
+        isOver && "border-dotted border-primary/60",
         isOver && !hasUrgentStyling && "bg-primary/5",
         className
       )}
@@ -431,8 +431,8 @@ export const StatusTaskGroup = ({
     <section
       ref={setNodeRef}
       className={cn(
-        "mb-4 rounded-lg",
-        isOver && "bg-primary/5 ring-2 ring-primary/30",
+        "mb-4 rounded-lg border border-transparent",
+        isOver && "bg-primary/5 border-dotted border-primary/60",
         className
       )}
       aria-labelledby={sectionId}

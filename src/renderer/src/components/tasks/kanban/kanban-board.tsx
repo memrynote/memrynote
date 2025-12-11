@@ -1,27 +1,9 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react"
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragOverlay,
-  type DragEndEvent,
-  type DragStartEvent,
-  type DragOverEvent,
-  type DropAnimation,
-  defaultDropAnimationSideEffects,
-  MeasuringStrategy,
-} from "@dnd-kit/core"
-import { sortableKeyboardCoordinates } from "@dnd-kit/sortable"
 import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { KanbanColumn, type KanbanColumnData } from "./kanban-column"
-import { KanbanCardSkeleton } from "./kanban-card"
-import { MultiDragOverlay } from "@/components/tasks/drag-drop"
 import { startOfDay, isBefore, getDefaultTodoStatus, getDefaultDoneStatus } from "@/lib/task-utils"
 import type { Task } from "@/data/sample-tasks"
 import type { Project } from "@/data/tasks-data"
@@ -127,20 +109,9 @@ export const KanbanBoard = ({
   selectedIds,
   onToggleSelect,
 }: KanbanBoardProps): React.JSX.Element => {
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
-  const [activeTaskIds, setActiveTaskIds] = useState<string[]>([])
   const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
-
-  // Drop animation config
-  const dropAnimation: DropAnimation = {
-    sideEffects: defaultDropAnimationSideEffects({
-      styles: { active: { opacity: "0.5" } },
-    }),
-    duration: 200,
-    easing: "ease-out",
-  }
 
   // Generate columns based on view context
   const columns = useMemo(
@@ -171,21 +142,6 @@ export const KanbanBoard = ({
     return grouped
   }, [columns, tasks])
 
-  // Get the active task(s) being dragged
-  const activeTask = useMemo(() => {
-    if (!activeTaskId) return null
-    return tasks.find((t) => t.id === activeTaskId) || null
-  }, [activeTaskId, tasks])
-
-  // Get all active tasks for multi-drag
-  const activeTasks = useMemo(() => {
-    if (activeTaskIds.length === 0) return []
-    return tasks.filter((t) => activeTaskIds.includes(t.id))
-  }, [activeTaskIds, tasks])
-
-  // Check if multi-dragging
-  const isMultiDrag = activeTaskIds.length > 1
-
   // Check if a task is completed
   const getTaskIsCompleted = useCallback(
     (task: Task): boolean => {
@@ -205,173 +161,7 @@ export const KanbanBoard = ({
     return isBefore(dueDate, today)
   }, [])
 
-  // Sensors for drag and drop
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  )
-
-  // Measuring configuration for smooth animations
-  const measuringConfig = {
-    droppable: {
-      strategy: MeasuringStrategy.Always,
-    },
-  }
-
-  // Handle drag start - check for multi-select
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    const draggedId = event.active.id as string
-    setActiveTaskId(draggedId)
-
-    // Check if the dragged task is part of a multi-selection
-    const isPartOfSelection = selectedIds?.has(draggedId)
-    if (isPartOfSelection && selectedIds && selectedIds.size > 1) {
-      // Drag all selected tasks
-      setActiveTaskIds(Array.from(selectedIds))
-    } else {
-      // Drag only this task
-      setActiveTaskIds([draggedId])
-    }
-
-    // Haptic feedback on mobile
-    if ("vibrate" in navigator) {
-      navigator.vibrate(50)
-    }
-  }, [selectedIds])
-
-  // Handle drag over - for real-time visual feedback
-  const handleDragOver = useCallback((event: DragOverEvent) => {
-    // This provides visual feedback as items move between columns
-    // The actual update happens in handleDragEnd
-  }, [])
-
-  // Handle drag end - supports multi-drag
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event
-      const draggedTaskIds = [...activeTaskIds]
-
-      setActiveTaskId(null)
-      setActiveTaskIds([])
-
-      if (!over || draggedTaskIds.length === 0) return
-
-      // Determine target column
-      const overData = over.data.current
-      let targetColumnId: string
-
-      if (overData?.type === "column") {
-        // Dropped on a column
-        targetColumnId = over.id as string
-      } else if (overData?.type === "task") {
-        // Dropped on a task - find its column
-        const overTask = overData.task as Task
-        if (selectedType === "project") {
-          targetColumnId = overTask.statusId
-        } else {
-          targetColumnId = overTask.projectId
-        }
-      } else {
-        // Dropped on column directly
-        targetColumnId = over.id as string
-      }
-
-      // Find target column
-      const targetColumn = columns.find((c) => c.id === targetColumnId)
-      if (!targetColumn) return
-
-      // Handle status columns (project view)
-      if (targetColumn.type === "status" && selectedProject) {
-        const targetStatus = selectedProject.statuses.find(
-          (s) => s.id === targetColumnId
-        )
-        if (!targetStatus) return
-
-        // Update all dragged tasks
-        let updatedCount = 0
-        draggedTaskIds.forEach((taskId) => {
-          const task = tasks.find((t) => t.id === taskId)
-          if (!task || task.statusId === targetColumnId) return
-
-          const updates: Partial<Task> = {
-            statusId: targetColumnId,
-          }
-
-          // If moving to "done" status, set completedAt
-          if (targetStatus.type === "done" && !task.completedAt) {
-            updates.completedAt = new Date()
-          }
-          // If moving out of "done" status, clear completedAt
-          else if (targetStatus.type !== "done" && task.completedAt) {
-            updates.completedAt = null
-          }
-
-          onUpdateTask(taskId, updates)
-          updatedCount++
-        })
-
-        if (updatedCount > 0) {
-          toast.success(
-            updatedCount === 1
-              ? `Moved to ${targetStatus.name}`
-              : `${updatedCount} tasks moved to ${targetStatus.name}`
-          )
-        }
-      }
-
-      // Handle project columns (all tasks view)
-      if (targetColumn.type === "project") {
-        const targetProject = projects.find((p) => p.id === targetColumnId)
-        if (!targetProject) return
-
-        // Update all dragged tasks
-        let updatedCount = 0
-        draggedTaskIds.forEach((taskId) => {
-          const task = tasks.find((t) => t.id === taskId)
-          if (!task || task.projectId === targetColumnId) return
-
-          // Find the current status type
-          const currentProject = projects.find((p) => p.id === task.projectId)
-          const currentStatus = currentProject?.statuses.find(
-            (s) => s.id === task.statusId
-          )
-          const currentStatusType = currentStatus?.type || "todo"
-
-          // Map to equivalent status in new project
-          let newStatus = targetProject.statuses.find(
-            (s) => s.type === currentStatusType
-          )
-          // Fall back to first todo status if no match
-          if (!newStatus) {
-            newStatus = getDefaultTodoStatus(targetProject)
-          }
-
-          const updates: Partial<Task> = {
-            projectId: targetColumnId,
-            statusId: newStatus?.id || targetProject.statuses[0]?.id,
-          }
-
-          onUpdateTask(taskId, updates)
-          updatedCount++
-        })
-
-        if (updatedCount > 0) {
-          toast.success(
-            updatedCount === 1
-              ? `Moved to ${targetColumn.title}`
-              : `${updatedCount} tasks moved to ${targetColumn.title}`
-          )
-        }
-      }
-    },
-    [tasks, columns, selectedType, selectedProject, projects, onUpdateTask, activeTaskIds]
-  )
+  // Drag-and-drop is handled by the shared DragProvider at app level.
 
   // Handle quick add from column
   const handleColumnQuickAdd = useCallback(
@@ -440,11 +230,6 @@ export const KanbanBoard = ({
     // Return empty array - the edit form will handle this
     return []
   }, [selectedType, selectedProject])
-
-  // Determine if active task is completed/overdue for overlay
-  const isActiveTaskCompleted = activeTask ? getTaskIsCompleted(activeTask) : false
-  const isActiveTaskOverdue =
-    activeTask && !isActiveTaskCompleted ? isTaskOverdue(activeTask) : false
 
   // ========================================================================
   // LINEAR KEYBOARD NAVIGATION
@@ -755,75 +540,51 @@ export const KanbanBoard = ({
   }, [handleKeyDown])
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      measuring={measuringConfig}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
+    <div
+      ref={boardRef}
+      tabIndex={0}
+      className={cn("flex-1 outline-none", className)}
+      role="grid"
+      aria-label="Kanban board. Use arrow keys to navigate cards."
     >
-      <div
-        ref={boardRef}
-        tabIndex={0}
-        className={cn("flex-1 outline-none", className)}
-        role="grid"
-        aria-label="Kanban board. Use arrow keys to navigate cards."
-      >
-        <ScrollArea className="h-full">
-          <div className="flex h-full gap-4 p-6">
-            {columns.map((column) => {
-              // Get the statuses for this column's context
-              // For project view: use the selected project's statuses
-              // For all tasks view: get the task's project statuses
-              const columnStatuses = column.type === "status" && selectedProject
-                ? selectedProject.statuses
-                : []
+      <ScrollArea className="h-full">
+        <div className="flex h-full gap-4 p-6">
+          {columns.map((column) => {
+            // Get the statuses for this column's context
+            // For project view: use the selected project's statuses
+            // For all tasks view: get the task's project statuses
+            const columnStatuses = column.type === "status" && selectedProject
+              ? selectedProject.statuses
+              : []
 
-              return (
-                <KanbanColumn
-                  key={column.id}
-                  column={column}
-                  tasks={columnTasks[column.id] || []}
-                  allTasks={tasks}
-                  selectedTaskId={selectedTaskId}
-                  focusedTaskId={focusedTaskId}
-                  editingTaskId={editingTaskId}
-                  statuses={columnStatuses}
-                  getTaskIsCompleted={getTaskIsCompleted}
-                  onTaskClick={onTaskClick}
-                  onTaskDoubleClick={handleTaskDoubleClick}
-                  onQuickAdd={handleColumnQuickAdd}
-                  onEditSave={handleEditSave}
-                  onEditCancel={handleEditCancel}
-                  // Selection props
-                  isSelectionMode={isSelectionMode}
-                  selectedIds={selectedIds}
-                  onToggleSelect={onToggleSelect}
-                />
-              )
-            })}
-          </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-      </div>
-
-      <DragOverlay dropAnimation={dropAnimation}>
-        {activeTask && (
-          isMultiDrag ? (
-            <MultiDragOverlay tasks={activeTasks} />
-          ) : (
-            <KanbanCardSkeleton
-              task={activeTask}
-              isCompleted={isActiveTaskCompleted}
-              isOverdue={isActiveTaskOverdue}
-            />
-          )
-        )}
-      </DragOverlay>
-    </DndContext>
+            return (
+              <KanbanColumn
+                key={column.id}
+                column={column}
+                tasks={columnTasks[column.id] || []}
+                allTasks={tasks}
+                selectedTaskId={selectedTaskId}
+                focusedTaskId={focusedTaskId}
+                editingTaskId={editingTaskId}
+                statuses={columnStatuses}
+                getTaskIsCompleted={getTaskIsCompleted}
+                onTaskClick={onTaskClick}
+                onTaskDoubleClick={handleTaskDoubleClick}
+                onQuickAdd={handleColumnQuickAdd}
+                onEditSave={handleEditSave}
+                onEditCancel={handleEditCancel}
+                // Selection props
+                isSelectionMode={isSelectionMode}
+                selectedIds={selectedIds}
+                onToggleSelect={onToggleSelect}
+              />
+            )
+          })}
+        </div>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
+    </div>
   )
 }
 
 export default KanbanBoard
-

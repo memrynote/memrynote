@@ -28,7 +28,11 @@ const DraggableCalendarTask = ({
 }): React.JSX.Element => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
-    data: { task },
+    data: {
+      type: "calendar-task",
+      task,
+      sourceType: "calendar",
+    },
   })
 
   const style = useMemo(() => {
@@ -65,7 +69,7 @@ export const DayCell = ({
 }: DayCellProps): React.JSX.Element => {
   const { setNodeRef, isOver } = useDroppable({
     id: formatDateKey(day.date),
-    data: { date: day.date },
+    data: { type: "date", date: day.date },
   })
 
   const visibleTasks = tasks.slice(0, maxVisible)
@@ -155,4 +159,3 @@ export const DayCell = ({
 }
 
 export default DayCell
-

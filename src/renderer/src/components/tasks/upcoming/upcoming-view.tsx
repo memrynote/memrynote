@@ -127,7 +127,7 @@ const DaySection = ({
           className={cn(
             "rounded-lg border border-border overflow-hidden transition-all",
             "border-l-2 border-l-border",
-            isOver && "ring-2 ring-primary/50 border-primary/50"
+            isOver && "border-dotted border-primary/60 bg-primary/5"
           )}
         >
           <DaySectionHeader date={date} taskCount={0} />
@@ -164,7 +164,7 @@ const DaySection = ({
         "rounded-lg border border-border overflow-hidden transition-all",
         "border-l-2",
         isToday ? "border-l-amber-500 bg-amber-50/30 dark:bg-amber-950/10" : "border-l-border",
-        isOver && "ring-2 ring-primary/50 border-primary/50"
+        isOver && "border-dotted border-primary/60 bg-primary/5"
       )}
     >
       {/* Day header */}

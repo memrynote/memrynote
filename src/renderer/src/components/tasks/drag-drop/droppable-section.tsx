@@ -93,10 +93,10 @@ export const DroppableSection = ({
         styles.accent,
         styles.bg,
         // Drop zone active state
-        isOver && "ring-2 ring-primary/50 border-primary/50",
+        isOver && "border-dotted border-primary/60",
         isOver && styles.hoverBg,
         // Show as potential drop target when dragging
-        isDraggingFromOtherSection && !isOver && "ring-1 ring-dashed ring-muted-foreground/30",
+        isDraggingFromOtherSection && !isOver && "border-dotted border-muted-foreground/40",
         className
       )}
     >
@@ -197,8 +197,6 @@ export const EmptyDropZone = ({
 }
 
 export default DroppableSection
-
-
 
 
 

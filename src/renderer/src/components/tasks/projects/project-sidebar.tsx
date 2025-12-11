@@ -1,4 +1,5 @@
 import { useMemo } from "react"
+import { useDroppable } from "@dnd-kit/core"
 import { Plus, FolderKanban, MoreHorizontal, Pencil, Archive, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { useDragContext } from "@/contexts/drag-context"
 import type { Project } from "@/data/tasks-data"
 import type { Task } from "@/data/sample-tasks"
 
@@ -52,16 +54,39 @@ const ProjectListItem = ({
     onArchive,
     onDelete,
 }: ProjectListItemProps): React.JSX.Element => {
+    const { dragState } = useDragContext()
+
+    const { setNodeRef, isOver } = useDroppable({
+        id: `project-sidebar-${project.id}`,
+        data: {
+            type: "project",
+            projectId: project.id,
+            project,
+        },
+    })
+
+    const showAsDropZone = dragState.isDragging
+
     return (
         <button
             type="button"
+            ref={setNodeRef}
             onClick={onClick}
             className={cn(
-                "group flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
+                "group relative flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
                 "hover:bg-accent",
-                isActive && "bg-accent"
+                isActive && "bg-accent",
+                // Drop zone visual feedback
+                showAsDropZone && "border border-dotted border-muted-foreground/40",
+                isOver && "bg-primary/10 ring-2 ring-primary rounded-md shadow-sm"
             )}
         >
+            {/* Drop indicator when hovering */} 
+            {isOver && showAsDropZone && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-primary font-medium">
+                    Drop here
+                </span>
+            )}
             <div className="flex items-center gap-3 min-w-0">
                 {/* Color indicator */}
                 <div
@@ -73,7 +98,7 @@ const ProjectListItem = ({
             </div>
             <div className="flex items-center gap-1">
                 {/* Task count badge */}
-                {taskCount > 0 && (
+                {!isOver && taskCount > 0 && (
                     <span className="text-xs text-muted-foreground tabular-nums">
                         {taskCount}
                     </span>

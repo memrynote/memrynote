@@ -236,6 +236,15 @@ export const DragProvider = ({
       const draggedId = active.id as string
       const activeData = active.data.current
 
+      // Only track task-based drags in this context
+      const isTaskDrag =
+        activeData?.type === "task" ||
+        activeData?.type === "calendar-task" ||
+        activeData?.type === "subtask"
+      if (!isTaskDrag) {
+        return
+      }
+
       // Determine if this is part of a multi-select
       const isPartOfSelection = selectedIds.has(draggedId)
       const shouldMultiDrag = isPartOfSelection && selectedIds.size > 1
@@ -283,6 +292,11 @@ export const DragProvider = ({
   // Handle drag over
   const handleDragOver = useCallback(
     (event: DragOverEvent) => {
+      // Ignore drag-over events when we're not tracking a task drag
+      if (!dragState.isDragging) {
+        return
+      }
+
       const { over } = event
 
       if (!over) {
@@ -419,7 +433,6 @@ export const dragAnnouncements = {
 }
 
 export default DragProvider
-
 
 
 
