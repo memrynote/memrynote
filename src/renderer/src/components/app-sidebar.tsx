@@ -8,6 +8,7 @@ import {
   Command,
   GalleryVerticalEnd,
   Home,
+  Inbox,
   ListTodo,
   Plus,
   Search,
@@ -59,6 +60,12 @@ const mainNav: {
   icon: typeof Home
   iconColor: string
 }[] = [
+    {
+      title: "Inbox",
+      page: "inbox",
+      icon: Inbox,
+      iconColor: "text-accent-blue",
+    },
     {
       title: "Home",
       page: "home",
@@ -143,11 +150,13 @@ export function AppSidebar({
 
     // Map page to tab type and title
     const pageToTabType: Record<AppPage, TabType> = {
+      inbox: "inbox",
       home: "home",
       journal: "journal",
       tasks: "tasks", // New unified tasks tab type
     }
     const pageToTitle: Record<AppPage, string> = {
+      inbox: "Inbox",
       home: "Home",
       journal: "Journal",
       tasks: "Tasks",
