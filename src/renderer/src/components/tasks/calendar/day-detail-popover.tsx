@@ -4,7 +4,6 @@ import { X, ChevronDown } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { SelectionCheckbox } from "@/components/tasks/bulk-actions"
 import { SubtaskBadge } from "@/components/tasks/subtask-badge"
 import { cn } from "@/lib/utils"
 import { formatDayName } from "@/lib/task-utils"
@@ -20,10 +19,6 @@ interface DayDetailPopoverProps {
   onTaskClick: (taskId: string) => void
   onToggleComplete: (taskId: string) => void
   onAddTask: (date: Date) => void
-  // Selection props
-  isSelectionMode?: boolean
-  selectedIds?: Set<string>
-  onToggleSelect?: (taskId: string) => void
 }
 
 const sortTasks = (tasks: Task[]): Task[] => {
@@ -51,10 +46,6 @@ export const DayDetailPopover = ({
   onTaskClick,
   onToggleComplete,
   onAddTask,
-  // Selection props
-  isSelectionMode = false,
-  selectedIds,
-  onToggleSelect,
 }: DayDetailPopoverProps): React.JSX.Element | null => {
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set())
   const sortedTasks = useMemo(() => sortTasks(tasks), [tasks])
@@ -72,16 +63,7 @@ export const DayDetailPopover = ({
   }
 
   const handleTaskClick = (taskId: string): void => {
-    // In selection mode, clicking toggles selection
-    if (isSelectionMode && onToggleSelect) {
-      onToggleSelect(taskId)
-      return
-    }
     onTaskClick(taskId)
-  }
-
-  const handleSelectionCheckboxChange = (taskId: string): void => {
-    onToggleSelect?.(taskId)
   }
 
   const toggleExpanded = (taskId: string): void => {
@@ -123,7 +105,6 @@ export const DayDetailPopover = ({
 
           <div className="space-y-2">
             {sortedTasks.map((task) => {
-              const isCheckedForSelection = selectedIds?.has(task.id) ?? false
               const taskSubtasks = allTasks.length > 0 ? getSubtasks(task.id, allTasks) : []
               const taskHasSubtasks = taskSubtasks.length > 0
               const subtaskProgress = calculateProgress(taskSubtasks)
@@ -136,8 +117,7 @@ export const DayDetailPopover = ({
                     type="button"
                     className={cn(
                       "group flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm",
-                      "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      isCheckedForSelection && "bg-primary/10 hover:bg-primary/15"
+                      "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     )}
                     onClick={() => handleTaskClick(task.id)}
                   >
@@ -161,20 +141,6 @@ export const DayDetailPopover = ({
                       </button>
                     ) : (
                       <span className="w-5 shrink-0" />
-                    )}
-
-                    {/* Selection checkbox - visible only in selection mode */}
-                    {onToggleSelect && isSelectionMode && (
-                      <div
-                        className="shrink-0"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <SelectionCheckbox
-                          checked={isCheckedForSelection}
-                          onChange={() => handleSelectionCheckboxChange(task.id)}
-                          aria-label={`Select ${task.title}`}
-                        />
-                      </div>
                     )}
 
                     {/* Task completion checkbox */}

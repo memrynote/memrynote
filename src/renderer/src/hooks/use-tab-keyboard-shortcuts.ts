@@ -42,10 +42,10 @@ export const useTabKeyboardShortcuts = (): void => {
         modifiers: { meta: true },
         action: () =>
           openTab({
-            type: 'inbox',
-            title: 'Inbox',
-            icon: 'inbox',
-            path: '/inbox',
+            type: 'home',
+            title: 'Home',
+            icon: 'home',
+            path: '/home',
             isPinned: false,
             isModified: false,
             isPreview: false,

@@ -120,7 +120,6 @@ export const getKeyboardShortcuts = (): ShortcutCategory[] => [
       { key: "?", label: "Open shortcuts help" },
       { key: `${modifierKey}+/`, label: "Open shortcuts help" },
       { key: "V", label: "Toggle List/Card view" },
-      { key: "R", label: "Refresh inbox" },
     ],
   },
   {

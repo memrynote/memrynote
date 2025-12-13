@@ -8,7 +8,6 @@ import {
   Command,
   GalleryVerticalEnd,
   Home,
-  Inbox,
   ListTodo,
   Plus,
   Search,
@@ -57,21 +56,9 @@ const quickActions = [
 const mainNav: {
   title: string
   page: AppPage
-  icon: typeof Inbox
+  icon: typeof Home
   iconColor: string
 }[] = [
-    {
-      title: "Inbox",
-      page: "inbox",
-      icon: Inbox,
-      iconColor: "text-accent-cyan",
-    },
-    {
-      title: "Inbox 2",
-      page: "inbox2",
-      icon: Inbox,
-      iconColor: "text-accent-cyan",
-    },
     {
       title: "Home",
       page: "home",
@@ -156,15 +143,11 @@ export function AppSidebar({
 
     // Map page to tab type and title
     const pageToTabType: Record<AppPage, TabType> = {
-      inbox: "inbox",
-      inbox2: "inbox2",
       home: "home",
       journal: "journal",
       tasks: "tasks", // New unified tasks tab type
     }
     const pageToTitle: Record<AppPage, string> = {
-      inbox: "Inbox",
-      inbox2: "Inbox 2",
       home: "Home",
       journal: "Journal",
       tasks: "Tasks",
@@ -203,7 +186,7 @@ export function AppSidebar({
 
           <SidebarSeparator className="w-auto!" />
 
-          {/* Main Navigation: Inbox, Home, Journal, Tasks */}
+          {/* Main Navigation: Home, Journal, Tasks */}
           <SidebarGroup>
             <SidebarMenu>
               {mainNav.map((item) => (

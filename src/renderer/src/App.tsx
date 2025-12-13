@@ -9,8 +9,6 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
-import { InboxPage } from "@/pages/inbox"
-import { Inbox2Page } from "@/pages/inbox2"
 import { JournalPage } from "@/pages/journal"
 import { TasksPage } from "@/pages/tasks"
 import { NotePage } from "@/pages/note"
@@ -33,7 +31,7 @@ import { ChordIndicator, KeyboardShortcutsDialog } from "@/components/keyboard"
 import { useTabKeyboardShortcuts, useChordShortcuts, useDragHandlers, useTaskOrder } from "@/hooks"
 
 // Base pages (non-task)
-export type BasePage = "inbox" | "inbox2" | "home" | "journal"
+export type BasePage = "home" | "journal"
 
 // Task view type for navigation within tasks
 export type TaskViewId = "all" | "today" | "upcoming" | "completed"
@@ -51,32 +49,30 @@ export type AppPage = BasePage | "tasks"
 interface TabContentRendererProps {
   tasks: Task[]
   projects: Project[]
-  selectedTaskIds: Set<string>
   onTasksChange: (tasks: Task[]) => void
   onSelectionChange: (id: string, type: TaskSelectionType) => void
-  onSelectedTaskIdsChange: (ids: Set<string>) => void
 }
 
 const TabContentRenderer = ({
   tasks,
   projects,
-  selectedTaskIds,
   onTasksChange,
   onSelectionChange,
-  onSelectedTaskIdsChange,
 }: TabContentRendererProps): React.JSX.Element => {
   const activeTab = useActiveTab()
 
   if (!activeTab) {
-    return <InboxPage />
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500">
+        <div className="text-center">
+          <p className="text-lg font-medium">Home</p>
+        </div>
+      </div>
+    )
   }
 
   // Route based on tab type
   switch (activeTab.type) {
-    case "inbox":
-      return <InboxPage />
-    case "inbox2":
-      return <Inbox2Page />
     // New unified tasks tab type
     case "tasks":
       return (
@@ -87,8 +83,6 @@ const TabContentRenderer = ({
           projects={projects}
           onTasksChange={onTasksChange}
           onSelectionChange={onSelectionChange}
-          selectedTaskIds={selectedTaskIds}
-          onSelectedTaskIdsChange={onSelectedTaskIdsChange}
         />
       )
     // Legacy task tab types (kept for backwards compatibility)
@@ -113,8 +107,6 @@ const TabContentRenderer = ({
           projects={projects}
           onTasksChange={onTasksChange}
           onSelectionChange={onSelectionChange}
-          selectedTaskIds={selectedTaskIds}
-          onSelectedTaskIdsChange={onSelectedTaskIdsChange}
         />
       )
     }
@@ -144,19 +136,15 @@ const TabContentRenderer = ({
 interface AppContentProps {
   tasks: Task[]
   projects: Project[]
-  selectedTaskIds: Set<string>
   onTasksChange: (tasks: Task[]) => void
   onSelectionChange: (id: string, type: TaskSelectionType) => void
-  onSelectedTaskIdsChange: (ids: Set<string>) => void
 }
 
 const AppContent = ({
   tasks,
   projects,
-  selectedTaskIds,
   onTasksChange,
   onSelectionChange,
-  onSelectedTaskIdsChange,
 }: AppContentProps): React.JSX.Element => {
   const { state } = useTabs()
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
@@ -252,10 +240,8 @@ const AppContent = ({
             <TabContentRenderer
               tasks={tasks}
               projects={projects}
-              selectedTaskIds={selectedTaskIds}
               onTasksChange={onTasksChange}
               onSelectionChange={onSelectionChange}
-              onSelectedTaskIdsChange={onSelectedTaskIdsChange}
             />
           </div>
         )}
@@ -284,14 +270,11 @@ function App(): React.JSX.Element {
   // Navigation state
   // Note: setCurrentPage is unused because navigation is now handled by tabs
   // currentPage is still used for sidebar highlight state
-  const [currentPage, _setCurrentPage] = useState<AppPage>("inbox")
+  const [currentPage, _setCurrentPage] = useState<AppPage>("home")
 
   // Task-related state (lifted from TasksPage)
   const [projects, setProjects] = useState<Project[]>(initialProjects)
   const [tasks, setTasks] = useState<Task[]>(sampleTasks)
-
-  // Task selection state for drag-drop (lifted from TasksPage)
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
 
   // Calculate view counts dynamically
   const viewCounts = useMemo(() => {
@@ -372,19 +355,9 @@ function App(): React.JSX.Element {
 
       // Delegate all task operations to useDragHandlers
       taskDragEnd(event, dragState)
-
-      // Clear selection after task drag
-      if (dragState.isDragging) {
-        setSelectedTaskIds(new Set())
-      }
     },
     [projects, taskDragEnd]
   )
-
-  // Update selection from TasksPage
-  const handleSelectionChange = useCallback((ids: Set<string>): void => {
-    setSelectedTaskIds(ids)
-  }, [])
 
   // Task selection is now handled internally by TasksPage via internal tabs
   // This callback is kept for interface compatibility but is a no-op
@@ -410,10 +383,8 @@ function App(): React.JSX.Element {
             <AppContent
               tasks={tasks}
               projects={projectsWithCounts}
-              selectedTaskIds={selectedTaskIds}
               onTasksChange={handleTasksChange}
               onSelectionChange={handleTaskSelectionChange}
-              onSelectedTaskIdsChange={handleSelectionChange}
             />
           </SidebarInset>
           {/* Drag Overlay - only for task drag to sidebar */}
@@ -428,7 +399,7 @@ function App(): React.JSX.Element {
       <SidebarProvider>
         <DragProvider
           tasks={tasks}
-          selectedIds={selectedTaskIds}
+          selectedIds={new Set()}
           onDragEnd={handleDragEnd}
         >
           {mainContent}

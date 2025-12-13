@@ -89,10 +89,10 @@ export const TabBarWithDrag = ({
     const handleNewTab = (): void => {
         openTab(
             {
-                type: 'inbox',
-                title: 'Inbox',
-                icon: 'inbox',
-                path: '/inbox',
+                type: 'home',
+                title: 'Home',
+                icon: 'home',
+                path: '/home',
                 isPinned: false,
                 isModified: false,
                 isPreview: false,

@@ -118,10 +118,6 @@ interface TaskGroupProps {
   /** Optional explicit date for this group (used for reschedule on drop) */
   date?: Date | null
   // Selection props
-  isSelectionMode?: boolean
-  selectedIds?: Set<string>
-  onToggleSelect?: (taskId: string) => void
-  onShiftSelect?: (taskId: string) => void
   // Expand/collapse props
   expandedIds?: Set<string>
   onToggleExpand?: (taskId: string) => void
@@ -142,10 +138,6 @@ interface StatusTaskGroupProps {
   onTaskClick?: (taskId: string) => void
   className?: string
   // Selection props
-  isSelectionMode?: boolean
-  selectedIds?: Set<string>
-  onToggleSelect?: (taskId: string) => void
-  onShiftSelect?: (taskId: string) => void
   // Expand/collapse props
   expandedIds?: Set<string>
   onToggleExpand?: (taskId: string) => void
@@ -228,10 +220,6 @@ export const TaskGroup = ({
   className,
   date,
   // Selection props
-  isSelectionMode = false,
-  selectedIds,
-  onToggleSelect,
-  onShiftSelect,
   // Expand/collapse props
   expandedIds,
   onToggleExpand,
@@ -302,7 +290,6 @@ export const TaskGroup = ({
             if (!project) return null
 
             const completed = isTaskCompleted(task, projects)
-            const isCheckedForSelection = selectedIds?.has(task.id) ?? false
             const subtasks = getSubtasks(task.id, allTasks || tasks)
             const progress = calculateProgress(subtasks)
             const hasSubtasksFlag = subtasks.length > 0
@@ -327,10 +314,6 @@ export const TaskGroup = ({
                   onToggleSubtaskComplete={onToggleSubtaskComplete}
                   onClick={onTaskClick}
                   // Selection props
-                  isSelectionMode={isSelectionMode}
-                  isCheckedForSelection={isCheckedForSelection}
-                  onToggleSelect={onToggleSelect}
-                  onShiftSelect={onShiftSelect}
                   // Subtask management props
                   onAddSubtask={onAddSubtask}
                   onReorderSubtasks={onReorderSubtasks}
@@ -355,10 +338,6 @@ export const TaskGroup = ({
                 onUpdateTask={onUpdateTask}
                 onClick={onTaskClick}
                 // Selection props
-                isSelectionMode={isSelectionMode}
-                isCheckedForSelection={isCheckedForSelection}
-                onToggleSelect={onToggleSelect}
-                onShiftSelect={onShiftSelect}
                 // Urgency styling
                 accentClass={hasUrgentStyling ? styles.accentClass : undefined}
               />
@@ -386,10 +365,6 @@ export const StatusTaskGroup = ({
   onTaskClick,
   className,
   // Selection props
-  isSelectionMode = false,
-  selectedIds,
-  onToggleSelect,
-  onShiftSelect,
   // Expand/collapse props
   expandedIds,
   onToggleExpand,
@@ -447,7 +422,6 @@ export const StatusTaskGroup = ({
         <div className="flex flex-col">
           {topLevelTasks.map((task) => {
             const completed = status.type === "done"
-            const isCheckedForSelection = selectedIds?.has(task.id) ?? false
             const subtasks = getSubtasks(task.id, allTasks || tasks)
             const progress = calculateProgress(subtasks)
             const hasSubtasksFlag = subtasks.length > 0
@@ -472,10 +446,6 @@ export const StatusTaskGroup = ({
                   onToggleSubtaskComplete={onToggleSubtaskComplete}
                   onClick={onTaskClick}
                   // Selection props
-                  isSelectionMode={isSelectionMode}
-                  isCheckedForSelection={isCheckedForSelection}
-                  onToggleSelect={onToggleSelect}
-                  onShiftSelect={onShiftSelect}
                   // Subtask management props
                   onAddSubtask={onAddSubtask}
                   onReorderSubtasks={onReorderSubtasks}
@@ -497,10 +467,6 @@ export const StatusTaskGroup = ({
                 onUpdateTask={onUpdateTask}
                 onClick={onTaskClick}
                 // Selection props
-                isSelectionMode={isSelectionMode}
-                isCheckedForSelection={isCheckedForSelection}
-                onToggleSelect={onToggleSelect}
-                onShiftSelect={onShiftSelect}
               />
             )
           })}

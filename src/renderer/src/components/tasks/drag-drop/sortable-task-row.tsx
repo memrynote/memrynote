@@ -14,8 +14,6 @@ import {
   InteractiveDueDateBadge,
 } from "@/components/tasks/task-badges"
 import { RepeatIndicator } from "@/components/tasks/repeat-indicator"
-import { SelectionCheckbox } from "@/components/tasks/bulk-actions"
-
 
 import type { Task, Priority } from "@/data/sample-tasks"
 import type { Project } from "@/data/tasks-data"
@@ -37,14 +35,6 @@ interface SortableTaskRowProps {
   onUpdateTask?: (taskId: string, updates: Partial<Task>) => void
   onClick?: (taskId: string) => void
   className?: string
-  /** Whether selection mode is active */
-  isSelectionMode?: boolean
-  /** Whether this specific task is checked for selection */
-  isCheckedForSelection?: boolean
-  /** Toggle selection for this task */
-  onToggleSelect?: (taskId: string) => void
-  /** Handle shift+click for range selection */
-  onShiftSelect?: (taskId: string) => void
   /** Optional accent class for urgency styling (e.g., left border) */
   accentClass?: string
 }
@@ -69,15 +59,10 @@ export const SortableTaskRow = ({
   onUpdateTask,
   onClick,
   className,
-  isSelectionMode = false,
-  isCheckedForSelection = false,
-  onToggleSelect,
-  onShiftSelect,
   accentClass,
 }: SortableTaskRowProps): React.JSX.Element => {
   const rowRef = useRef<HTMLDivElement>(null)
   const [isExiting, setIsExiting] = useState(false)
-
 
   const {
     attributes,
@@ -128,26 +113,6 @@ export const SortableTaskRow = ({
       return
     }
 
-    // Shift+click for range selection
-    if (e.shiftKey && isSelectionMode && onShiftSelect) {
-      e.preventDefault()
-      onShiftSelect(task.id)
-      return
-    }
-
-    // Cmd/Ctrl+click for toggle selection
-    if ((e.metaKey || e.ctrlKey) && onToggleSelect) {
-      e.preventDefault()
-      onToggleSelect(task.id)
-      return
-    }
-
-    // In selection mode, clicking toggles selection
-    if (isSelectionMode && onToggleSelect) {
-      onToggleSelect(task.id)
-      return
-    }
-
     // Normal click behavior
     onClick?.(task.id)
   }
@@ -173,14 +138,6 @@ export const SortableTaskRow = ({
     }
   }
 
-  const handleSelectionCheckboxChange = (): void => {
-    onToggleSelect?.(task.id)
-  }
-
-  const handleSelectionCheckboxClick = (e: React.MouseEvent): void => {
-    e.stopPropagation()
-  }
-
   const handleProjectChange = (projectId: string): void => {
     onUpdateTask?.(task.id, { projectId })
   }
@@ -192,10 +149,6 @@ export const SortableTaskRow = ({
   const handleDateChange = (date: Date | null): void => {
     onUpdateTask?.(task.id, { dueDate: date })
   }
-
-  // Determine grid columns based on what's shown
-  // Base: [drag][select?][check][title][project?][priority][due]
-  const showSelection = !!onToggleSelect
 
   return (
     <div
@@ -212,24 +165,14 @@ export const SortableTaskRow = ({
         // Mobile: flex layout for stacked view
         "flex flex-col gap-1",
         // Tablet+: grid layout with fixed columns
-        // When selection mode is active: [drag][select][check][title][project?][priority][due]
-        // When selection mode is inactive: [drag][check][title][project?][priority][due]
         "md:grid md:items-center md:gap-1",
-        // Dynamic grid columns based on selection mode
-        // [drag 24px][select? 20px][check 20px][chevron 20px][title 1fr][project? 120px][priority 70px][due 110px]
-        isSelectionMode
-          ? showProjectBadge
-            ? "md:grid-cols-[24px_20px_20px_20px_1fr_70px_110px] lg:grid-cols-[24px_20px_20px_20px_1fr_120px_70px_110px]"
-            : "md:grid-cols-[24px_20px_20px_20px_1fr_70px_110px]"
-          : showProjectBadge
-            ? "md:grid-cols-[24px_20px_20px_1fr_70px_110px] lg:grid-cols-[24px_20px_20px_1fr_120px_70px_110px]"
-            : "md:grid-cols-[24px_20px_20px_1fr_70px_110px]",
+        showProjectBadge
+          ? "md:grid-cols-[24px_20px_20px_1fr_70px_110px] lg:grid-cols-[24px_20px_20px_1fr_120px_70px_110px]"
+          : "md:grid-cols-[24px_20px_20px_1fr_70px_110px]",
         // Urgency accent class takes priority, otherwise fall back to overdue styling
         accentClass ? accentClass : (isOverdue && !isCompleted && "border-l-2 border-l-destructive"),
-        // Selection highlight (when checked for selection)
-        isCheckedForSelection && "bg-primary/10 hover:bg-primary/15",
-        // Detail panel selected (not the same as selection mode)
-        isSelected && !isCheckedForSelection && "bg-primary/10 ring-2 ring-primary/30",
+        // Detail panel selected
+        isSelected && "bg-primary/10 ring-2 ring-primary/30",
         // Dragging state
         isDragging && "opacity-50 shadow-lg ring-2 ring-primary bg-background z-10",
         // Exit animation - uses CSS keyframe that collapses height
@@ -261,34 +204,18 @@ export const SortableTaskRow = ({
           <GripVertical className="size-4" />
         </button>
 
-        {/* Selection Checkbox - Column 2 (only rendered in selection mode) */}
-        {isSelectionMode && (
-          <div className="hidden md:flex items-center justify-center">
-            {showSelection && (
-              <SelectionCheckbox
-                checked={isCheckedForSelection}
-                onChange={handleSelectionCheckboxChange}
-                onClick={handleSelectionCheckboxClick}
-                aria-label={`Select ${task.title}`}
-              />
-            )}
-          </div>
-        )}
-
-        {/* Task Completion Checkbox - Column 3 (20px) */}
-        {/* Disabled during selection mode to prevent accidental completions */}
+        {/* Task Completion Checkbox - Column 2 (20px) */}
         <div className="flex items-center justify-center shrink-0">
           <TaskCheckbox
             checked={isCompleted}
             onChange={handleToggleComplete}
-            disabled={isSelectionMode}
           />
         </div>
 
-        {/* Chevron Placeholder - Column 4 (20px) - empty for non-parent tasks */}
+        {/* Chevron Placeholder - Column 3 (20px) - empty for non-parent tasks */}
         <div className="hidden md:block w-5" aria-hidden="true" />
 
-        {/* Title with Repeat Indicator and Subtask Progress - Column 5 (flex-1) */}
+        {/* Title with Repeat Indicator and Subtask Progress - Column 4 (flex-1) */}
         <div className="flex flex-1 items-center gap-2 min-w-0">
           <span
             className={cn(
@@ -304,7 +231,6 @@ export const SortableTaskRow = ({
           {task.isRepeating && task.repeatConfig && !isCompleted && (
             <RepeatIndicator config={task.repeatConfig} size="sm" />
           )}
-
         </div>
 
         {/* Project Badge - Column 5 (conditional, 120px) - hidden on mobile & tablet */}
@@ -419,6 +345,3 @@ export const TaskRowPreview = ({
 }
 
 export default SortableTaskRow
-
-
-

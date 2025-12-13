@@ -53,8 +53,7 @@ import { createDefaultTask, generateTaskId, type Task, type Priority } from "@/d
 import { addDays } from "@/lib/task-utils"
 import { calculateNextOccurrence, shouldCreateNextOccurrence } from "@/lib/repeat-utils"
 import type { StopRepeatOption } from "@/components/tasks/stop-repeating-dialog"
-import { useFilterState, useSavedFilters, useFilteredAndSortedTasks, useTaskSelection, useBulkActions, useSubtaskManagement } from "@/hooks"
-import { BulkActionToolbar, BulkDeleteDialog, BulkDueDatePicker } from "@/components/tasks/bulk-actions"
+import { useFilterState, useSavedFilters, useFilteredAndSortedTasks, useSubtaskManagement } from "@/hooks"
 import {
     AllSubtasksCompleteDialog,
     BulkDueDateDialog,
@@ -76,10 +75,6 @@ interface TasksPageProps {
     projects: Project[]
     onTasksChange: (tasks: Task[]) => void
     onSelectionChange: (id: string, type: TaskSelectionType) => void
-    /** Task IDs currently selected for multi-drag (passed from App level) */
-    selectedTaskIds?: Set<string>
-    /** Callback to sync selection state with App level */
-    onSelectedTaskIdsChange?: (ids: Set<string>) => void
 }
 
 interface TasksContentHeaderProps {
@@ -220,8 +215,6 @@ export const TasksPage = ({
     projects,
     onTasksChange,
     onSelectionChange,
-    selectedTaskIds: _externalSelectedIds,
-    onSelectedTaskIdsChange,
 }: TasksPageProps): React.JSX.Element => {
     // Local setter that updates via parent callback
     const setTasks = useCallback((updater: Task[] | ((prev: Task[]) => Task[])) => {
@@ -284,12 +277,6 @@ export const TasksPage = ({
         saveFilter,
         deleteFilter: deleteSavedFilter,
     } = useSavedFilters()
-
-    // Bulk delete dialog state
-    const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false)
-
-    // Bulk due date picker state
-    const [isBulkDueDatePickerOpen, setIsBulkDueDatePickerOpen] = useState(false)
 
     // ========== DERIVED STATE ==========
 
@@ -360,84 +347,6 @@ export const TasksPage = ({
 
     // Check if we should show the filter empty state
     const showFilterEmptyState = filtersActive && filteredCount === 0 && totalCount > 0
-
-    // Visible task IDs for selection (used by multi-select)
-    // Scope to what's actually rendered in the active internal tab.
-    const selectionScopeTasks = useMemo(() => {
-        if (activeInternalTab === "projects") {
-            return selectedProjectId ? projectsTabFilteredTasks : []
-        }
-
-        if (activeInternalTab === "today") {
-            const { overdue, today } = getTodayTasks(filteredTasks, projects)
-            return [...overdue, ...today]
-        }
-
-        if (activeInternalTab === "upcoming") {
-            const { overdue, byDay } = getUpcomingTasks(filteredTasks, projects, 7)
-            const upcomingTasks: Task[] = []
-            byDay.forEach((dayTasks) => {
-                upcomingTasks.push(...dayTasks)
-            })
-            return [...overdue, ...upcomingTasks]
-        }
-
-        return filteredTasks
-    }, [activeInternalTab, selectedProjectId, projectsTabFilteredTasks, filteredTasks, projects])
-
-    const visibleTaskIds = useMemo(
-        () => selectionScopeTasks.map((t) => t.id),
-        [selectionScopeTasks]
-    )
-
-    // Task selection hook
-    const {
-        selection,
-        selectedCount,
-        hasSelection,
-        allSelected,
-        someSelected,
-        selectedTaskIds,
-        toggleTask,
-        selectRange,
-        selectAll,
-        deselectAll,
-        toggleSelectAll,
-        enterSelectionMode,
-        exitSelectionMode,
-    } = useTaskSelection(visibleTaskIds)
-
-    // Sync selection state with App level for drag-drop
-    useEffect(() => {
-        if (onSelectedTaskIdsChange) {
-            onSelectedTaskIdsChange(selection.selectedIds)
-        }
-    }, [selection.selectedIds, onSelectedTaskIdsChange])
-
-    // Bulk actions hook
-    const bulkActions = useBulkActions({
-        selectedIds: selectedTaskIds,
-        tasks,
-        projects,
-        onUpdateTask: (taskId, updates) => {
-            setTasks((prev) =>
-                prev.map((task) => (task.id === taskId ? { ...task, ...updates } : task))
-            )
-        },
-        onDeleteTask: (taskId) => {
-            setTasks((prev) => prev.filter((t) => t.id !== taskId))
-        },
-        onComplete: deselectAll,
-    })
-
-    // Toggle selection mode handler
-    const handleToggleSelectionMode = useCallback(() => {
-        if (selection.isSelectionMode) {
-            exitSelectionMode()
-        } else {
-            enterSelectionMode()
-        }
-    }, [selection.isSelectionMode, enterSelectionMode, exitSelectionMode])
 
     // Subtask management hook
     const subtaskManagement = useSubtaskManagement({
@@ -553,7 +462,7 @@ export const TasksPage = ({
         setActiveView(view)
     }
 
-    // Keyboard shortcuts for filter operations and selection
+    // Keyboard shortcuts for filter operations
     useEffect(() => {
         const isInputFocused = (): boolean => {
             const activeElement = document.activeElement
@@ -577,35 +486,11 @@ export const TasksPage = ({
                 clearFilters()
                 toast.success("Filters cleared")
             }
-
-            // Cmd/Ctrl+A to select all visible tasks
-            if ((e.metaKey || e.ctrlKey) && e.key === "a" && !isInputFocused()) {
-                e.preventDefault()
-                selectAll()
-            }
-
-            // Escape to clear selection
-            if (e.key === "Escape" && hasSelection) {
-                e.preventDefault()
-                deselectAll()
-            }
-
-            // Cmd/Ctrl+Enter to complete selected tasks
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && hasSelection) {
-                e.preventDefault()
-                bulkActions.bulkComplete()
-            }
-
-            // Cmd/Ctrl+Backspace to delete selected tasks
-            if ((e.metaKey || e.ctrlKey) && e.key === "Backspace" && hasSelection) {
-                e.preventDefault()
-                setIsBulkDeleteDialogOpen(true)
-            }
         }
 
         window.addEventListener("keydown", handler)
         return () => window.removeEventListener("keydown", handler)
-    }, [showFilterBar, clearFilters, hasSelection, selectAll, deselectAll, bulkActions])
+    }, [showFilterBar, clearFilters])
 
     const handleAddTask = (): void => {
         setAddTaskPrefillTitle("")
@@ -1104,78 +989,6 @@ export const TasksPage = ({
         return tasks
     }, [selectedType, selectedId, tasks])
 
-    // ========== BULK ACTION HANDLERS ==========
-
-    const handleBulkChangePriority = useCallback(
-        (priority: Priority): void => {
-            bulkActions.bulkChangePriority(priority)
-        },
-        [bulkActions]
-    )
-
-    const handleBulkChangeDueDate = useCallback(
-        (option: string): void => {
-            if (option === "pick-date") {
-                setIsBulkDueDatePickerOpen(true)
-                return
-            }
-
-            if (option === "remove") {
-                bulkActions.bulkChangeDueDate(null)
-                return
-            }
-
-            const today = startOfDay(new Date())
-            let newDate: Date | null = null
-
-            switch (option) {
-                case "today":
-                    newDate = today
-                    break
-                case "tomorrow":
-                    newDate = addDays(today, 1)
-                    break
-                case "next-week":
-                    newDate = addDays(today, 7)
-                    break
-                case "next-month":
-                    newDate = addDays(today, 30)
-                    break
-            }
-
-            if (newDate) {
-                bulkActions.bulkChangeDueDate(newDate)
-            }
-        },
-        [bulkActions]
-    )
-
-    const handleBulkDueDateConfirm = useCallback(
-        (date: Date, _time: string | null): void => {
-            bulkActions.bulkChangeDueDate(date)
-        },
-        [bulkActions]
-    )
-
-    const handleBulkMoveToProject = useCallback(
-        (projectId: string): void => {
-            bulkActions.bulkMoveToProject(projectId)
-        },
-        [bulkActions]
-    )
-
-    const handleBulkChangeStatus = useCallback(
-        (statusId: string): void => {
-            bulkActions.bulkChangeStatus(statusId)
-        },
-        [bulkActions]
-    )
-
-    const handleBulkDeleteConfirm = useCallback((): void => {
-        bulkActions.bulkDelete()
-        setIsBulkDeleteDialogOpen(false)
-    }, [bulkActions])
-
     // ========== FILTER HANDLERS ==========
 
     const handleSaveFilter = useCallback(
@@ -1261,30 +1074,7 @@ export const TasksPage = ({
                             showStatusFilter={activeView === "kanban"}
                             statuses={currentProjectStatuses}
                             hideProjectFilter={activeInternalTab === "projects"}
-                            isSelectionMode={selection.isSelectionMode}
-                            onToggleSelectionMode={handleToggleSelectionMode}
                             showCompletionToggle={activeInternalTab === "all"}
-                        />
-                    )}
-
-                    {/* Bulk Action Toolbar - shown when tasks are selected */}
-                    {hasSelection && (
-                        <BulkActionToolbar
-                            selectedCount={selectedCount}
-                            allSelected={allSelected}
-                            someSelected={someSelected}
-                            onToggleSelectAll={toggleSelectAll}
-                            onComplete={bulkActions.bulkComplete}
-                            onChangePriority={handleBulkChangePriority}
-                            onChangeDueDate={handleBulkChangeDueDate}
-                            onMoveToProject={handleBulkMoveToProject}
-                            onChangeStatus={handleBulkChangeStatus}
-                            onArchive={bulkActions.bulkArchive}
-                            onDelete={() => setIsBulkDeleteDialogOpen(true)}
-                            onCancel={deselectAll}
-                            projects={projects}
-                            statuses={currentProjectStatuses}
-                            showStatusAction={activeView === "kanban" && selectedType === "project"}
                         />
                     )}
 
@@ -1339,10 +1129,6 @@ export const TasksPage = ({
                                 onTaskClick={handleTaskClick}
                                 onQuickAdd={handleQuickAdd}
                                 onOpenModal={handleOpenAddTaskModal}
-                                isSelectionMode={selection.isSelectionMode}
-                                selectedIds={selection.selectedIds}
-                                onToggleSelect={toggleTask}
-                                onShiftSelect={selectRange}
                                 onReorderSubtasks={subtaskManagement.handleReorderSubtasks}
                                 onAddSubtask={subtaskManagement.handleAddSubtask}
                             />
@@ -1364,10 +1150,6 @@ export const TasksPage = ({
                             onTaskClick={handleTaskClick}
                             onQuickAdd={handleQuickAdd}
                             onOpenModal={handleOpenAddTaskModal}
-                            isSelectionMode={selection.isSelectionMode}
-                            selectedIds={selection.selectedIds}
-                            onToggleSelect={toggleTask}
-                            onShiftSelect={selectRange}
                             onReorderSubtasks={subtaskManagement.handleReorderSubtasks}
                             onAddSubtask={subtaskManagement.handleAddSubtask}
                         />
@@ -1393,9 +1175,6 @@ export const TasksPage = ({
                                 onToggleComplete={handleToggleComplete}
                                 onDeleteTask={handleDeleteTask}
                                 onQuickAdd={handleQuickAdd}
-                                isSelectionMode={selection.isSelectionMode}
-                                selectedIds={selection.selectedIds}
-                                onToggleSelect={toggleTask}
                             />
                         )
                     )}
@@ -1422,9 +1201,6 @@ export const TasksPage = ({
                                         onToggleComplete={handleToggleComplete}
                                         onDeleteTask={handleDeleteTask}
                                         onQuickAdd={handleQuickAdd}
-                                        isSelectionMode={selection.isSelectionMode}
-                                        selectedIds={selection.selectedIds}
-                                        onToggleSelect={toggleTask}
                                     />
                                 ) : (
                                     <div className="flex items-center justify-center h-full">
@@ -1449,9 +1225,6 @@ export const TasksPage = ({
                             onTaskClick={handleTaskClick}
                             onAddTaskWithDate={handleAddTaskWithDate}
                             onToggleComplete={handleToggleComplete}
-                            isSelectionMode={selection.isSelectionMode}
-                            selectedIds={selection.selectedIds}
-                            onToggleSelect={toggleTask}
                         />
                     )}
 
@@ -1475,9 +1248,6 @@ export const TasksPage = ({
                                         onTaskClick={handleTaskClick}
                                         onAddTaskWithDate={handleAddTaskWithDate}
                                         onToggleComplete={handleToggleComplete}
-                                        isSelectionMode={selection.isSelectionMode}
-                                        selectedIds={selection.selectedIds}
-                                        onToggleSelect={toggleTask}
                                     />
                                 ) : (
                                     <div className="flex items-center justify-center h-full">
@@ -1559,22 +1329,6 @@ export const TasksPage = ({
                 onConfirm={handleConfirmDeleteCompleted}
                 taskCount={tasksToDeleteCount}
                 variant={deleteCompletedVariant}
-            />
-
-            {/* Bulk Delete Dialog */}
-            <BulkDeleteDialog
-                open={isBulkDeleteDialogOpen}
-                onClose={() => setIsBulkDeleteDialogOpen(false)}
-                tasks={bulkActions.getSelectedTasks()}
-                onConfirm={handleBulkDeleteConfirm}
-            />
-
-            {/* Bulk Due Date Picker */}
-            <BulkDueDatePicker
-                open={isBulkDueDatePickerOpen}
-                onClose={() => setIsBulkDueDatePickerOpen(false)}
-                taskCount={selectedCount}
-                onConfirm={handleBulkDueDateConfirm}
             />
 
             {/* All Subtasks Complete Dialog */}

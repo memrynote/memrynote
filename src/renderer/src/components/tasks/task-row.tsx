@@ -7,7 +7,6 @@ import {
   InteractiveDueDateBadge,
 } from "@/components/tasks/task-badges"
 import { RepeatIndicator } from "@/components/tasks/repeat-indicator"
-import { SelectionCheckbox } from "@/components/tasks/bulk-actions"
 import type { Task, Priority } from "@/data/sample-tasks"
 import type { Project } from "@/data/tasks-data"
 
@@ -26,15 +25,6 @@ interface TaskRowProps {
   onUpdateTask?: (taskId: string, updates: Partial<Task>) => void
   onClick?: (taskId: string) => void
   className?: string
-  // Selection props
-  /** Whether selection mode is active */
-  isSelectionMode?: boolean
-  /** Whether this specific task is checked for selection */
-  isCheckedForSelection?: boolean
-  /** Toggle selection for this task */
-  onToggleSelect?: (taskId: string) => void
-  /** Handle shift+click for range selection */
-  onShiftSelect?: (taskId: string) => void
 }
 
 // ============================================================================
@@ -52,38 +42,12 @@ export const TaskRow = ({
   onUpdateTask,
   onClick,
   className,
-  // Selection props
-  isSelectionMode = false,
-  isCheckedForSelection = false,
-  onToggleSelect,
-  onShiftSelect,
 }: TaskRowProps): React.JSX.Element => {
   // Check if overdue
   const formattedDate = formatDueDate(task.dueDate, task.dueTime)
   const isOverdue = formattedDate?.status === "overdue"
 
-  const handleRowClick = (e: React.MouseEvent): void => {
-    // Shift+click for range selection
-    if (e.shiftKey && isSelectionMode && onShiftSelect) {
-      e.preventDefault()
-      onShiftSelect(task.id)
-      return
-    }
-
-    // Cmd/Ctrl+click for toggle selection
-    if ((e.metaKey || e.ctrlKey) && onToggleSelect) {
-      e.preventDefault()
-      onToggleSelect(task.id)
-      return
-    }
-
-    // In selection mode, clicking toggles selection
-    if (isSelectionMode && onToggleSelect) {
-      onToggleSelect(task.id)
-      return
-    }
-
-    // Normal click behavior
+  const handleRowClick = (): void => {
     onClick?.(task.id)
   }
 
@@ -98,14 +62,6 @@ export const TaskRow = ({
     onToggleComplete(task.id)
   }
 
-  const handleSelectionCheckboxChange = (): void => {
-    onToggleSelect?.(task.id)
-  }
-
-  const handleSelectionCheckboxClick = (e: React.MouseEvent): void => {
-    e.stopPropagation()
-  }
-
   const handleProjectChange = (projectId: string): void => {
     onUpdateTask?.(task.id, { projectId })
   }
@@ -117,9 +73,6 @@ export const TaskRow = ({
   const handleDateChange = (date: Date | null): void => {
     onUpdateTask?.(task.id, { dueDate: date })
   }
-
-  // Determine if selection is available
-  const showSelection = !!onToggleSelect
 
   return (
     <div
@@ -134,17 +87,15 @@ export const TaskRow = ({
         // Mobile: flex layout for stacked view
         "flex flex-col gap-1",
         // Tablet+: grid layout with fixed columns
-        // md: [select 20px][check 20px][title 1fr][priority 70px][due 110px] (no project)
-        // lg: [select 20px][check 20px][title 1fr][project 120px][priority 70px][due 110px]
+        // md: [check 20px][title 1fr][priority 70px][due 110px] (no project)
+        // lg: [check 20px][title 1fr][project 120px][priority 70px][due 110px]
         "md:grid md:items-center md:gap-2",
         showProjectBadge
-          ? "md:grid-cols-[20px_20px_1fr_70px_110px] lg:grid-cols-[20px_20px_1fr_120px_70px_110px]"
-          : "md:grid-cols-[20px_20px_1fr_70px_110px]",
+          ? "md:grid-cols-[20px_1fr_70px_110px] lg:grid-cols-[20px_1fr_120px_70px_110px]"
+          : "md:grid-cols-[20px_1fr_70px_110px]",
         isOverdue && !isCompleted && "border-l-2 border-l-destructive",
-        // Selection highlight (when checked for selection)
-        isCheckedForSelection && "bg-primary/10 hover:bg-primary/15",
-        // Detail panel selected (not the same as selection mode)
-        isSelected && !isCheckedForSelection && "bg-primary/10 ring-2 ring-primary/30",
+        // Detail panel selected
+        isSelected && "bg-primary/10 ring-2 ring-primary/30",
         className
       )}
       aria-label={`Task: ${task.title}${isCompleted ? ", completed" : ""}`}
@@ -152,37 +103,15 @@ export const TaskRow = ({
       {/* Mobile: Main row with checkbox and title */}
       {/* Desktop: Grid columns */}
       <div className="flex items-center gap-2 md:contents">
-        {/* Selection Checkbox - Column 1 */}
-        {/* Selection Checkbox - visible only in selection mode */}
-        <div
-          className={cn(
-            "flex items-center justify-center",
-            // Hide on mobile
-            "hidden md:flex",
-            showSelection && isSelectionMode ? "opacity-100" : "hidden"
-          )}
-        >
-          {showSelection && isSelectionMode && (
-            <SelectionCheckbox
-              checked={isCheckedForSelection}
-              onChange={handleSelectionCheckboxChange}
-              onClick={handleSelectionCheckboxClick}
-              aria-label={`Select ${task.title}`}
-            />
-          )}
-        </div>
-
-        {/* Task Completion Checkbox - Column 2 */}
-        {/* Disabled during selection mode to prevent accidental completions */}
+        {/* Task Completion Checkbox - Column 1 */}
         <div className="flex items-center justify-center shrink-0">
           <TaskCheckbox
             checked={isCompleted}
             onChange={handleToggleComplete}
-            disabled={isSelectionMode}
           />
         </div>
 
-        {/* Title with Repeat Indicator - Column 3 (flex-1) */}
+        {/* Title with Repeat Indicator - Column 2 (flex-1) */}
         <div className="flex flex-1 items-center gap-2 min-w-0">
           <span
             className={cn(
@@ -199,7 +128,7 @@ export const TaskRow = ({
           )}
         </div>
 
-        {/* Project Badge - Column 4 (conditional, 120px) - hidden on mobile & tablet */}
+        {/* Project Badge - Column 3 (conditional, 120px) - hidden on mobile & tablet */}
         {showProjectBadge && (
           <div className="hidden lg:block">
             <InteractiveProjectBadge
@@ -211,7 +140,7 @@ export const TaskRow = ({
           </div>
         )}
 
-        {/* Priority Badge - Column 5 (70px) - hidden on mobile */}
+        {/* Priority Badge - Column 4 (70px) - hidden on mobile */}
         <div className="hidden md:block">
           <InteractivePriorityBadge
             priority={isCompleted ? "none" : task.priority}
@@ -221,7 +150,7 @@ export const TaskRow = ({
           />
         </div>
 
-        {/* Due Date Badge - Column 6 (110px) - hidden on mobile */}
+        {/* Due Date Badge - Column 5 (110px) - hidden on mobile */}
         <div className="hidden md:block">
           <InteractiveDueDateBadge
             dueDate={task.dueDate}
@@ -263,4 +192,3 @@ export const TaskRow = ({
 }
 
 export default TaskRow
-
