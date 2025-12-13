@@ -19,7 +19,6 @@ export {
   useActiveGroup,
   useActiveGroupTabs,
   useTabSettings,
-  useRecentlyClosed,
   useIsTabActive,
   useTabLayout,
   useTabCounts,
@@ -31,7 +30,6 @@ export {
   type TabAction,
   type TabSettings,
   type SplitLayout,
-  type ClosedTab,
   type OpenTabOptions,
   type SidebarItem,
   // Constants and Helpers

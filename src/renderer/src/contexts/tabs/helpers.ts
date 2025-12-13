@@ -458,7 +458,6 @@ export const DEFAULT_TAB_SETTINGS: TabSettings = {
   openInNewTab: 'modifier',
   previewMode: true,
   showPinnedTabsFirst: true,
-  maxRecentlyClosed: 10,
   restoreSessionOnStart: true,
   tabCloseButton: 'hover',
 };
@@ -478,7 +477,6 @@ export const createInitialState = (): TabSystemState => {
       tabGroupId: initialGroup.id,
     },
     activeGroupId: initialGroup.id,
-    recentlyClosed: [],
     settings: { ...DEFAULT_TAB_SETTINGS },
   };
 };

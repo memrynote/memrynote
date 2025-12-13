@@ -21,7 +21,6 @@ export const useTabKeyboardShortcuts = (): void => {
     closeTab,
     pinTab,
     unpinTab,
-    reopenClosedTab,
     splitView,
     moveTabToNewSplit,
   } = useTabs();
@@ -77,15 +76,6 @@ export const useTabKeyboardShortcuts = (): void => {
           });
         },
         description: 'Close all tabs',
-      },
-
-      // Reopen closed tab (⌘⇧T)
-      {
-        key: 't',
-        modifiers: { meta: true, shift: true },
-        action: reopenClosedTab,
-        description: 'Reopen closed tab',
-        when: () => state.recentlyClosed.length > 0,
       },
 
       // =====================================================================
@@ -225,13 +215,11 @@ export const useTabKeyboardShortcuts = (): void => {
   }, [
     state.tabGroups,
     state.activeGroupId,
-    state.recentlyClosed.length,
     dispatch,
     openTab,
     closeTab,
     pinTab,
     unpinTab,
-    reopenClosedTab,
     splitView,
   ]);
 

@@ -9,7 +9,8 @@ import {
     SortableContext,
     horizontalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, PanelRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, PanelRight, Bot } from 'lucide-react';
+import { useAIAgent } from '@/contexts/ai-agent-context';
 import { useTabGroup, useTabs } from '@/contexts/tabs';
 import { SortableTab } from './sortable-tab';
 import { PinnedTab } from './pinned-tab';
@@ -35,6 +36,7 @@ export const TabBarWithDrag = ({
 }: TabBarWithDragProps): React.JSX.Element | null => {
     const { state, openTab, splitView } = useTabs();
     const group = useTabGroup(groupId);
+    const { toggle: toggleAIAgent, isOpen: isAIAgentOpen } = useAIAgent();
 
     // Scroll state
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -213,6 +215,11 @@ export const TabBarWithDrag = ({
                         icon={<PanelRight className="w-4 h-4" />}
                         tooltip="Split Right"
                         onClick={handleSplitRight}
+                    />
+                    <TabBarAction
+                        icon={<Bot className={cn("w-4 h-4", isAIAgentOpen && "text-blue-500")} />}
+                        tooltip="AI Agent"
+                        onClick={toggleAIAgent}
                     />
                 </div>
             </div>

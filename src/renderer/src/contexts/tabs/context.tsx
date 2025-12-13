@@ -155,16 +155,6 @@ interface TabContextType {
     ) => void;
 
     /**
-     * Reopen the most recently closed tab
-     */
-    reopenClosedTab: () => void;
-
-    /**
-     * Clear recently closed tabs history
-     */
-    clearRecentlyClosed: () => void;
-
-    /**
      * Split the view
      */
     splitView: (direction: 'horizontal', groupId?: string) => void;
@@ -226,11 +216,6 @@ interface TabContextType {
      * Check if a tab exists by entity ID
      */
     hasTabForEntity: (entityId: string) => boolean;
-
-    /**
-     * Get the number of recently closed tabs
-     */
-    getRecentlyClosedCount: () => number;
 }
 
 // =============================================================================
@@ -504,14 +489,6 @@ export const TabProvider = ({
         [state.activeGroupId]
     );
 
-    const reopenClosedTab = useCallback(() => {
-        dispatch({ type: 'REOPEN_CLOSED_TAB' });
-    }, []);
-
-    const clearRecentlyClosed = useCallback(() => {
-        dispatch({ type: 'CLEAR_RECENTLY_CLOSED' });
-    }, []);
-
     const splitView = useCallback(
         (direction: 'horizontal', groupId?: string) => {
             const actualGroupId = groupId ?? state.activeGroupId;
@@ -596,10 +573,6 @@ export const TabProvider = ({
         [state.tabGroups]
     );
 
-    const getRecentlyClosedCount = useCallback((): number => {
-        return state.recentlyClosed.length;
-    }, [state.recentlyClosed.length]);
-
     // =========================================================================
     // CONTEXT VALUE
     // =========================================================================
@@ -629,8 +602,6 @@ export const TabProvider = ({
             reorderTabs,
             moveTabToGroup,
             saveTabState,
-            reopenClosedTab,
-            clearRecentlyClosed,
             splitView,
             closeSplit,
             moveTabToNewSplit,
@@ -643,7 +614,6 @@ export const TabProvider = ({
             getAllTabs,
             getTabsInGroup,
             hasTabForEntity,
-            getRecentlyClosedCount,
         }),
         [
             state,
@@ -667,8 +637,6 @@ export const TabProvider = ({
             reorderTabs,
             moveTabToGroup,
             saveTabState,
-            reopenClosedTab,
-            clearRecentlyClosed,
             splitView,
             closeSplit,
             moveTabToNewSplit,
@@ -680,7 +648,6 @@ export const TabProvider = ({
             getAllTabs,
             getTabsInGroup,
             hasTabForEntity,
-            getRecentlyClosedCount,
         ]
     );
 
@@ -745,14 +712,6 @@ export const useActiveGroupTabs = (): Tab[] => {
 export const useTabSettings = (): TabSettings => {
     const { state } = useTabs();
     return state.settings;
-};
-
-/**
- * Hook to get recently closed tabs
- */
-export const useRecentlyClosed = () => {
-    const { state } = useTabs();
-    return state.recentlyClosed;
 };
 
 /**

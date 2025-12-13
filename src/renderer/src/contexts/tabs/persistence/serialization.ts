@@ -126,7 +126,6 @@ export const deserializeTabState = (
     layout: migrated.layout,
     activeGroupId: migrated.activeGroupId,
     settings: migrated.settings,
-    recentlyClosed: [], // Always start fresh
   };
 };
 

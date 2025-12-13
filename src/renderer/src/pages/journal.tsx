@@ -377,7 +377,7 @@ export function JournalPage({ className }: JournalPageProps): React.JSX.Element 
                 focusMode ? "px-8" : "px-6 lg:px-10"
             )}>
                 <div className={cn(
-                    "mx-auto h-full flex flex-col",
+                    "mx-auto min-h-full flex flex-col",
                     focusMode ? "max-w-3xl" : "max-w-4xl",
                     "py-8 lg:py-12"
                 )}>
@@ -484,7 +484,7 @@ export function JournalPage({ className }: JournalPageProps): React.JSX.Element 
                         /* Journal Editor - Main Writing Area (BlockNote) + Backlinks */
                         <>
                             <div
-                                className="editor-click-area flex-1"
+                                className="editor-click-area min-h-[200px]"
                                 onMouseDown={(e) => {
                                     const target = e.target as HTMLElement
                                     // If clicking directly on editable text, let it work normally

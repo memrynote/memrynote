@@ -25,9 +25,6 @@ export { TruncatedTabTitle } from './truncated-tab-title';
 export { TabContextMenu } from './tab-context-menu';
 export { TabBarContextMenu } from './tab-bar-context-menu';
 
-// Recently closed
-export { RecentlyClosedMenu } from './recently-closed-menu';
-
 // Accessibility
 export { LiveAnnouncer } from './live-announcer';
 export { SkipToContent } from './skip-to-content';
