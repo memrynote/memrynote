@@ -9,6 +9,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
+import { InboxPage } from "@/pages/inbox"
 import { JournalPage } from "@/pages/journal"
 import { TasksPage } from "@/pages/tasks"
 import { NotePage } from "@/pages/note"
@@ -31,7 +32,7 @@ import { ChordIndicator, KeyboardShortcutsDialog } from "@/components/keyboard"
 import { useTabKeyboardShortcuts, useChordShortcuts, useDragHandlers, useTaskOrder } from "@/hooks"
 
 // Base pages (non-task)
-export type BasePage = "home" | "journal"
+export type BasePage = "inbox" | "home" | "journal"
 
 // Task view type for navigation within tasks
 export type TaskViewId = "all" | "today" | "upcoming" | "completed"
@@ -114,6 +115,8 @@ const TabContentRenderer = ({
       return <JournalPage />
     case "note":
       return <NotePage noteId={activeTab.entityId} />
+    case "inbox":
+      return <InboxPage />
     case "home":
 
     default:
