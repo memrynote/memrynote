@@ -12,7 +12,6 @@ export type {
   TabAction,
   TabSettings,
   SplitLayout,
-  ClosedTab,
   OpenTabOptions,
   SidebarItem,
 } from './types';
@@ -59,7 +58,6 @@ export {
   useActiveGroup,
   useActiveGroupTabs,
   useTabSettings,
-  useRecentlyClosed,
   useIsTabActive,
   useTabLayout,
   useTabCounts,

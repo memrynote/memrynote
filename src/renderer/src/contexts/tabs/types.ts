@@ -119,24 +119,6 @@ export type SplitLayout =
   | { type: 'horizontal'; ratio: number; first: SplitLayout; second: SplitLayout };
 
 // =============================================================================
-// RECENTLY CLOSED
-// =============================================================================
-
-/**
- * Recently closed tab (for undo close)
- */
-export interface ClosedTab {
-  /** The tab that was closed */
-  tab: Tab;
-  /** Group ID the tab belonged to */
-  groupId: string;
-  /** Position in tab list when closed */
-  index: number;
-  /** Timestamp when closed */
-  closedAt: number;
-}
-
-// =============================================================================
 // TAB SETTINGS
 // =============================================================================
 
@@ -150,8 +132,6 @@ export interface TabSettings {
   previewMode: boolean;
   /** Keep pinned tabs on left */
   showPinnedTabsFirst: boolean;
-  /** How many closed tabs to remember */
-  maxRecentlyClosed: number;
   /** Restore tabs from last session on app start */
   restoreSessionOnStart: boolean;
   /** When to show close button: always, on hover, or only on active tab */
@@ -172,8 +152,6 @@ export interface TabSystemState {
   layout: SplitLayout;
   /** Currently focused group ID */
   activeGroupId: string;
-  /** Stack of recently closed tabs (max based on settings) */
-  recentlyClosed: ClosedTab[];
   /** User preferences */
   settings: TabSettings;
 }
@@ -247,11 +225,6 @@ export type TabAction =
         viewState?: Record<string, unknown>;
       };
     }
-
-  // Recently closed
-  | { type: 'REOPEN_CLOSED_TAB' }
-  | { type: 'REOPEN_SPECIFIC_CLOSED_TAB'; payload: { index: number } }
-  | { type: 'CLEAR_RECENTLY_CLOSED' }
 
   // Split view
   | { type: 'SPLIT_VIEW'; payload: { direction: 'horizontal'; groupId: string } }

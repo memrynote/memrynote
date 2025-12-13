@@ -21,15 +21,13 @@ interface TabBarContextMenuProps {
 }
 
 /**
- * Context menu for tab bar empty area (new tab, reopen closed, etc.)
+ * Context menu for tab bar empty area (new tab, close all, etc.)
  */
 export const TabBarContextMenu = ({
     groupId,
     children,
 }: TabBarContextMenuProps): React.JSX.Element => {
-    const { openTab, reopenClosedTab, closeAllTabs, state } = useTabs();
-
-    const hasClosedTabs = state.recentlyClosed.length > 0;
+    const { openTab, closeAllTabs } = useTabs();
 
     // Handlers
     const handleNewTab = (): void => {
@@ -47,10 +45,6 @@ export const TabBarContextMenu = ({
         );
     };
 
-    const handleReopenClosed = (): void => {
-        reopenClosedTab();
-    };
-
     const handleCloseAll = (): void => {
         closeAllTabs(groupId);
     };
@@ -62,13 +56,6 @@ export const TabBarContextMenu = ({
                 <ContextMenuItem onClick={handleNewTab}>
                     New Tab
                     <ContextMenuShortcut>⌘T</ContextMenuShortcut>
-                </ContextMenuItem>
-
-                <ContextMenuSeparator />
-
-                <ContextMenuItem onClick={handleReopenClosed} disabled={!hasClosedTabs}>
-                    Reopen Closed Tab
-                    <ContextMenuShortcut>⌘⇧T</ContextMenuShortcut>
                 </ContextMenuItem>
 
                 <ContextMenuSeparator />

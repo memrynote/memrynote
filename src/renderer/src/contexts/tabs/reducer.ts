@@ -8,7 +8,6 @@ import type {
   TabAction,
   TabGroup,
   TabSystemState,
-  ClosedTab,
 } from './types';
 import { SINGLETON_TAB_TYPES } from './types';
 import {
@@ -32,11 +31,10 @@ import {
  */
 const closeGroup = (
   state: TabSystemState,
-  groupId: string,
-  recentlyClosed: ClosedTab[]
+  groupId: string
 ): TabSystemState => {
   // Remove group from state
-  const { [groupId]: removedGroup, ...remainingGroups } = state.tabGroups;
+  const { [groupId]: _removedGroup, ...remainingGroups } = state.tabGroups;
 
   // Update layout
   const newLayout = removeGroupFromLayout(state.layout, groupId);
@@ -45,7 +43,6 @@ const closeGroup = (
   if (!newLayout) {
     return {
       ...createInitialState(),
-      recentlyClosed,
       settings: state.settings,
     };
   }
@@ -63,7 +60,6 @@ const closeGroup = (
     tabGroups: remainingGroups,
     layout: newLayout,
     activeGroupId: newActiveGroupId,
-    recentlyClosed,
   };
 };
 
@@ -215,23 +211,6 @@ export function tabReducer(
       const tabIndex = group.tabs.findIndex((t) => t.id === tabId);
       if (tabIndex === -1) return state;
 
-      const closingTab = group.tabs[tabIndex];
-
-      // Add to recently closed (but not preview tabs)
-      let newRecentlyClosed = state.recentlyClosed;
-      if (!closingTab.isPreview) {
-        const closedTab: ClosedTab = {
-          tab: closingTab,
-          groupId,
-          index: tabIndex,
-          closedAt: Date.now(),
-        };
-        newRecentlyClosed = [closedTab, ...state.recentlyClosed].slice(
-          0,
-          state.settings.maxRecentlyClosed
-        );
-      }
-
       // Remove tab
       const newTabs = group.tabs.filter((t) => t.id !== tabId);
 
@@ -249,12 +228,11 @@ export function tabReducer(
                 activeTabId: defaultTab.id,
               },
             },
-            recentlyClosed: newRecentlyClosed,
           };
         }
 
         // Otherwise, close the group
-        return closeGroup(state, groupId, newRecentlyClosed);
+        return closeGroup(state, groupId);
       }
 
       // Determine new active tab
@@ -275,7 +253,6 @@ export function tabReducer(
             activeTabId: newActiveTabId,
           },
         },
-        recentlyClosed: newRecentlyClosed,
       };
     }
 
@@ -290,22 +267,6 @@ export function tabReducer(
 
       // Keep pinned tabs and the selected tab
       const tabsToKeep = group.tabs.filter((t) => t.id === tabId || t.isPinned);
-      const tabsToClose = group.tabs.filter((t) => t.id !== tabId && !t.isPinned);
-
-      // Add closed tabs to recently closed
-      const closedTabs: ClosedTab[] = tabsToClose
-        .filter((t) => !t.isPreview)
-        .map((t, i) => ({
-          tab: t,
-          groupId,
-          index: group.tabs.findIndex((gt) => gt.id === t.id),
-          closedAt: Date.now() + i,
-        }));
-
-      const newRecentlyClosed = [...closedTabs, ...state.recentlyClosed].slice(
-        0,
-        state.settings.maxRecentlyClosed
-      );
 
       return {
         ...state,
@@ -317,7 +278,6 @@ export function tabReducer(
             activeTabId: tabId,
           },
         },
-        recentlyClosed: newRecentlyClosed,
       };
     }
 
@@ -334,24 +294,6 @@ export function tabReducer(
       const tabsToKeep = group.tabs.filter(
         (t, i) => i <= tabIndex || t.isPinned
       );
-      const tabsToClose = group.tabs.filter(
-        (t, i) => i > tabIndex && !t.isPinned
-      );
-
-      // Add closed tabs to recently closed
-      const closedTabs: ClosedTab[] = tabsToClose
-        .filter((t) => !t.isPreview)
-        .map((t) => ({
-          tab: t,
-          groupId,
-          index: group.tabs.findIndex((gt) => gt.id === t.id),
-          closedAt: Date.now(),
-        }));
-
-      const newRecentlyClosed = [...closedTabs, ...state.recentlyClosed].slice(
-        0,
-        state.settings.maxRecentlyClosed
-      );
 
       return {
         ...state,
@@ -362,7 +304,6 @@ export function tabReducer(
             tabs: tabsToKeep,
           },
         },
-        recentlyClosed: newRecentlyClosed,
       };
     }
 
@@ -374,22 +315,6 @@ export function tabReducer(
 
       // Keep only pinned tabs
       const pinnedTabs = group.tabs.filter((t) => t.isPinned);
-      const tabsToClose = group.tabs.filter((t) => !t.isPinned);
-
-      // Add to recently closed
-      const closedTabs: ClosedTab[] = tabsToClose
-        .filter((t) => !t.isPreview)
-        .map((t) => ({
-          tab: t,
-          groupId,
-          index: group.tabs.findIndex((gt) => gt.id === t.id),
-          closedAt: Date.now(),
-        }));
-
-      const newRecentlyClosed = [...closedTabs, ...state.recentlyClosed].slice(
-        0,
-        state.settings.maxRecentlyClosed
-      );
 
       // If no pinned tabs, add default or close group
       if (pinnedTabs.length === 0) {
@@ -404,10 +329,9 @@ export function tabReducer(
                 activeTabId: defaultTab.id,
               },
             },
-            recentlyClosed: newRecentlyClosed,
           };
         }
-        return closeGroup(state, groupId, newRecentlyClosed);
+        return closeGroup(state, groupId);
       }
 
       return {
@@ -420,7 +344,6 @@ export function tabReducer(
             activeTabId: pinnedTabs[0]?.id || null,
           },
         },
-        recentlyClosed: newRecentlyClosed,
       };
     }
 
@@ -435,22 +358,7 @@ export function tabReducer(
       const group = state.tabGroups[groupId];
       if (!group) return state;
 
-      // Add all non-preview tabs to recently closed
-      const closedTabs: ClosedTab[] = group.tabs
-        .filter((t) => !t.isPreview)
-        .map((t, i) => ({
-          tab: t,
-          groupId,
-          index: i,
-          closedAt: Date.now(),
-        }));
-
-      const newRecentlyClosed = [...closedTabs, ...state.recentlyClosed].slice(
-        0,
-        state.settings.maxRecentlyClosed
-      );
-
-      return closeGroup(state, groupId, newRecentlyClosed);
+      return closeGroup(state, groupId);
     }
 
     // =========================================================================
@@ -780,7 +688,7 @@ export function tabReducer(
           activeGroupId: toGroupId,
         };
 
-        return closeGroup(stateWithTab, fromGroupId, state.recentlyClosed);
+        return closeGroup(stateWithTab, fromGroupId);
       }
 
       // Add to target group
@@ -848,110 +756,6 @@ export function tabReducer(
     }
 
     // =========================================================================
-    // RECENTLY CLOSED ACTIONS
-    // =========================================================================
-
-    case 'REOPEN_CLOSED_TAB': {
-      if (state.recentlyClosed.length === 0) return state;
-
-      const [closedTab, ...remainingClosed] = state.recentlyClosed;
-      const { tab, groupId, index } = closedTab;
-
-      // Check if original group still exists, otherwise use active group
-      const targetGroupId = state.tabGroups[groupId]
-        ? groupId
-        : state.activeGroupId;
-      const targetGroup = state.tabGroups[targetGroupId];
-
-      if (!targetGroup) return state;
-
-      const newTab = {
-        ...tab,
-        id: generateId(), // New ID to avoid conflicts
-        openedAt: Date.now(),
-        lastAccessedAt: Date.now(),
-        isPreview: false, // Don't reopen as preview
-      };
-
-      const insertIndex = Math.min(index, targetGroup.tabs.length);
-      const newTabs = [
-        ...targetGroup.tabs.slice(0, insertIndex),
-        newTab,
-        ...targetGroup.tabs.slice(insertIndex),
-      ];
-
-      return {
-        ...state,
-        tabGroups: {
-          ...state.tabGroups,
-          [targetGroupId]: {
-            ...targetGroup,
-            tabs: newTabs,
-            activeTabId: newTab.id,
-          },
-        },
-        recentlyClosed: remainingClosed,
-        activeGroupId: targetGroupId,
-      };
-    }
-
-    case 'REOPEN_SPECIFIC_CLOSED_TAB': {
-      const { index } = action.payload;
-
-      if (index < 0 || index >= state.recentlyClosed.length) return state;
-
-      const closedTab = state.recentlyClosed[index];
-      const { tab, groupId: originalGroupId, index: originalIndex } = closedTab;
-
-      // Check if original group still exists, otherwise use active group
-      const targetGroupId = state.tabGroups[originalGroupId]
-        ? originalGroupId
-        : state.activeGroupId;
-      const targetGroup = state.tabGroups[targetGroupId];
-
-      if (!targetGroup) return state;
-
-      const newTab = {
-        ...tab,
-        id: generateId(),
-        openedAt: Date.now(),
-        lastAccessedAt: Date.now(),
-        isPreview: false,
-      };
-
-      const insertIndex = Math.min(originalIndex, targetGroup.tabs.length);
-      const newTabs = [
-        ...targetGroup.tabs.slice(0, insertIndex),
-        newTab,
-        ...targetGroup.tabs.slice(insertIndex),
-      ];
-
-      // Remove from recently closed
-      const remainingClosed = state.recentlyClosed.filter((_, i) => i !== index);
-
-      return {
-        ...state,
-        tabGroups: {
-          ...state.tabGroups,
-          [targetGroupId]: {
-            ...targetGroup,
-            tabs: newTabs,
-            activeTabId: newTab.id,
-          },
-        },
-        recentlyClosed: remainingClosed,
-        activeGroupId: targetGroupId,
-      };
-    }
-
-    case 'CLEAR_RECENTLY_CLOSED': {
-      return {
-        ...state,
-        recentlyClosed: [],
-      };
-    }
-
-    // =========================================================================
     // SPLIT VIEW ACTIONS
     // =========================================================================
 
@@ -1008,7 +812,7 @@ export function tabReducer(
 
       if (Object.keys(state.tabGroups).length <= 1) return state;
 
-      return closeGroup(state, groupId, state.recentlyClosed);
+      return closeGroup(state, groupId);
     }
 
     case 'MOVE_TAB_TO_NEW_SPLIT': {

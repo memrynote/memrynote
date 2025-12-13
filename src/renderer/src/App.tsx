@@ -15,6 +15,8 @@ import { JournalPage } from "@/pages/journal"
 import { TasksPage } from "@/pages/tasks"
 import { NotePage } from "@/pages/note"
 import { DragProvider, type DragState } from "@/contexts/drag-context"
+import { AIAgentProvider } from "@/contexts/ai-agent-context"
+import { GlobalAIPanel } from "@/components/ai-agent"
 import { TaskDragOverlay } from "@/components/tasks/drag-drop"
 import { initialProjects, taskViews, type Project } from "@/data/tasks-data"
 import { sampleTasks, type Task } from "@/data/sample-tasks"
@@ -25,7 +27,7 @@ import { ThemeProvider } from "next-themes"
 // Tab System imports
 import { TabProvider, useTabs, useActiveTab, getOrderedGroupWidths } from "@/contexts/tabs"
 import { TasksProvider } from "@/contexts/tasks"
-import { TabBarWithDrag, RecentlyClosedMenu, TabDragProvider } from "@/components/tabs"
+import { TabBarWithDrag, TabDragProvider } from "@/components/tabs"
 import { SplitViewContainer } from "@/components/split-view"
 import { ChordIndicator, KeyboardShortcutsDialog } from "@/components/keyboard"
 import { useTabKeyboardShortcuts, useChordShortcuts, useDragHandlers, useTaskOrder } from "@/hooks"
@@ -211,7 +213,6 @@ const AppContent = ({
 
         {/* Global Actions */}
         <div className="flex items-center gap-1 px-2 shrink-0">
-          <RecentlyClosedMenu />
           <button
             type="button"
             onClick={() => setShowShortcutsDialog(true)}
@@ -258,6 +259,9 @@ const AppContent = ({
             />
           </div>
         )}
+
+        {/* Global AI Agent Panel - pushes content when open */}
+        <GlobalAIPanel />
       </div>
 
       {/* Chord Indicator */}
@@ -396,24 +400,26 @@ function App(): React.JSX.Element {
       onTasksChange={handleTasksChange}
       onProjectsChange={handleProjectsChange}
     >
-      <TabProvider>
-        <AppSidebar
-          currentPage={currentPage}
-          viewCounts={viewCounts}
-        />
-        <SidebarInset className="flex flex-col">
-          <AppContent
-            tasks={tasks}
-            projects={projectsWithCounts}
-            selectedTaskIds={selectedTaskIds}
-            onTasksChange={handleTasksChange}
-          onSelectionChange={handleTaskSelectionChange}
-          onSelectedTaskIdsChange={handleSelectionChange}
-        />
-      </SidebarInset>
-        {/* Drag Overlay - only for task drag to sidebar */}
-        <TaskDragOverlay projects={projectsWithCounts} />
-      </TabProvider>
+      <AIAgentProvider>
+        <TabProvider>
+          <AppSidebar
+            currentPage={currentPage}
+            viewCounts={viewCounts}
+          />
+          <SidebarInset className="flex flex-col">
+            <AppContent
+              tasks={tasks}
+              projects={projectsWithCounts}
+              selectedTaskIds={selectedTaskIds}
+              onTasksChange={handleTasksChange}
+              onSelectionChange={handleTaskSelectionChange}
+              onSelectedTaskIdsChange={handleSelectionChange}
+            />
+          </SidebarInset>
+          {/* Drag Overlay - only for task drag to sidebar */}
+          <TaskDragOverlay projects={projectsWithCounts} />
+        </TabProvider>
+      </AIAgentProvider>
     </TasksProvider>
   )
 
