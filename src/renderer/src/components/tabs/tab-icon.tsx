@@ -4,7 +4,6 @@
  */
 
 import {
-    Inbox,
     Home,
     ListChecks,
     Star,
@@ -35,7 +34,6 @@ interface TabIconProps {
  */
 const ICON_COMPONENTS: Record<string, React.ComponentType<{ className?: string }>> = {
     // Core icons
-    inbox: Inbox,
     home: Home,
     'list-checks': ListChecks,
     star: Star,
@@ -54,8 +52,6 @@ const ICON_COMPONENTS: Record<string, React.ComponentType<{ className?: string }
  * Default icon mapping for tab types
  */
 const TYPE_TO_ICON: Record<TabType, string> = {
-    inbox: 'inbox',
-    inbox2: 'inbox',
     home: 'home',
     tasks: 'list-checks',     // New unified tasks tab
     'all-tasks': 'list-checks',

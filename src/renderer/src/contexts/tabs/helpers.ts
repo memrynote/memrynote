@@ -101,8 +101,6 @@ export const findPreviewTab = (group: TabGroup): Tab | null => {
  * Icon mapping for tab types
  */
 const TAB_ICONS: Record<TabType, string> = {
-  inbox: 'inbox',
-  inbox2: 'inbox',
   home: 'home',
   tasks: 'list-checks',      // New unified tasks tab
   'all-tasks': 'list-checks',
@@ -132,8 +130,6 @@ export const getTabIcon = (type: TabType): string => {
  * Path mapping for singleton tab types
  */
 const TAB_PATHS: Partial<Record<TabType, string>> = {
-  inbox: '/inbox',
-  inbox2: '/inbox2',
   home: '/home',
   'all-tasks': '/tasks/all',
   today: '/tasks/today',
@@ -172,14 +168,14 @@ export const getDefaultPath = (type: TabType, entityId?: string): string => {
 // =============================================================================
 
 /**
- * Create a default Inbox tab
+ * Create a default Home tab
  */
 export const createDefaultTab = (): Tab => ({
   id: generateId(),
-  type: 'inbox',
-  title: 'Inbox',
-  icon: 'inbox',
-  path: '/inbox',
+  type: 'home',
+  title: 'Home',
+  icon: 'home',
+  path: '/home',
   isPinned: false,
   isModified: false,
   isPreview: false,
@@ -225,7 +221,7 @@ export const createTab = (
 // =============================================================================
 
 /**
- * Create initial tab group with Inbox tab
+ * Create initial tab group with Home tab
  */
 export const createInitialTabGroup = (): TabGroup => {
   const initialTab = createDefaultTab();

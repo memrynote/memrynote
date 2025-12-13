@@ -47,10 +47,6 @@ interface ProjectsTabContentProps {
     onProjectArchive?: (project: Project) => void
     onProjectDelete?: (projectId: string) => void
     onCreateProject?: () => void
-    isSelectionMode?: boolean
-    selectedIds?: Set<string>
-    onToggleSelect?: (taskId: string) => void
-    onShiftSelect?: (taskId: string) => void
     onReorderSubtasks?: (parentId: string, subtaskIds: string[]) => void
     onAddSubtask?: (parentId: string, title: string) => void
     className?: string
@@ -194,10 +190,6 @@ export const ProjectsTabContent = ({
     onProjectArchive,
     onProjectDelete,
     onCreateProject,
-    isSelectionMode = false,
-    selectedIds = new Set(),
-    onToggleSelect,
-    onShiftSelect,
     onReorderSubtasks,
     onAddSubtask,
     className,
@@ -342,10 +334,6 @@ export const ProjectsTabContent = ({
                         onTaskClick={onTaskClick}
                         onQuickAdd={handleQuickAdd}
                         onOpenModal={onOpenModal}
-                        isSelectionMode={isSelectionMode}
-                        selectedIds={selectedIds}
-                        onToggleSelect={onToggleSelect}
-                        onShiftSelect={onShiftSelect}
                         onReorderSubtasks={onReorderSubtasks}
                         onAddSubtask={onAddSubtask}
                     />

@@ -1,7 +1,5 @@
 export * from "./use-keyboard-shortcuts"
 export * from "./use-task-filters"
-export * from "./use-task-selection"
-export * from "./use-bulk-actions"
 export * from "./use-drag-handlers"
 export * from "./use-task-order"
 export * from "./use-expanded-tasks"

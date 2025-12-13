@@ -3,7 +3,7 @@
  * Placeholder shown when a pane has no tabs
  */
 
-import { FileText, Inbox } from 'lucide-react';
+import { FileText, Home } from 'lucide-react';
 import { useTabs } from '@/contexts/tabs';
 import { cn } from '@/lib/utils';
 
@@ -27,13 +27,13 @@ export const EmptyPaneState = ({
     const groupIds = Object.keys(state.tabGroups);
     const canClose = groupIds.length > 1;
 
-    const handleOpenInbox = (): void => {
+    const handleOpenHome = (): void => {
         openTab(
             {
-                type: 'inbox',
-                title: 'Inbox',
-                icon: 'inbox',
-                path: '/inbox',
+                type: 'home',
+                title: 'Home',
+                icon: 'home',
+                path: '/home',
                 isPinned: false,
                 isModified: false,
                 isPreview: false,
@@ -66,15 +66,15 @@ export const EmptyPaneState = ({
             <div className="flex gap-2">
                 <button
                     type="button"
-                    onClick={handleOpenInbox}
+                    onClick={handleOpenHome}
                     className={cn(
                         'flex items-center gap-2 px-4 py-2 rounded-lg',
                         'bg-blue-500 text-white',
                         'hover:bg-blue-600 transition-colors'
                     )}
                 >
-                    <Inbox className="w-4 h-4" />
-                    Open Inbox
+                    <Home className="w-4 h-4" />
+                    Open Home
                 </button>
 
                 {canClose && (

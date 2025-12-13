@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, forwardRef, useImperativeHandle } from "react"
-import { CheckSquare, CircleCheck, SlidersHorizontal } from "lucide-react"
+import { CircleCheck, SlidersHorizontal } from "lucide-react"
 
 import { SearchInput } from "./search-input"
 import { ProjectFilter } from "./project-filter"
@@ -42,10 +42,6 @@ interface FilterBarProps {
   statuses?: Status[]
   /** Hide project filter UI (e.g. in Projects tab) */
   hideProjectFilter?: boolean
-  /** Whether selection mode is active */
-  isSelectionMode?: boolean
-  /** Toggle selection mode on/off */
-  onToggleSelectionMode?: () => void
   /** Whether to show the "Show Completed" toggle */
   showCompletionToggle?: boolean
   className?: string
@@ -76,8 +72,6 @@ export const FilterBar = forwardRef<FilterBarRef, FilterBarProps>(
       showStatusFilter = false,
       statuses = [],
       hideProjectFilter = false,
-      isSelectionMode = false,
-      onToggleSelectionMode,
       showCompletionToggle = false,
       className,
     },
@@ -293,28 +287,6 @@ export const FilterBar = forwardRef<FilterBarRef, FilterBarProps>(
           {/* Right group */}
           <div className="flex items-center gap-2 shrink-0">
             <SortDropdown sort={sort} onChange={onUpdateSort} />
-
-            {onToggleSelectionMode && (
-              <>
-                <div className="h-6 w-px bg-border" />
-                <button
-                  type="button"
-                  onClick={onToggleSelectionMode}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
-                    "hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isSelectionMode
-                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  aria-label={isSelectionMode ? "Exit selection mode" : "Enter selection mode"}
-                  aria-pressed={isSelectionMode}
-                >
-                  <CheckSquare className="size-4" />
-                  <span className="hidden sm:inline">Select</span>
-                </button>
-              </>
-            )}
           </div>
         </div>
 

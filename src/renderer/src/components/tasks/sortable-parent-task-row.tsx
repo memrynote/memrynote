@@ -13,7 +13,6 @@ import {
   DueDateBadge,
 } from "@/components/tasks/task-badges"
 import { RepeatIndicator } from "@/components/tasks/repeat-indicator"
-import { SelectionCheckbox } from "@/components/tasks/bulk-actions"
 
 import { ExpandChevron } from "@/components/tasks/expand-chevron"
 import { SubtaskBadge } from "@/components/tasks/subtask-badge"
@@ -40,11 +39,6 @@ interface SortableParentTaskRowProps {
   onToggleSubtaskComplete?: (subtaskId: string) => void
   onClick?: (taskId: string) => void
   className?: string
-  // Selection props
-  isSelectionMode?: boolean
-  isCheckedForSelection?: boolean
-  onToggleSelect?: (taskId: string) => void
-  onShiftSelect?: (taskId: string) => void
   // Subtask management props
   onAddSubtask?: (parentId: string, title: string) => void
   onReorderSubtasks?: (parentId: string, newOrder: string[]) => void
@@ -71,10 +65,6 @@ export const SortableParentTaskRow = ({
   onToggleSubtaskComplete,
   onClick,
   className,
-  isSelectionMode = false,
-  isCheckedForSelection = false,
-  onToggleSelect,
-  onShiftSelect,
   onAddSubtask,
   onReorderSubtasks,
   accentClass,
@@ -134,26 +124,6 @@ export const SortableParentTaskRow = ({
       return
     }
 
-    // Shift+click for range selection
-    if (e.shiftKey && isSelectionMode && onShiftSelect) {
-      e.preventDefault()
-      onShiftSelect(task.id)
-      return
-    }
-
-    // Cmd/Ctrl+click for toggle selection
-    if ((e.metaKey || e.ctrlKey) && onToggleSelect) {
-      e.preventDefault()
-      onToggleSelect(task.id)
-      return
-    }
-
-    // In selection mode, clicking toggles selection
-    if (isSelectionMode && onToggleSelect) {
-      onToggleSelect(task.id)
-      return
-    }
-
     // Normal click behavior
     onClick?.(task.id)
   }
@@ -187,14 +157,6 @@ export const SortableParentTaskRow = ({
     onToggleComplete(task.id)
   }
 
-  const handleSelectionCheckboxChange = (): void => {
-    onToggleSelect?.(task.id)
-  }
-
-  const handleSelectionCheckboxClick = (e: React.MouseEvent): void => {
-    e.stopPropagation()
-  }
-
   return (
     <div className={cn("group", className)}>
       {/* Parent task row */}
@@ -214,20 +176,13 @@ export const SortableParentTaskRow = ({
           // Tablet+: grid layout with fixed columns
           // [drag 24px][checkbox 20px][chevron 20px][title 1fr][project? 120px][priority 70px][due 110px]
           "md:grid md:items-center md:gap-1",
-          // Dynamic grid columns based on selection mode
-          isSelectionMode
-            ? showProjectBadge
-              ? "md:grid-cols-[24px_20px_20px_20px_1fr_70px_110px] lg:grid-cols-[24px_20px_20px_20px_1fr_120px_70px_110px]"
-              : "md:grid-cols-[24px_20px_20px_20px_1fr_70px_110px]"
-            : showProjectBadge
-              ? "md:grid-cols-[24px_20px_20px_1fr_70px_110px] lg:grid-cols-[24px_20px_20px_1fr_120px_70px_110px]"
-              : "md:grid-cols-[24px_20px_20px_1fr_70px_110px]",
+          showProjectBadge
+            ? "md:grid-cols-[24px_20px_20px_1fr_70px_110px] lg:grid-cols-[24px_20px_20px_1fr_120px_70px_110px]"
+            : "md:grid-cols-[24px_20px_20px_1fr_70px_110px]",
           // Urgency accent class takes priority, otherwise fall back to overdue styling
           accentClass ? accentClass : (isOverdue && "border-l-2 border-l-destructive"),
-          // Selection highlight (when checked for selection)
-          isCheckedForSelection && "bg-primary/10 hover:bg-primary/15",
-          // Detail panel selected (not the same as selection mode)
-          isSelected && !isCheckedForSelection && "bg-primary/10 ring-2 ring-primary/30",
+          // Detail panel selected
+          isSelected && "bg-primary/10 ring-2 ring-primary/30",
           // Dragging state
           isDragging && "opacity-50 shadow-lg ring-2 ring-primary bg-background z-10"
         )}
@@ -256,21 +211,7 @@ export const SortableParentTaskRow = ({
             <GripVertical className="size-4" />
           </button>
 
-          {/* Selection Checkbox - Column 2 (only in selection mode, 20px) */}
-          {isSelectionMode && (
-            <div className="hidden md:flex items-center justify-center">
-              {onToggleSelect && (
-                <SelectionCheckbox
-                  checked={isCheckedForSelection}
-                  onChange={handleSelectionCheckboxChange}
-                  onClick={handleSelectionCheckboxClick}
-                  aria-label={`Select ${task.title}`}
-                />
-              )}
-            </div>
-          )}
-
-          {/* Task Completion Checkbox - Column 3 (20px) */}
+          {/* Task Completion Checkbox - Column 2 (20px) */}
           <div className="flex items-center justify-center shrink-0">
             <TaskCheckbox
               checked={isCompleted}
@@ -278,7 +219,7 @@ export const SortableParentTaskRow = ({
             />
           </div>
 
-          {/* Expand/collapse chevron - Column 4 (20px) */}
+          {/* Expand/collapse chevron - Column 3 (20px) */}
           <div className="flex items-center justify-center">
             <ExpandChevron
               isExpanded={isExpanded}
@@ -288,7 +229,7 @@ export const SortableParentTaskRow = ({
             />
           </div>
 
-          {/* Task content - Column 5 (1fr) */}
+          {/* Task content - Column 4 (1fr) */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span
@@ -317,14 +258,14 @@ export const SortableParentTaskRow = ({
 
           </div>
 
-          {/* Project Badge - Column 6 (conditional, 120px) - hidden on mobile & tablet */}
+          {/* Project Badge - Column 5 (conditional, 120px) - hidden on mobile & tablet */}
           {showProjectBadge && (
             <div className="hidden lg:block">
               <ProjectBadge project={project} fixedWidth />
             </div>
           )}
 
-          {/* Priority Badge - Column 7 (70px) - hidden on mobile */}
+          {/* Priority Badge - Column 6 (70px) - hidden on mobile */}
           <div className="hidden md:block">
             <PriorityBadge
               priority={isCompleted ? "none" : task.priority}
@@ -333,7 +274,7 @@ export const SortableParentTaskRow = ({
             />
           </div>
 
-          {/* Due Date Badge - Column 8 (110px) - hidden on mobile */}
+          {/* Due Date Badge - Column 7 (110px) - hidden on mobile */}
           <div className="hidden md:block">
             <DueDateBadge
               dueDate={task.dueDate}

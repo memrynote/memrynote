@@ -43,11 +43,6 @@ interface TaskListProps {
     ) => void
     onOpenModal?: (prefillTitle: string) => void
     className?: string
-    // Selection props
-    isSelectionMode?: boolean
-    selectedIds?: Set<string>
-    onToggleSelect?: (taskId: string) => void
-    onShiftSelect?: (taskId: string) => void
     // Subtask management props
     onAddSubtask?: (parentId: string, title: string) => void
     onReorderSubtasks?: (parentId: string, newOrder: string[]) => void
@@ -67,11 +62,6 @@ interface TaskListByDueDateProps {
     onUpdateTask?: (taskId: string, updates: Partial<Task>) => void
     onToggleSubtaskComplete?: (subtaskId: string) => void
     onTaskClick?: (taskId: string) => void
-    // Selection props
-    isSelectionMode?: boolean
-    selectedIds?: Set<string>
-    onToggleSelect?: (taskId: string) => void
-    onShiftSelect?: (taskId: string) => void
     // Expand/collapse props
     expandedIds: Set<string>
     onToggleExpand: (taskId: string) => void
@@ -90,11 +80,6 @@ const TaskListByDueDate = ({
     onUpdateTask,
     onToggleSubtaskComplete,
     onTaskClick,
-    // Selection props
-    isSelectionMode = false,
-    selectedIds,
-    onToggleSelect,
-    onShiftSelect,
     // Expand/collapse props
     expandedIds,
     onToggleExpand,
@@ -136,10 +121,6 @@ const TaskListByDueDate = ({
                         onToggleSubtaskComplete={onToggleSubtaskComplete}
                         onTaskClick={onTaskClick}
                         // Selection props
-                        isSelectionMode={isSelectionMode}
-                        selectedIds={selectedIds}
-                        onToggleSelect={onToggleSelect}
-                        onShiftSelect={onShiftSelect}
                         // Expand/collapse props
                         expandedIds={expandedIds}
                         onToggleExpand={onToggleExpand}
@@ -165,11 +146,6 @@ interface TaskListByCompletionProps {
     onToggleComplete: (taskId: string) => void
     onToggleSubtaskComplete?: (subtaskId: string) => void
     onTaskClick?: (taskId: string) => void
-    // Selection props
-    isSelectionMode?: boolean
-    selectedIds?: Set<string>
-    onToggleSelect?: (taskId: string) => void
-    onShiftSelect?: (taskId: string) => void
     // Expand/collapse props
     expandedIds: Set<string>
     onToggleExpand: (taskId: string) => void
@@ -186,11 +162,6 @@ const TaskListByCompletion = ({
     onToggleComplete,
     onToggleSubtaskComplete,
     onTaskClick,
-    // Selection props
-    isSelectionMode = false,
-    selectedIds,
-    onToggleSelect,
-    onShiftSelect,
     // Expand/collapse props
     expandedIds,
     onToggleExpand,
@@ -223,10 +194,6 @@ const TaskListByCompletion = ({
                         onToggleSubtaskComplete={onToggleSubtaskComplete}
                         onTaskClick={onTaskClick}
                         // Selection props
-                        isSelectionMode={isSelectionMode}
-                        selectedIds={selectedIds}
-                        onToggleSelect={onToggleSelect}
-                        onShiftSelect={onShiftSelect}
                         // Expand/collapse props
                         expandedIds={expandedIds}
                         onToggleExpand={onToggleExpand}
@@ -253,11 +220,6 @@ interface TaskListByStatusProps {
     onUpdateTask?: (taskId: string, updates: Partial<Task>) => void
     onToggleSubtaskComplete?: (subtaskId: string) => void
     onTaskClick?: (taskId: string) => void
-    // Selection props
-    isSelectionMode?: boolean
-    selectedIds?: Set<string>
-    onToggleSelect?: (taskId: string) => void
-    onShiftSelect?: (taskId: string) => void
     // Expand/collapse props
     expandedIds: Set<string>
     onToggleExpand: (taskId: string) => void
@@ -275,11 +237,6 @@ const TaskListByStatus = ({
     onUpdateTask,
     onToggleSubtaskComplete,
     onTaskClick,
-    // Selection props
-    isSelectionMode = false,
-    selectedIds,
-    onToggleSelect,
-    onShiftSelect,
     // Expand/collapse props
     expandedIds,
     onToggleExpand,
@@ -307,10 +264,6 @@ const TaskListByStatus = ({
                     onToggleSubtaskComplete={onToggleSubtaskComplete}
                     onTaskClick={onTaskClick}
                     // Selection props
-                    isSelectionMode={isSelectionMode}
-                    selectedIds={selectedIds}
-                    onToggleSelect={onToggleSelect}
-                    onShiftSelect={onShiftSelect}
                     // Expand/collapse props
                     expandedIds={expandedIds}
                     onToggleExpand={onToggleExpand}
@@ -340,11 +293,6 @@ export const TaskList = ({
     onQuickAdd,
     onOpenModal,
     className,
-    // Selection props
-    isSelectionMode = false,
-    selectedIds,
-    onToggleSelect,
-    onShiftSelect,
     // Subtask management props
     onAddSubtask,
     onReorderSubtasks,
@@ -404,10 +352,6 @@ export const TaskList = ({
                     onToggleSubtaskComplete={onToggleSubtaskComplete}
                     onTaskClick={onTaskClick}
                     // Selection props
-                    isSelectionMode={isSelectionMode}
-                    selectedIds={selectedIds}
-                    onToggleSelect={onToggleSelect}
-                    onShiftSelect={onShiftSelect}
                     // Expand/collapse props
                     expandedIds={expandedIds}
                     onToggleExpand={toggleExpanded}
@@ -430,10 +374,6 @@ export const TaskList = ({
                     onToggleSubtaskComplete={onToggleSubtaskComplete}
                     onTaskClick={onTaskClick}
                     // Selection props
-                    isSelectionMode={isSelectionMode}
-                    selectedIds={selectedIds}
-                    onToggleSelect={onToggleSelect}
-                    onShiftSelect={onShiftSelect}
                     // Expand/collapse props
                     expandedIds={expandedIds}
                     onToggleExpand={toggleExpanded}
@@ -457,10 +397,6 @@ export const TaskList = ({
                 onToggleSubtaskComplete={onToggleSubtaskComplete}
                 onTaskClick={onTaskClick}
                 // Selection props
-                isSelectionMode={isSelectionMode}
-                selectedIds={selectedIds}
-                onToggleSelect={onToggleSelect}
-                onShiftSelect={onShiftSelect}
                 // Expand/collapse props
                 expandedIds={expandedIds}
                 onToggleExpand={toggleExpanded}

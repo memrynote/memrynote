@@ -5,7 +5,6 @@ import { Check, Repeat } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { PriorityBadge, DueDateBadge } from "@/components/tasks/task-badges"
-import { SelectionCheckbox } from "@/components/tasks/bulk-actions"
 import { SubtaskBadge } from "@/components/tasks/subtask-badge"
 import { KanbanSubtaskPreview } from "./kanban-subtask-preview"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
@@ -26,10 +25,6 @@ interface KanbanCardProps {
   isOverdue?: boolean
   onClick?: () => void
   onDoubleClick?: () => void
-  // Selection props
-  isSelectionMode?: boolean
-  isCheckedForSelection?: boolean
-  onToggleSelect?: (taskId: string) => void
 }
 
 // ============================================================================
@@ -61,10 +56,6 @@ export const KanbanCard = ({
   isOverdue = false,
   onClick,
   onDoubleClick,
-  // Selection props
-  isSelectionMode = false,
-  isCheckedForSelection = false,
-  onToggleSelect,
 }: KanbanCardProps): React.JSX.Element => {
   const cardRef = useRef<HTMLDivElement>(null)
 
@@ -127,21 +118,7 @@ export const KanbanCard = ({
   const hasDueDate = !!task.dueDate
   const hasMetadata = hasPriority || hasDueDate || task.isRepeating
 
-  const handleClick = (e: React.MouseEvent): void => {
-    // Cmd/Ctrl+click toggles selection
-    if ((e.metaKey || e.ctrlKey) && onToggleSelect) {
-      e.preventDefault()
-      e.stopPropagation()
-      onToggleSelect(task.id)
-      return
-    }
-
-    // In selection mode, clicking toggles selection
-    if (isSelectionMode && onToggleSelect) {
-      onToggleSelect(task.id)
-      return
-    }
-
+  const handleClick = (): void => {
     onClick?.()
   }
 
@@ -157,14 +134,6 @@ export const KanbanCard = ({
     }
   }
 
-  const handleSelectionCheckboxChange = (): void => {
-    onToggleSelect?.(task.id)
-  }
-
-  const handleSelectionCheckboxClick = (e: React.MouseEvent): void => {
-    e.stopPropagation()
-  }
-
   const cardContent = (
     <div
       ref={setRefs}
@@ -177,7 +146,7 @@ export const KanbanCard = ({
       onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}
       aria-label={`Task: ${task.title}`}
-      aria-selected={isFocused || isSelected || isCheckedForSelection}
+      aria-selected={isFocused || isSelected}
       className={cn(
         // Base styles
         "group rounded-lg border-2 bg-card p-3 shadow-sm transition-all duration-150",
@@ -187,33 +156,18 @@ export const KanbanCard = ({
         "hover:shadow-md hover:border-border/80",
         // Default border
         "border-transparent",
-        // Selection mode checked state
-        isCheckedForSelection && "border-primary bg-primary/5",
         // Focused state (keyboard navigation) - use border instead of ring to prevent overflow
-        isFocused && !isCheckedForSelection && "border-primary shadow-md",
+        isFocused && "border-primary shadow-md",
         // Selected state (detail panel open)
-        isSelected && !isFocused && !isCheckedForSelection && "border-primary/50",
+        isSelected && !isFocused && "border-primary/50",
         // Overdue state
-        isOverdue && !isCompleted && !isCheckedForSelection && "border-l-red-500",
+        isOverdue && !isCompleted && "border-l-red-500",
         // Completed state
         isCompleted && "opacity-70 bg-muted/30",
         // Dragging state - card becomes a placeholder
         isDragging && "opacity-40 shadow-none border-dashed border-primary/50 bg-primary/5"
       )}
     >
-      {/* Selection Checkbox - visible only in selection mode */}
-      {onToggleSelect && isSelectionMode && (
-        <div className="absolute -left-1 -top-1 z-10">
-          <SelectionCheckbox
-            checked={isCheckedForSelection}
-            onChange={handleSelectionCheckboxChange}
-            onClick={handleSelectionCheckboxClick}
-            aria-label={`Select ${task.title}`}
-            className="bg-background shadow-sm"
-          />
-        </div>
-      )}
-
       {/* Task Title */}
       <div className="flex items-start gap-2">
         {/* Completed checkmark */}
