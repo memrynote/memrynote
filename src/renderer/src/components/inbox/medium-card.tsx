@@ -31,8 +31,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { TypeIcon } from './type-badge'
+import { TypeRenderer } from './type-renderers'
 import type { InboxItem } from '@/data/inbox-types'
-import { getMetaLine, getPreviewPlaceholder } from '@/lib/inbox-meta-utils'
+import { getMetaLine } from '@/lib/inbox-meta-utils'
 
 // ============================================================================
 // TYPES
@@ -207,23 +208,6 @@ function QuickActions({
   )
 }
 
-// ============================================================================
-// PREVIEW PLACEHOLDER
-// ============================================================================
-
-interface PreviewPlaceholderProps {
-  item: InboxItem
-}
-
-function PreviewPlaceholder({ item }: PreviewPlaceholderProps): React.JSX.Element {
-  const placeholder = getPreviewPlaceholder(item)
-
-  return (
-    <div className="mt-2 text-sm text-muted-foreground/80 line-clamp-2">
-      {placeholder}
-    </div>
-  )
-}
 
 // ============================================================================
 // MEDIUM CARD COMPONENT
@@ -348,8 +332,13 @@ export const MediumCard = forwardRef<HTMLDivElement, MediumCardProps>(
               <span>{metaLine}</span>
             </div>
 
-            {/* Preview Content Placeholder */}
-            <PreviewPlaceholder item={item} />
+            {/* Type-Specific Preview Content */}
+            <div className="mt-3">
+              <TypeRenderer
+                item={item}
+                onPreviewClick={() => onPreview?.(item.id)}
+              />
+            </div>
           </div>
 
           {/* Actions Column */}

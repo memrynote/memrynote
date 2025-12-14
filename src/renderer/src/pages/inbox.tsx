@@ -7,7 +7,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { cn } from '@/lib/utils'
-import { InboxHeader, CompactView, MediumView } from '@/components/inbox'
+import { InboxHeader, CompactView, MediumView, ExpandedView } from '@/components/inbox'
 import {
   type InboxViewMode,
   type InboxFilters,
@@ -195,35 +195,6 @@ function hasActiveFilters(filters: InboxFilters): boolean {
 }
 
 // =============================================================================
-// CONTENT PLACEHOLDER COMPONENTS
-// =============================================================================
-
-interface ContentPlaceholderProps {
-  viewMode: InboxViewMode
-  itemCount: number
-}
-
-function ContentPlaceholder({ viewMode, itemCount }: ContentPlaceholderProps): React.JSX.Element {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 text-muted-foreground">
-      <div className="flex flex-col items-center gap-2">
-        <div className="text-5xl opacity-30">
-          {viewMode === 'compact' && '|||'}
-          {viewMode === 'medium' && '|||'}
-          {viewMode === 'expanded' && '[ ]'}
-        </div>
-        <p className="text-sm">
-          {itemCount} items in <span className="font-medium capitalize">{viewMode}</span> view
-        </p>
-        <p className="text-xs text-muted-foreground/60">
-          View components will be implemented in upcoming prompts
-        </p>
-      </div>
-    </div>
-  )
-}
-
-// =============================================================================
 // INBOX PAGE COMPONENT
 // =============================================================================
 
@@ -324,6 +295,45 @@ export function InboxPage(): React.JSX.Element {
     []
   )
 
+  const handleAcceptSuggestion = useCallback(
+    (id: string, folderId: string) => {
+      // Accept AI suggestion and file to folder (to be implemented)
+      console.log('Accept suggestion for item:', id, 'to folder:', folderId)
+    },
+    []
+  )
+
+  const handleDismissSuggestion = useCallback(
+    (id: string) => {
+      // Dismiss AI suggestion (to be implemented)
+      console.log('Dismiss suggestion for item:', id)
+    },
+    []
+  )
+
+  const handleAddTag = useCallback(
+    (id: string, tag: string) => {
+      // Add tag to item (to be implemented)
+      console.log('Add tag to item:', id, 'tag:', tag)
+    },
+    []
+  )
+
+  const handleRemoveTag = useCallback(
+    (id: string, tag: string) => {
+      // Remove tag from item (to be implemented)
+      console.log('Remove tag from item:', id, 'tag:', tag)
+    },
+    []
+  )
+
+  const handleFocusChange = useCallback(
+    (id: string | null) => {
+      setFocusedItemId(id)
+    },
+    [setFocusedItemId]
+  )
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Header */}
@@ -419,14 +429,21 @@ export function InboxPage(): React.JSX.Element {
               />
             )}
 
-            {/* Expanded View - placeholder */}
+            {/* Expanded View */}
             {viewMode === 'expanded' && (
-              <div className="px-6 py-4">
-                <ContentPlaceholder
-                  viewMode={viewMode}
-                  itemCount={filteredItems.length}
-                />
-              </div>
+              <ExpandedView
+                items={filteredItems}
+                focusedId={focusedItemId}
+                onFocusChange={handleFocusChange}
+                onFile={handleFile}
+                onOpenOriginal={handleOpenOriginal}
+                onSnooze={handleSnooze}
+                onDelete={handleDelete}
+                onAcceptSuggestion={handleAcceptSuggestion}
+                onDismissSuggestion={handleDismissSuggestion}
+                onAddTag={handleAddTag}
+                onRemoveTag={handleRemoveTag}
+              />
             )}
           </>
         )}
