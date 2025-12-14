@@ -11,3 +11,9 @@ export interface TreeDataItem {
   customIcon?: string      // Kullanıcının seçtiği ikon adı (lucide icon name)
   inheritedIcon?: string   // Parent'tan gelen ikon adı
 }
+
+// ============================================================================
+// INBOX TYPES
+// ============================================================================
+
+export * from '../data/inbox-types'
