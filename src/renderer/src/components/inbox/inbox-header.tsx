@@ -12,21 +12,18 @@ import { useState, useRef, useEffect } from 'react'
 import {
   Search,
   SlidersHorizontal,
-  List,
-  LayoutList,
-  Rows3,
   X,
   Inbox,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { ViewSwitcher } from './view-switcher'
 import type { InboxViewMode } from '@/data/inbox-types'
 
 // ============================================================================
@@ -60,86 +57,6 @@ export interface InboxHeaderProps {
   onDeselectAll?: () => void
 }
 
-// ============================================================================
-// VIEW MODE TOGGLE
-// ============================================================================
-
-interface ViewModeToggleProps {
-  value: InboxViewMode
-  onChange: (mode: InboxViewMode) => void
-}
-
-function ViewModeToggle({ value, onChange }: ViewModeToggleProps): React.JSX.Element {
-  const handleValueChange = (newValue: string): void => {
-    if (newValue) {
-      onChange(newValue as InboxViewMode)
-    }
-  }
-
-  return (
-    <ToggleGroup
-      type="single"
-      value={value}
-      onValueChange={handleValueChange}
-      className="gap-0.5 rounded-lg bg-muted/60 p-0.5"
-      aria-label="View mode"
-    >
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <ToggleGroupItem
-            value="compact"
-            aria-label="Compact view"
-            className={cn(
-              'h-8 w-8 rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm',
-              'transition-all duration-200'
-            )}
-          >
-            <List className="size-4" />
-          </ToggleGroupItem>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" sideOffset={8}>
-          <p>Compact view</p>
-        </TooltipContent>
-      </Tooltip>
-
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <ToggleGroupItem
-            value="medium"
-            aria-label="Medium view"
-            className={cn(
-              'h-8 w-8 rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm',
-              'transition-all duration-200'
-            )}
-          >
-            <LayoutList className="size-4" />
-          </ToggleGroupItem>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" sideOffset={8}>
-          <p>Medium view</p>
-        </TooltipContent>
-      </Tooltip>
-
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <ToggleGroupItem
-            value="expanded"
-            aria-label="Expanded view"
-            className={cn(
-              'h-8 w-8 rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm',
-              'transition-all duration-200'
-            )}
-          >
-            <Rows3 className="size-4" />
-          </ToggleGroupItem>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" sideOffset={8}>
-          <p>Expanded view</p>
-        </TooltipContent>
-      </Tooltip>
-    </ToggleGroup>
-  )
-}
 
 // ============================================================================
 // SEARCH INPUT
@@ -409,7 +326,7 @@ export function InboxHeader({
         <div className="mx-1 h-6 w-px bg-border/60" />
 
         {/* View mode toggle */}
-        <ViewModeToggle
+        <ViewSwitcher
           value={viewMode}
           onChange={onViewModeChange}
         />

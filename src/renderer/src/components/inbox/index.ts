@@ -7,6 +7,16 @@
 // Header
 export { InboxHeader, type InboxHeaderProps } from './inbox-header'
 
+// View Switcher
+export {
+  ViewSwitcher,
+  ViewSwitcherCompact,
+  ViewIndicator,
+  type ViewSwitcherProps,
+  type ViewSwitcherCompactProps,
+  type ViewIndicatorProps,
+} from './view-switcher'
+
 // Type Badge
 export {
   TypeBadge,
