@@ -119,13 +119,14 @@ const TasksViewToggle = ({
             type="single"
             value={activeView}
             onValueChange={handleValueChange}
-            className="gap-1"
+            className="gap-0.5 rounded-lg bg-muted/30 p-0.5"
             aria-label="View mode"
         >
             <ToggleGroupItem
                 value="list"
                 aria-label="List view"
                 disabled={!availableViews.includes("list")}
+                className="rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm"
             >
                 <LayoutList className="size-4" />
             </ToggleGroupItem>
@@ -133,7 +134,10 @@ const TasksViewToggle = ({
                 value="kanban"
                 aria-label="Kanban view"
                 disabled={!availableViews.includes("kanban")}
-                className={cn(!availableViews.includes("kanban") && "hidden")}
+                className={cn(
+                    "rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm",
+                    !availableViews.includes("kanban") && "hidden"
+                )}
             >
                 <Columns3 className="size-4" />
             </ToggleGroupItem>
@@ -141,7 +145,10 @@ const TasksViewToggle = ({
                 value="calendar"
                 aria-label="Calendar view"
                 disabled={!availableViews.includes("calendar")}
-                className={cn(!availableViews.includes("calendar") && "hidden")}
+                className={cn(
+                    "rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm",
+                    !availableViews.includes("calendar") && "hidden"
+                )}
             >
                 <CalendarDays className="size-4" />
             </ToggleGroupItem>
@@ -164,11 +171,13 @@ const TasksContentHeader = ({
     onProjectSettings,
 }: TasksContentHeaderProps): React.JSX.Element => {
     return (
-        <header className="flex items-start justify-between border-b border-border px-6 py-5">
+        <header className="relative flex items-start justify-between border-b border-border/50 px-6 py-6 journal-animate-in">
             {/* Left side: Title and Subtitle */}
-            <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
+            <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2.5">
+                    <h1 className="font-display text-2xl font-medium tracking-tight text-foreground">
+                        {title}
+                    </h1>
                     {showProjectSettings && (
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -176,8 +185,8 @@ const TasksContentHeader = ({
                                     type="button"
                                     onClick={onProjectSettings}
                                     className={cn(
-                                        "rounded p-1 text-text-tertiary transition-colors",
-                                        "hover:bg-accent hover:text-text-secondary",
+                                        "rounded-md p-1.5 text-text-tertiary transition-all duration-200",
+                                        "hover:bg-accent/80 hover:text-text-secondary",
                                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     )}
                                     aria-label="Project settings"
@@ -189,7 +198,9 @@ const TasksContentHeader = ({
                         </Tooltip>
                     )}
                 </div>
-                <p className="text-sm text-text-tertiary">{subtitle}</p>
+                <p className="font-serif text-sm italic text-text-tertiary/80">
+                    {subtitle}
+                </p>
             </div>
 
             {/* Right side: View Toggle and Add Task button */}
@@ -199,7 +210,11 @@ const TasksContentHeader = ({
                     availableViews={availableViews}
                     onViewChange={onViewChange}
                 />
-                <Button onClick={onAddTask} size="sm">
+                <Button
+                    onClick={onAddTask}
+                    size="sm"
+                    className="transition-all duration-200 hover:shadow-sm"
+                >
                     <Plus className="size-4" aria-hidden="true" />
                     Add Task
                 </Button>
@@ -1290,17 +1305,26 @@ export const TasksPage = ({
 
                     {/* Content Body - Today Tab */}
                     {activeInternalTab === "today" && (
-                        <TodayView
-                            tasks={filteredTasks}
-                            projects={projects}
-                            selectedTaskId={selectedTaskId}
-                            onToggleComplete={handleToggleComplete}
-                            onUpdateTask={handleUpdateTask}
-                            onTaskClick={handleTaskClick}
-                            onQuickAdd={handleQuickAdd}
-                            onOpenModal={handleOpenAddTaskModal}
-                            onViewUpcoming={() => setActiveInternalTab("upcoming")}
-                        />
+                        <div className="relative flex-1 overflow-hidden">
+                            {/* Decorative Day Watermark */}
+                            <div
+                                className="journal-day-watermark pointer-events-none absolute -right-4 top-8 select-none text-[12rem] font-bold leading-none"
+                                aria-hidden="true"
+                            >
+                                {new Date().getDate()}
+                            </div>
+                            <TodayView
+                                tasks={filteredTasks}
+                                projects={projects}
+                                selectedTaskId={selectedTaskId}
+                                onToggleComplete={handleToggleComplete}
+                                onUpdateTask={handleUpdateTask}
+                                onTaskClick={handleTaskClick}
+                                onQuickAdd={handleQuickAdd}
+                                onOpenModal={handleOpenAddTaskModal}
+                                onViewUpcoming={() => setActiveInternalTab("upcoming")}
+                            />
+                        </div>
                     )}
 
                     {/* Content Body - Upcoming Tab */}
@@ -1427,10 +1451,14 @@ export const TasksPage = ({
                                         onToggleSelect={toggleTask}
                                     />
                                 ) : (
-                                    <div className="flex items-center justify-center h-full">
-                                        <div className="text-center text-muted-foreground">
-                                            <p className="text-lg font-medium">Select a project</p>
-                                            <p className="text-sm">Choose a project to view its Kanban board</p>
+                                    <div className="flex items-center justify-center h-full journal-animate-in">
+                                        <div className="text-center">
+                                            <p className="font-display text-xl font-medium text-foreground/80">
+                                                Select a project
+                                            </p>
+                                            <p className="font-serif text-sm italic text-muted-foreground mt-1">
+                                                Choose a project to view its Kanban board
+                                            </p>
                                         </div>
                                     </div>
                                 )}
@@ -1480,10 +1508,14 @@ export const TasksPage = ({
                                         onToggleSelect={toggleTask}
                                     />
                                 ) : (
-                                    <div className="flex items-center justify-center h-full">
-                                        <div className="text-center text-muted-foreground">
-                                            <p className="text-lg font-medium">Select a project</p>
-                                            <p className="text-sm">Choose a project to view its calendar</p>
+                                    <div className="flex items-center justify-center h-full journal-animate-in">
+                                        <div className="text-center">
+                                            <p className="font-display text-xl font-medium text-foreground/80">
+                                                Select a project
+                                            </p>
+                                            <p className="font-serif text-sm italic text-muted-foreground mt-1">
+                                                Choose a project to view its calendar
+                                            </p>
                                         </div>
                                     </div>
                                 )}
