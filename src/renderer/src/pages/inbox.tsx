@@ -16,10 +16,13 @@ import {
   EmptyState,
   ActiveFilters,
   getActiveFilterCount,
+  BulkActionBar,
+  useMockClusterSuggestion,
   type EmptyStateContext,
   type SnoozedItemPreview,
   type FilterState,
 } from '@/components/inbox'
+import { toast } from 'sonner'
 import {
   type InboxViewMode,
   type InboxFilters,
@@ -307,6 +310,26 @@ export function InboxPage(): React.JSX.Element {
     enabled: true,
   })
 
+  // AI cluster suggestion state
+  const [isDismissed, setIsDismissed] = useState(false)
+
+  // Get selected items for the bulk action bar
+  const selectedItems = useMemo(
+    () => filteredItems.filter((item) => selection.selectedIds.has(item.id)),
+    [filteredItems, selection.selectedIds]
+  )
+
+  // AI suggestion based on selected items
+  const aiSuggestion = useMockClusterSuggestion(selectedItems, filteredItems)
+  const showSuggestion = aiSuggestion && !isDismissed
+
+  // Reset dismissed state when selection changes significantly
+  useMemo(() => {
+    if (selection.selectedCount === 0) {
+      setIsDismissed(false)
+    }
+  }, [selection.selectedCount])
+
   const counts = useMemo(() => getItemCounts(items), [items])
 
   const hasFilters = hasActiveFiltersCheck(filters)
@@ -470,6 +493,59 @@ export function InboxPage(): React.JSX.Element {
     console.log('Open capture dialog')
   }, [])
 
+  // =========================================================================
+  // BULK ACTION HANDLERS
+  // =========================================================================
+
+  const handleBulkFile = useCallback(() => {
+    const count = selection.selectedCount
+    // Open filing panel (to be implemented)
+    console.log('Bulk file items:', Array.from(selection.selectedIds))
+    toast.success(`Opening file panel for ${count} ${count === 1 ? 'item' : 'items'}`)
+  }, [selection])
+
+  const handleBulkTag = useCallback(() => {
+    const count = selection.selectedCount
+    // Open tag popover (to be implemented)
+    console.log('Bulk tag items:', Array.from(selection.selectedIds))
+    toast.success(`Opening tag panel for ${count} ${count === 1 ? 'item' : 'items'}`)
+  }, [selection])
+
+  const handleBulkSnooze = useCallback(() => {
+    const count = selection.selectedCount
+    // Open snooze menu (to be implemented)
+    console.log('Bulk snooze items:', Array.from(selection.selectedIds))
+    toast.success(`Snoozed ${count} ${count === 1 ? 'item' : 'items'} until tomorrow`)
+    selection.deselectAll()
+  }, [selection])
+
+  const handleBulkDelete = useCallback(() => {
+    const count = selection.selectedCount
+    // Delete items (to be implemented)
+    console.log('Bulk delete items:', Array.from(selection.selectedIds))
+    toast.success(`Deleted ${count} ${count === 1 ? 'item' : 'items'}`, {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          toast.info('Undo delete (not implemented)')
+        },
+      },
+    })
+    selection.deselectAll()
+  }, [selection])
+
+  const handleAddAISuggestion = useCallback(
+    (itemIds: string[]) => {
+      selection.addToSelection(itemIds)
+      toast.success(`Added ${itemIds.length} similar ${itemIds.length === 1 ? 'item' : 'items'} to selection`)
+    },
+    [selection]
+  )
+
+  const handleDismissAISuggestion = useCallback(() => {
+    setIsDismissed(true)
+  }, [])
+
   const handleViewSnoozed = useCallback(() => {
     // Navigate to snoozed items view (to be implemented)
     console.log('View snoozed items')
@@ -594,25 +670,18 @@ export function InboxPage(): React.JSX.Element {
         )}
       </div>
 
-      {/* Bulk Action Bar Area - placeholder for future implementation */}
-      {selection.isInBulkMode && (
-        <div
-          className={cn(
-            'border-t border-border bg-background/95 backdrop-blur',
-            'px-6 py-4'
-          )}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium tabular-nums">
-              {selection.selectedCount}{' '}
-              {selection.selectedCount === 1 ? 'item' : 'items'} selected
-            </span>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              Bulk actions will be implemented in prompt 12
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedCount={selection.selectedCount}
+        selectedItems={selectedItems}
+        onFileAll={handleBulkFile}
+        onTagAll={handleBulkTag}
+        onSnoozeAll={handleBulkSnooze}
+        onDeleteAll={handleBulkDelete}
+        aiSuggestion={showSuggestion ? aiSuggestion : undefined}
+        onAddSuggestion={handleAddAISuggestion}
+        onDismissSuggestion={handleDismissAISuggestion}
+      />
     </div>
   )
 }
