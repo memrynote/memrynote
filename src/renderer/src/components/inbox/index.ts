@@ -104,3 +104,18 @@ export {
   hasActiveFilters,
   type ActiveFiltersProps,
 } from './active-filters'
+
+// Bulk Actions
+export {
+  BulkActionBar,
+  type BulkActionBarProps,
+  type ClusterSuggestion,
+} from './bulk-action-bar'
+
+export {
+  AIClusterSuggestion,
+  AIClusterSuggestionCompact,
+  useMockClusterSuggestion,
+  type AIClusterSuggestionProps,
+  type AIClusterSuggestionCompactProps,
+} from './ai-cluster-suggestion'
