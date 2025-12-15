@@ -6,7 +6,7 @@
  * Features robust selection system with shift-click range, cmd/ctrl multi-select.
  */
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import {
   InboxHeader,
@@ -20,15 +20,38 @@ import {
   useMockClusterSuggestion,
   FilingPanel,
   StaleSection,
+  ShortcutsModal,
+  GlobalSRAnnouncer,
+  QuickCaptureBar,
+  announceNavigation,
+  announceSelection,
+  PreviewPanelShell,
   type EmptyStateContext,
   type SnoozedItemPreview,
   type FilterState,
 } from '@/components/inbox'
+import { UrlPreview } from '@/components/inbox/preview-url'
+import { NotePreview } from '@/components/inbox/preview-note'
+import { ImagePreview } from '@/components/inbox/preview-image'
+import { VoicePreview } from '@/components/inbox/preview-voice'
+import { PdfPreview } from '@/components/inbox/preview-pdf'
+import { WebclipPreview } from '@/components/inbox/preview-webclip'
+import { FilePreview } from '@/components/inbox/preview-file'
+import { VideoPreview } from '@/components/inbox/preview-video'
+import { ExternalLink, Play, FileText, Film, Globe, File } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   type InboxViewMode,
   type InboxFilters,
   type InboxItem,
+  type LinkItem,
+  type NoteItem,
+  type ImageItem,
+  type VoiceItem,
+  type PdfItem,
+  type WebclipItem,
+  type FileItem,
+  type VideoItem,
   defaultInboxFilters,
   isItemSnoozed,
 } from '@/data/inbox-types'
@@ -42,10 +65,8 @@ import {
 } from '@/data/filing-data'
 import { getMockSuggestions } from '@/lib/filing-utils'
 import type { Tag, TagColor } from '@/data/filing-types'
-import {
-  useInboxSelection,
-  useSelectionKeyboard,
-} from '@/hooks/use-inbox-selection'
+import { useInboxSelection } from '@/hooks/use-inbox-selection'
+import { useInboxKeyboard } from '@/hooks/use-inbox-keyboard'
 
 // =============================================================================
 // TYPES
@@ -318,14 +339,14 @@ export function InboxPage(): React.JSX.Element {
   // Selection management (using the new hook)
   const selection = useInboxSelection(filteredItems)
 
-  // Enable keyboard shortcuts for selection
-  useSelectionKeyboard({
-    focusedId: focusedItemId,
-    toggleSelection: selection.toggleSelection,
-    selectAll: selection.selectAll,
-    deselectAll: selection.deselectAll,
-    enabled: true,
-  })
+  // UI state for modals and panels
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false)
+  const [isSearchFocused, setIsSearchFocused] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Preview panel state
+  const [previewItemId, setPreviewItemId] = useState<string | null>(null)
+  const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false)
 
   // AI cluster suggestion state
   const [isDismissed, setIsDismissed] = useState(false)
@@ -339,6 +360,20 @@ export function InboxPage(): React.JSX.Element {
   // AI suggestion based on selected items
   const aiSuggestion = useMockClusterSuggestion(selectedItems, filteredItems)
   const showSuggestion = aiSuggestion && !isDismissed
+
+  // Preview item derived state
+  const previewItem = useMemo(() => {
+    if (!previewItemId) return null
+    return filteredItems.find((item) => item.id === previewItemId) ?? null
+  }, [previewItemId, filteredItems])
+
+  const previewIndex = useMemo(() => {
+    if (!previewItemId) return -1
+    return filteredItems.findIndex((item) => item.id === previewItemId)
+  }, [previewItemId, filteredItems])
+
+  const canNavigatePrev = previewIndex > 0
+  const canNavigateNext = previewIndex >= 0 && previewIndex < filteredItems.length - 1
 
   // Reset dismissed state when selection changes significantly
   useMemo(() => {
@@ -368,6 +403,148 @@ export function InboxPage(): React.JSX.Element {
     filters.sortBy,
     filters.search
   )
+
+  // =========================================================================
+  // KEYBOARD HANDLERS
+  // =========================================================================
+
+  const handleKeyboardFocusChange = useCallback(
+    (id: string | null) => {
+      setFocusedItemId(id)
+      // Announce for screen readers
+      if (id) {
+        const item = filteredItems.find((i) => i.id === id)
+        const index = filteredItems.findIndex((i) => i.id === id)
+        if (item) {
+          announceNavigation(item.title, index + 1, filteredItems.length)
+        }
+      }
+    },
+    [setFocusedItemId, filteredItems]
+  )
+
+  const handleKeyboardSelectionChange = useCallback(
+    (ids: Set<string>) => {
+      selection.setSelection(ids)
+      announceSelection(ids.size, 'selected')
+    },
+    [selection]
+  )
+
+  const handleKeyboardOpenFiling = useCallback(
+    (ids: string[]) => {
+      const itemsToFileNow = filteredItems.filter((item) => ids.includes(item.id))
+      if (itemsToFileNow.length > 0) {
+        setItemsToFile(itemsToFileNow)
+        setIsFilingPanelOpen(true)
+      }
+    },
+    [filteredItems]
+  )
+
+  const handleKeyboardOpenTagging = useCallback(
+    (ids: string[]) => {
+      console.log('Open tagging for:', ids)
+      toast.info('Tag panel coming soon')
+    },
+    []
+  )
+
+  const handleKeyboardOpenSnooze = useCallback(
+    (ids: string[]) => {
+      console.log('Open snooze for:', ids)
+      toast.info('Snooze menu coming soon')
+    },
+    []
+  )
+
+  const handleKeyboardDelete = useCallback(
+    (ids: string[]) => {
+      const count = ids.length
+      console.log('Delete items:', ids)
+      toast.success(`Deleted ${count} ${count === 1 ? 'item' : 'items'}`, {
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            toast.info('Undo delete (not implemented)')
+          },
+        },
+      })
+      selection.deselectAll()
+    },
+    [selection]
+  )
+
+  const handleKeyboardOpenOriginal = useCallback(
+    (id: string) => {
+      const item = filteredItems.find((i) => i.id === id)
+      if (item && 'url' in item) {
+        console.log('Opening original:', (item as { url: string }).url)
+        toast.info('Opening original link...')
+      }
+    },
+    [filteredItems]
+  )
+
+  const handleKeyboardSearchFocus = useCallback(() => {
+    searchInputRef.current?.focus()
+    setIsSearchFocused(true)
+  }, [])
+
+  const handleKeyboardRefresh = useCallback(() => {
+    toast.info('Refreshing inbox...')
+    // In a real app, this would refetch items
+  }, [])
+
+  const handleKeyboardShowHelp = useCallback(() => {
+    setIsShortcutsModalOpen(true)
+  }, [])
+
+  const handleKeyboardClosePanel = useCallback(() => {
+    if (previewItemId) {
+      setPreviewItemId(null)
+      setIsPreviewFullscreen(false)
+    } else if (isFilingPanelOpen) {
+      setIsFilingPanelOpen(false)
+      setItemsToFile([])
+    } else if (isShortcutsModalOpen) {
+      setIsShortcutsModalOpen(false)
+    }
+  }, [previewItemId, isFilingPanelOpen, isShortcutsModalOpen])
+
+  const handleKeyboardOpenPreview = useCallback(
+    (id: string) => {
+      setPreviewItemId(id)
+    },
+    []
+  )
+
+  // Integrate keyboard shortcuts
+  useInboxKeyboard({
+    items: filteredItems,
+    focusedItemId,
+    selectedIds: selection.selectedIds,
+    viewMode,
+    isSearchFocused,
+    isPanelOpen: isFilingPanelOpen || isShortcutsModalOpen || previewItemId !== null,
+    onFocusChange: handleKeyboardFocusChange,
+    onSelectionChange: handleKeyboardSelectionChange,
+    onToggleSelection: selection.toggleSelection,
+    onSelectAll: selection.selectAll,
+    onDeselectAll: selection.deselectAll,
+    onViewModeChange: setViewMode,
+    onOpenPreview: handleKeyboardOpenPreview,
+    onOpenFiling: handleKeyboardOpenFiling,
+    onOpenTagging: handleKeyboardOpenTagging,
+    onOpenSnooze: handleKeyboardOpenSnooze,
+    onDelete: handleKeyboardDelete,
+    onOpenOriginal: handleKeyboardOpenOriginal,
+    onSearchFocus: handleKeyboardSearchFocus,
+    onRefresh: handleKeyboardRefresh,
+    onShowHelp: handleKeyboardShowHelp,
+    onClosePanel: handleKeyboardClosePanel,
+    enabled: true,
+  })
 
   // =========================================================================
   // FILTER HANDLERS
@@ -411,9 +588,13 @@ export function InboxPage(): React.JSX.Element {
       // Always update focus
       setFocusedItemId(id)
 
-      // Delegate all selection logic to the selection hook
-      // This ensures lastSelectedId is always tracked correctly
-      selection.handleItemClick(id, event)
+      // Modifier key held → toggle selection (multi-select behavior)
+      if (event.shiftKey || event.metaKey || event.ctrlKey) {
+        selection.handleItemClick(id, event)
+      } else {
+        // Plain click → open preview panel
+        setPreviewItemId(id)
+      }
     },
     [setFocusedItemId, selection]
   )
@@ -619,6 +800,123 @@ export function InboxPage(): React.JSX.Element {
   )
 
   // =========================================================================
+  // PREVIEW PANEL HANDLERS
+  // =========================================================================
+
+  const handleClosePreview = useCallback(() => {
+    setPreviewItemId(null)
+    setIsPreviewFullscreen(false)
+  }, [])
+
+  const handlePreviewPrev = useCallback(() => {
+    if (previewIndex > 0) {
+      const prevItem = filteredItems[previewIndex - 1]
+      setPreviewItemId(prevItem.id)
+      setFocusedItemId(prevItem.id)
+    }
+  }, [previewIndex, filteredItems, setFocusedItemId])
+
+  const handlePreviewNext = useCallback(() => {
+    if (previewIndex < filteredItems.length - 1) {
+      const nextItem = filteredItems[previewIndex + 1]
+      setPreviewItemId(nextItem.id)
+      setFocusedItemId(nextItem.id)
+    }
+  }, [previewIndex, filteredItems, setFocusedItemId])
+
+  const handleTogglePreviewFullscreen = useCallback(() => {
+    setIsPreviewFullscreen((prev) => !prev)
+  }, [])
+
+  // Get primary action for preview panel based on item type
+  const getPreviewPrimaryAction = useCallback(
+    (item: InboxItem) => {
+      switch (item.type) {
+        case 'link':
+          return {
+            label: 'Open Link',
+            icon: <ExternalLink className="size-4" />,
+            onClick: () => window.open((item as { url: string }).url, '_blank'),
+          }
+        case 'note':
+          return {
+            label: 'Edit Note',
+            icon: <FileText className="size-4" />,
+            onClick: () => toast.info('Edit note coming soon'),
+          }
+        case 'voice':
+          return {
+            label: 'Play Audio',
+            icon: <Play className="size-4" />,
+            onClick: () => toast.info('Playing audio...'),
+          }
+        case 'video':
+          return {
+            label: 'Watch Video',
+            icon: <Film className="size-4" />,
+            onClick: () => window.open((item as { videoUrl: string }).videoUrl, '_blank'),
+          }
+        case 'pdf':
+          return {
+            label: 'Open PDF',
+            icon: <FileText className="size-4" />,
+            onClick: () => toast.info('Opening PDF...'),
+          }
+        case 'image':
+          return {
+            label: 'View Image',
+            icon: <ExternalLink className="size-4" />,
+            onClick: () => toast.info('Opening image...'),
+          }
+        case 'webclip':
+          return {
+            label: 'Open Source',
+            icon: <Globe className="size-4" />,
+            onClick: () => window.open((item as { sourceUrl: string }).sourceUrl, '_blank'),
+          }
+        case 'file':
+          return {
+            label: 'Open File',
+            icon: <File className="size-4" />,
+            onClick: () => toast.info('Opening file...'),
+          }
+        default:
+          return {
+            label: 'View',
+            icon: <ExternalLink className="size-4" />,
+            onClick: () => {},
+          }
+      }
+    },
+    []
+  )
+
+  const handlePreviewMove = useCallback(() => {
+    if (previewItem) {
+      setItemsToFile([previewItem])
+      setIsFilingPanelOpen(true)
+    }
+  }, [previewItem])
+
+  const handlePreviewTag = useCallback(() => {
+    toast.info('Tag panel coming soon')
+  }, [])
+
+  const handlePreviewArchive = useCallback(() => {
+    if (previewItem) {
+      toast.success(`Archived "${previewItem.title}"`)
+      handleClosePreview()
+    }
+  }, [previewItem, handleClosePreview])
+
+  const handlePreviewDelete = useCallback(() => {
+    if (previewItem) {
+      toast.success(`Deleted "${previewItem.title}"`)
+      handleClosePreview()
+    }
+  }, [previewItem, handleClosePreview])
+
+  // =========================================================================
   // STALE SECTION HANDLERS
   // =========================================================================
 
@@ -668,6 +966,53 @@ export function InboxPage(): React.JSX.Element {
       setFocusedItemId(item.id)
     },
     [setFocusedItemId]
+  )
+
+  // =========================================================================
+  // QUICK CAPTURE HANDLERS
+  // =========================================================================
+
+  const handleCaptureNewClick = useCallback(() => {
+    console.log('Open capture modal')
+    toast.info('Capture modal coming soon')
+  }, [])
+
+  const handleCaptureSubmit = useCallback(
+    (content: string, type: 'note' | 'url') => {
+      console.log(`Captured ${type}:`, content)
+      toast.success(
+        type === 'url'
+          ? 'Link saved to inbox'
+          : 'Note saved to inbox',
+        {
+          action: {
+            label: 'View',
+            onClick: () => {
+              toast.info('Opening item...')
+            },
+          },
+        }
+      )
+    },
+    []
+  )
+
+  const handleCaptureVoice = useCallback(
+    (audioBlob: Blob, duration: number) => {
+      console.log('Voice memo captured:', { size: audioBlob.size, duration })
+      toast.success(`Voice memo saved (${Math.round(duration)}s)`)
+    },
+    []
+  )
+
+  const handleCaptureFiles = useCallback(
+    (files: File[]) => {
+      console.log('Files added:', files.map((f) => f.name))
+      toast.success(
+        `Added ${files.length} ${files.length === 1 ? 'file' : 'files'} to inbox`
+      )
+    },
+    []
   )
 
   // =========================================================================
@@ -859,7 +1204,17 @@ export function InboxPage(): React.JSX.Element {
         )}
       </div>
 
-      {/* Bulk Action Bar */}
+      {/* Quick Capture Bar - shows when nothing selected */}
+      {selection.selectedCount === 0 && (
+        <QuickCaptureBar
+          onNewClick={handleCaptureNewClick}
+          onSubmit={handleCaptureSubmit}
+          onVoiceSubmit={handleCaptureVoice}
+          onFilesAdded={handleCaptureFiles}
+        />
+      )}
+
+      {/* Bulk Action Bar - shows when items selected */}
       <BulkActionBar
         selectedCount={selection.selectedCount}
         selectedItems={selectedItems}
@@ -884,6 +1239,60 @@ export function InboxPage(): React.JSX.Element {
         onFile={handleFileItems}
         onCreateTag={handleCreateTag}
       />
+
+      {/* Preview Panel */}
+      <PreviewPanelShell
+        isOpen={previewItemId !== null}
+        isFullscreen={isPreviewFullscreen}
+        item={previewItem}
+        currentIndex={previewIndex + 1}
+        totalItems={filteredItems.length}
+        canNavigatePrev={canNavigatePrev}
+        canNavigateNext={canNavigateNext}
+        onNavigatePrev={handlePreviewPrev}
+        onNavigateNext={handlePreviewNext}
+        onClose={handleClosePreview}
+        onToggleFullscreen={handleTogglePreviewFullscreen}
+        primaryAction={previewItem ? getPreviewPrimaryAction(previewItem) : undefined}
+        onMove={handlePreviewMove}
+        onTag={handlePreviewTag}
+        onArchive={handlePreviewArchive}
+        onDelete={handlePreviewDelete}
+      >
+        {previewItem?.type === 'link' && (
+          <UrlPreview item={previewItem as LinkItem} />
+        )}
+        {previewItem?.type === 'note' && (
+          <NotePreview item={previewItem as NoteItem} />
+        )}
+        {previewItem?.type === 'image' && (
+          <ImagePreview item={previewItem as ImageItem} />
+        )}
+        {previewItem?.type === 'voice' && (
+          <VoicePreview item={previewItem as VoiceItem} />
+        )}
+        {previewItem?.type === 'pdf' && (
+          <PdfPreview item={previewItem as PdfItem} />
+        )}
+        {previewItem?.type === 'webclip' && (
+          <WebclipPreview item={previewItem as WebclipItem} />
+        )}
+        {previewItem?.type === 'file' && (
+          <FilePreview item={previewItem as FileItem} />
+        )}
+        {previewItem?.type === 'video' && (
+          <VideoPreview item={previewItem as VideoItem} />
+        )}
+      </PreviewPanelShell>
+
+      {/* Keyboard Shortcuts Modal */}
+      <ShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
+      />
+
+      {/* Screen Reader Announcer */}
+      <GlobalSRAnnouncer />
     </div>
   )
 }
