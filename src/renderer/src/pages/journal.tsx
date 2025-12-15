@@ -1,7 +1,7 @@
 /**
- * Journal Page - Redesigned
- * Clean 2-column layout with single-day focus
- * Left: Large journal writing area (using BlockNote editor)
+ * Journal Page - Contemplative Editorial Design
+ * A refined, warm aesthetic that makes journaling feel premium
+ * Left: Large journal writing area with dramatic date display
  * Right: Mini calendar + Schedule + Tasks + AI Connections
  */
 
@@ -139,12 +139,13 @@ const DUMMY_JOURNAL_BACKLINKS: Backlink[] = [
 // =============================================================================
 
 function getGreetingIcon(icon: string): React.ReactNode {
+    const iconClass = "size-4"
     switch (icon) {
-        case '🌅': return <Sunrise className="size-5 text-amber-500" />
-        case '☀️': return <Sun className="size-5 text-yellow-500" />
-        case '🌆': return <Sunset className="size-5 text-orange-500" />
-        case '🌙': return <Moon className="size-5 text-indigo-400" />
-        default: return <Sun className="size-5 text-yellow-500" />
+        case '🌅': return <Sunrise className={cn(iconClass, "text-amber-500")} />
+        case '☀️': return <Sun className={cn(iconClass, "text-amber-400")} />
+        case '🌆': return <Sunset className={cn(iconClass, "text-orange-500")} />
+        case '🌙': return <Moon className={cn(iconClass, "text-indigo-400")} />
+        default: return <Sun className={cn(iconClass, "text-amber-400")} />
     }
 }
 
@@ -366,114 +367,183 @@ export function JournalPage({ className }: JournalPageProps): React.JSX.Element 
         <div
             className={cn(
                 "flex h-full w-full overflow-hidden bg-background",
-                "transition-all duration-300",
+                "transition-all duration-500 ease-out",
                 className
             )}
         >
             {/* Main Content Area - Journal Writing */}
             <main className={cn(
                 "flex-1 min-w-0 h-full overflow-y-auto",
-                "transition-all duration-300",
-                focusMode ? "px-8" : "px-6 lg:px-10"
+                "transition-all duration-500 ease-out",
+                focusMode ? "journal-focus-paper" : "",
+                focusMode ? "px-8" : "px-6 lg:px-8"
             )}>
                 <div className={cn(
                     "mx-auto min-h-full flex flex-col",
-                    focusMode ? "max-w-3xl" : "max-w-4xl",
-                    "py-8 lg:py-12"
+                    "transition-all duration-500 ease-out",
+                    focusMode ? "max-w-2xl" : "max-w-4xl",
+                    focusMode ? "py-20 lg:py-28" : "py-10 lg:py-16"
                 )}>
-                    {/* Header */}
-                    <header className="mb-8">
-                        {/* Date & Greeting Row */}
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                {/* Clickable Date Breadcrumb */}
-                                <DateBreadcrumb
-                                    viewState={viewState}
-                                    onMonthClick={navigateToMonth}
-                                    onYearClick={navigateToYear}
-                                    onBackClick={navigateBack}
-                                    className="mb-1"
-                                />
+                    {/* Header with Dramatic Date Display */}
+                    <header className={cn(
+                        "relative mb-12 lg:mb-16",
+                        "journal-animate-in"
+                    )}>
+                        {/* Large decorative day number watermark */}
+                        {viewState.type === 'day' && (
+                            <div
+                                className={cn(
+                                    "absolute -left-4 lg:-left-8 -top-4 lg:-top-8",
+                                    "text-[10rem] lg:text-[14rem]",
+                                    "journal-day-watermark",
+                                    "transition-opacity duration-500",
+                                    focusMode ? "opacity-[0.02]" : "opacity-[0.03]"
+                                )}
+                                aria-hidden="true"
+                            >
+                                {dateParts.day}
+                            </div>
+                        )}
 
-                                {/* Day name + Today label + Navigation (only in day view) */}
-                                {viewState.type === 'day' && (
-                                    <div className="flex items-center gap-2">
-                                        {/* Day Navigation Arrows */}
-                                        <div className="flex items-center gap-0.5">
-                                            <button
-                                                type="button"
-                                                onClick={handlePreviousDay}
-                                                aria-label="Previous day"
-                                                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-                                            >
-                                                <ChevronLeft className="size-4" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={handleNextDay}
-                                                aria-label="Next day"
-                                                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-                                            >
-                                                <ChevronRight className="size-4" />
-                                            </button>
-                                        </div>
-                                        <span className="text-sm text-muted-foreground uppercase tracking-wide">
-                                            {dateDisplay.dayName}
-                                        </span>
-                                        {isToday && (
-                                            <>
-                                                <span className="text-muted-foreground/50">·</span>
-                                                <span className="text-sm font-medium text-primary">
+                        {/* Content layer */}
+                        <div className="relative z-10">
+                            {/* Breadcrumb */}
+                            <DateBreadcrumb
+                                viewState={viewState}
+                                onMonthClick={navigateToMonth}
+                                onYearClick={navigateToYear}
+                                onBackClick={navigateBack}
+                                className="mb-3 opacity-0 journal-animate-in journal-stagger-1"
+                            />
+
+                            {/* Day view header */}
+                            {viewState.type === 'day' && (
+                                <div className="flex items-start justify-between gap-6">
+                                    <div className="opacity-0 journal-animate-in journal-stagger-2">
+                                        {/* Day name with navigation */}
+                                        <div className="flex items-center gap-3 mb-1">
+                                            {/* Navigation arrows */}
+                                            <div className="flex items-center gap-0.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={handlePreviousDay}
+                                                    aria-label="Previous day"
+                                                    className={cn(
+                                                        "p-1.5 -ml-1.5 rounded-lg",
+                                                        "text-muted-foreground/60 hover:text-foreground",
+                                                        "hover:bg-foreground/5",
+                                                        "transition-all duration-200"
+                                                    )}
+                                                >
+                                                    <ChevronLeft className="size-4" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleNextDay}
+                                                    aria-label="Next day"
+                                                    className={cn(
+                                                        "p-1.5 rounded-lg",
+                                                        "text-muted-foreground/60 hover:text-foreground",
+                                                        "hover:bg-foreground/5",
+                                                        "transition-all duration-200"
+                                                    )}
+                                                >
+                                                    <ChevronRight className="size-4" />
+                                                </button>
+                                            </div>
+
+                                            {/* Day name - Display font */}
+                                            <h1 className="font-display text-2xl lg:text-3xl font-normal tracking-tight text-foreground/90">
+                                                {dateDisplay.dayName}
+                                            </h1>
+
+                                            {/* Today indicator */}
+                                            {isToday && (
+                                                <span className={cn(
+                                                    "px-2.5 py-0.5 ml-1",
+                                                    "text-[0.65rem] font-semibold uppercase tracking-[0.12em]",
+                                                    "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                                                    "rounded-full",
+                                                    "border border-amber-500/20"
+                                                )}>
                                                     Today
                                                 </span>
-                                            </>
-                                        )}
-                                    </div>
-                                )}
+                                            )}
+                                        </div>
 
-                                {/* Subtitle for month/year views */}
-                                {viewState.type === 'month' && (
-                                    <p className="text-sm text-muted-foreground">
+                                        {/* Full date - subtle serif */}
+                                        <p className="font-serif text-sm text-muted-foreground/70 tracking-wide pl-[52px]">
+                                            {dateDisplay.monthDay}
+                                        </p>
+                                    </div>
+
+                                    {/* Right side - Greeting & Focus Toggle */}
+                                    <div className={cn(
+                                        "flex items-center gap-3",
+                                        "opacity-0 journal-animate-in journal-stagger-3"
+                                    )}>
+                                        {/* Greeting (only for today, hidden in focus mode) */}
+                                        {greeting && !focusMode && (
+                                            <div className={cn(
+                                                "hidden sm:flex items-center gap-2",
+                                                "px-3.5 py-2 rounded-xl",
+                                                "bg-gradient-to-r from-amber-50/80 to-orange-50/60",
+                                                "dark:from-amber-950/30 dark:to-orange-950/20",
+                                                "journal-greeting-glow",
+                                                "transition-all duration-300"
+                                            )}>
+                                                {getGreetingIcon(greeting.icon)}
+                                                <span className="text-sm font-medium text-amber-800/80 dark:text-amber-200/80">
+                                                    {greeting.greeting}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {/* Focus Mode Toggle */}
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className={cn(
+                                                "size-9 rounded-lg",
+                                                "text-muted-foreground/60 hover:text-foreground",
+                                                "hover:bg-foreground/5",
+                                                "transition-all duration-200",
+                                                focusMode && "bg-foreground/5 text-foreground"
+                                            )}
+                                            onClick={() => setFocusMode(!focusMode)}
+                                            title={focusMode ? "Exit Focus Mode (Esc)" : "Enter Focus Mode (⌘\\)"}
+                                        >
+                                            {focusMode ? (
+                                                <Minimize2 className="size-4" />
+                                            ) : (
+                                                <Maximize2 className="size-4" />
+                                            )}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Month view header */}
+                            {viewState.type === 'month' && (
+                                <div className="opacity-0 journal-animate-in journal-stagger-2">
+                                    <h1 className="font-display text-3xl lg:text-4xl font-normal tracking-tight text-foreground/90 mb-2">
+                                        {new Date(viewState.year, viewState.month - 1).toLocaleDateString('en-US', { month: 'long' })}
+                                    </h1>
+                                    <p className="font-serif text-sm text-muted-foreground/60 italic">
                                         All journal entries for this month
                                     </p>
-                                )}
-                                {viewState.type === 'year' && (
-                                    <p className="text-sm text-muted-foreground">
+                                </div>
+                            )}
+
+                            {/* Year view header */}
+                            {viewState.type === 'year' && (
+                                <div className="opacity-0 journal-animate-in journal-stagger-2">
+                                    <h1 className="font-display text-3xl lg:text-4xl font-normal tracking-tight text-foreground/90 mb-2">
+                                        {viewState.year}
+                                    </h1>
+                                    <p className="font-serif text-sm text-muted-foreground/60 italic">
                                         Select a month to view entries
                                     </p>
-                                )}
-                            </div>
-
-                            {/* Right side - Greeting & Focus Toggle (only in day view) */}
-                            {viewState.type === 'day' && (
-                                <div className="flex items-center gap-3">
-                                    {/* Greeting (only for today) */}
-                                    {greeting && !focusMode && (
-                                        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50">
-                                            {getGreetingIcon(greeting.icon)}
-                                            <span className="text-sm text-muted-foreground">
-                                                {greeting.greeting}
-                                            </span>
-                                        </div>
-                                    )}
-
-                                    {/* Focus Mode Toggle */}
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className={cn(
-                                            "size-9",
-                                            focusMode && "bg-muted"
-                                        )}
-                                        onClick={() => setFocusMode(!focusMode)}
-                                        title={focusMode ? "Exit Focus Mode (Esc)" : "Enter Focus Mode (⌘\\)"}
-                                    >
-                                        {focusMode ? (
-                                            <Minimize2 className="size-4" />
-                                        ) : (
-                                            <Maximize2 className="size-4" />
-                                        )}
-                                    </Button>
                                 </div>
                             )}
                         </div>
@@ -484,7 +554,12 @@ export function JournalPage({ className }: JournalPageProps): React.JSX.Element 
                         /* Journal Editor - Main Writing Area (BlockNote) + Backlinks */
                         <>
                             <div
-                                className="editor-click-area min-h-[200px]"
+                                className={cn(
+                                    "editor-click-area min-h-[300px] relative",
+                                    "opacity-0 journal-animate-in journal-stagger-3",
+                                    // Notebook margin line (only when not in focus mode)
+                                    !focusMode && "journal-margin-line pl-6 lg:pl-8"
+                                )}
                                 onMouseDown={(e) => {
                                     const target = e.target as HTMLElement
                                     // If clicking directly on editable text, let it work normally
@@ -507,8 +582,10 @@ export function JournalPage({ className }: JournalPageProps): React.JSX.Element 
                                 <ContentArea
                                     placeholder={
                                         selectedDate > today
-                                            ? "Plan your day..."
-                                            : "Start writing..."
+                                            ? "What are you planning..."
+                                            : isToday
+                                                ? "What's on your mind today..."
+                                                : "Reflect on this day..."
                                     }
                                     onContentChange={handleContentChange}
                                     onLinkClick={handleLinkClick}
@@ -517,90 +594,119 @@ export function JournalPage({ className }: JournalPageProps): React.JSX.Element 
                             </div>
 
                             {/* Backlinks Section */}
-                            <BacklinksSection
-                                backlinks={DUMMY_JOURNAL_BACKLINKS}
-                                isLoading={false}
-                                initialCount={5}
-                                collapsible={true}
-                                onBacklinkClick={handleBacklinkClick}
-                            />
+                            <div className="opacity-0 journal-animate-in journal-stagger-4 mt-8">
+                                <BacklinksSection
+                                    backlinks={DUMMY_JOURNAL_BACKLINKS}
+                                    isLoading={false}
+                                    initialCount={5}
+                                    collapsible={true}
+                                    onBacklinkClick={handleBacklinkClick}
+                                />
+                            </div>
                         </>
                     )}
 
                     {viewState.type === 'month' && (
                         /* Month View - List of all entries */
-                        <JournalMonthView
-                            year={viewState.year}
-                            month={viewState.month}
-                            entries={monthEntries}
-                            heatmapData={heatmapData}
-                            onDayClick={navigateToDay}
-                            className="flex-1"
-                        />
+                        <div className="opacity-0 journal-animate-scale">
+                            <JournalMonthView
+                                year={viewState.year}
+                                month={viewState.month}
+                                entries={monthEntries}
+                                heatmapData={heatmapData}
+                                onDayClick={navigateToDay}
+                                className="flex-1"
+                            />
+                        </div>
                     )}
 
                     {viewState.type === 'year' && (
                         /* Year View - Grid of month cards */
-                        <JournalYearView
-                            year={viewState.year}
-                            monthStats={monthStats}
-                            onMonthClick={(month) => navigateToMonth(viewState.year, month)}
-                            className="flex-1"
-                        />
+                        <div className="opacity-0 journal-animate-scale">
+                            <JournalYearView
+                                year={viewState.year}
+                                monthStats={monthStats}
+                                onMonthClick={(month) => navigateToMonth(viewState.year, month)}
+                                className="flex-1"
+                            />
+                        </div>
                     )}
                 </div>
             </main>
 
-            {/* Right Sidebar - Context Panel (with collapse animation) */}
+            {/* Right Sidebar - Context Panel */}
             <aside className={cn(
                 "shrink-0 h-full overflow-hidden",
-                "border-l border-border/40",
-                "bg-muted/20",
+                "border-l border-border/30",
+                "journal-sidebar-gradient",
                 // Hide on smaller screens
                 "hidden lg:block",
-                // Smooth transition for width and opacity (matching left sidebar)
-                "transition-[width,opacity] duration-200 ease-linear",
+                // Smooth transition for width and opacity
+                "transition-[width,opacity] duration-500 ease-out",
                 // Collapsed state
                 focusMode || viewState.type !== 'day'
                     ? "w-0 opacity-0 border-l-0"
-                    : "w-[320px] lg:w-[360px] opacity-100"
+                    : "w-[320px] xl:w-[360px] opacity-100"
             )}>
                 <div className={cn(
-                    "h-full overflow-y-auto",
-                    "p-4 lg:p-5",
-                    "flex flex-col gap-4",
-                    "w-[320px] lg:w-[360px]",
+                    "h-full overflow-y-auto scrollbar-thin",
+                    "p-5 xl:p-6",
+                    "flex flex-col gap-6",
+                    "w-[320px] xl:w-[360px]",
                     // Fade content
-                    "transition-opacity duration-200 ease-linear",
+                    "transition-opacity duration-500 ease-out",
                     focusMode || viewState.type !== 'day' ? "opacity-0" : "opacity-100"
                 )}>
-                    {/* Mini Calendar */}
-                    <JournalCalendar
-                        selectedDate={selectedDate}
-                        onDayClick={handleDayClick}
-                        onTodayClick={handleTodayClick}
-                        heatmapData={heatmapData}
+                    {/* Decorative corner accent */}
+                    <div
+                        className={cn(
+                            "absolute top-0 right-0 w-24 h-24",
+                            "bg-gradient-to-bl from-amber-500/[0.04] to-transparent",
+                            "dark:from-amber-400/[0.03]",
+                            "rounded-bl-[60px]",
+                            "pointer-events-none"
+                        )}
+                        aria-hidden="true"
                     />
+
+                    {/* Mini Calendar */}
+                    <section className="relative opacity-0 journal-animate-in journal-stagger-1">
+                        <h3 className="journal-section-label mb-3">Calendar</h3>
+                        <JournalCalendar
+                            selectedDate={selectedDate}
+                            onDayClick={handleDayClick}
+                            onTodayClick={handleTodayClick}
+                            heatmapData={heatmapData}
+                        />
+                    </section>
 
                     {/* Day Context - Events & Tasks */}
-                    <DayContextSidebar
-                        events={isToday ? DUMMY_EVENTS : []}
-                        tasks={isToday ? DUMMY_TASKS : []}
-                        overdueCount={isToday ? 1 : 0}
-                        isToday={isToday}
-                        onTaskClick={(id) => console.log('Task clicked:', id)}
-                        onTaskToggle={(id) => console.log('Task toggled:', id)}
-                        onEventClick={(id) => console.log('Event clicked:', id)}
-                    />
+                    <section className="relative opacity-0 journal-animate-in journal-stagger-2">
+                        <h3 className="journal-section-label mb-3">
+                            {isToday ? "Today's Schedule" : "Schedule"}
+                        </h3>
+                        <DayContextSidebar
+                            events={isToday ? DUMMY_EVENTS : []}
+                            tasks={isToday ? DUMMY_TASKS : []}
+                            overdueCount={isToday ? 1 : 0}
+                            isToday={isToday}
+                            onTaskClick={(id) => console.log('Task clicked:', id)}
+                            onTaskToggle={(id) => console.log('Task toggled:', id)}
+                            onEventClick={(id) => console.log('Event clicked:', id)}
+                        />
+                    </section>
 
                     {/* AI Connections */}
-                    <AIConnectionsPanel
-                        connections={DUMMY_AI_CONNECTIONS}
-                        isLoading={false}
-                        onConnectionClick={(conn) => console.log('Connection clicked:', conn)}
-                        onRefresh={() => console.log('Refresh connections')}
-                        maxItems={3}
-                    />
+                    <section className="relative opacity-0 journal-animate-in journal-stagger-3">
+                        <h3 className="journal-section-label mb-3">Connected Thoughts</h3>
+                        <AIConnectionsPanel
+                            connections={DUMMY_AI_CONNECTIONS}
+                            isLoading={false}
+                            onConnectionClick={(conn) => console.log('Connection clicked:', conn)}
+                            onRefresh={() => console.log('Refresh connections')}
+                            maxItems={3}
+                        />
+                    </section>
                 </div>
             </aside>
         </div>

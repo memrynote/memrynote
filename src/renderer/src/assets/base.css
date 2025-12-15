@@ -76,8 +76,9 @@
 @layer base {
   :root {
     /* ===== TYPOGRAPHY - Font Families ===== */
-    --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-serif: 'Merriweather', Georgia, 'Times New Roman', serif;
+    --font-sans: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-serif: 'Crimson Pro', Georgia, 'Times New Roman', serif;
+    --font-display: 'Playfair Display', 'Crimson Pro', Georgia, serif;
 
     /* ===== BASE COLORS (Canvas) - "Warm Utility" Aesthetic ===== */
     --background: #F6F5F0;
@@ -186,8 +187,9 @@
 
   .dark {
     /* ===== TYPOGRAPHY - Font Families (same in dark mode) ===== */
-    --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-serif: 'Merriweather', Georgia, 'Times New Roman', serif;
+    --font-sans: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-serif: 'Crimson Pro', Georgia, 'Times New Roman', serif;
+    --font-display: 'Playfair Display', 'Crimson Pro', Georgia, serif;
 
     /* ===== BASE COLORS - Dark Mode (Warm Dark Variant) ===== */
     --background: #1C1B19;
@@ -290,6 +292,11 @@
   /* Serif font utility for content titles */
   .font-serif {
     font-family: var(--font-serif);
+  }
+
+  /* Display font utility for dramatic headers */
+  .font-display {
+    font-family: var(--font-display);
   }
 
   /* Typography Scale */
@@ -773,4 +780,183 @@
 
   /* ===== SPACING ===== */
   --spacing-sidebar: var(--sidebar-width);
+
+  /* ===== FONTS ===== */
+  --font-display: var(--font-display);
+}
+
+/* ===== JOURNAL PAGE SPECIFIC STYLES ===== */
+
+/* Journal page entrance animations */
+@keyframes journal-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes journal-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes journal-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes journal-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes journal-glow-pulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Journal animation utilities */
+.journal-animate-in {
+  animation: journal-fade-in 0.6s var(--ease-out) forwards;
+}
+
+.journal-animate-in-delayed {
+  opacity: 0;
+  animation: journal-fade-in 0.6s var(--ease-out) 0.1s forwards;
+}
+
+.journal-animate-scale {
+  animation: journal-scale-in 0.5s var(--ease-out) forwards;
+}
+
+.journal-animate-slide {
+  animation: journal-slide-right 0.5s var(--ease-out) forwards;
+}
+
+/* Stagger delays for journal sections */
+.journal-stagger-1 { animation-delay: 0ms; }
+.journal-stagger-2 { animation-delay: 80ms; }
+.journal-stagger-3 { animation-delay: 160ms; }
+.journal-stagger-4 { animation-delay: 240ms; }
+.journal-stagger-5 { animation-delay: 320ms; }
+
+/* Journal decorative day number */
+.journal-day-watermark {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 0.8;
+  color: var(--foreground);
+  opacity: 0.03;
+  pointer-events: none;
+  user-select: none;
+}
+
+.dark .journal-day-watermark {
+  opacity: 0.04;
+}
+
+/* Journal notebook margin line */
+.journal-margin-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2rem;
+  bottom: 2rem;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(180, 120, 100, 0.15) 15%,
+    rgba(180, 120, 100, 0.2) 50%,
+    rgba(180, 120, 100, 0.15) 85%,
+    transparent
+  );
+}
+
+.dark .journal-margin-line::before {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(200, 160, 140, 0.08) 15%,
+    rgba(200, 160, 140, 0.12) 50%,
+    rgba(200, 160, 140, 0.08) 85%,
+    transparent
+  );
+}
+
+/* Journal focus mode paper effect */
+.journal-focus-paper {
+  background: linear-gradient(
+    to bottom,
+    var(--background) 0%,
+    color-mix(in srgb, var(--background) 97%, #f5e6d3) 50%,
+    var(--background) 100%
+  );
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.015);
+}
+
+.dark .journal-focus-paper {
+  background: linear-gradient(
+    to bottom,
+    var(--background) 0%,
+    color-mix(in srgb, var(--background) 97%, #2a2520) 50%,
+    var(--background) 100%
+  );
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.1);
+}
+
+/* Journal sidebar gradient */
+.journal-sidebar-gradient {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--muted) 30%, transparent) 0%,
+    color-mix(in srgb, var(--muted) 50%, transparent) 50%,
+    color-mix(in srgb, var(--muted) 60%, transparent) 100%
+  );
+}
+
+/* Journal greeting glow */
+.journal-greeting-glow {
+  box-shadow:
+    0 2px 16px -4px rgba(217, 119, 6, 0.12),
+    0 0 0 1px rgba(217, 119, 6, 0.06);
+}
+
+.dark .journal-greeting-glow {
+  box-shadow:
+    0 2px 16px -4px rgba(251, 191, 36, 0.15),
+    0 0 0 1px rgba(251, 191, 36, 0.1);
+}
+
+/* Journal section label styling */
+.journal-section-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-tertiary);
 }
