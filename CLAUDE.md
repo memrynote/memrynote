@@ -4,95 +4,102 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Memry is an Electron desktop application built with React, TypeScript, and shadcn/ui components. It uses electron-vite for build tooling and follows a standard Electron architecture with main process, renderer process, and preload script separation.
+Memry is an Electron desktop application for personal knowledge management (PKM), combining task management, journaling, and note-taking. Built with React 19, TypeScript, and shadcn/ui components, it uses electron-vite for build tooling and features a VS Code-style tab system with split view support.
 
 ## Common Commands
 
-### Development
 ```bash
 pnpm dev              # Start development server with hot reload
 pnpm start            # Preview production build
-```
-
-### Type Checking
-```bash
 pnpm typecheck        # Check all TypeScript types (main + renderer)
 pnpm typecheck:node   # Check main process types only
 pnpm typecheck:web    # Check renderer process types only
-```
-
-### Code Quality
-```bash
 pnpm lint             # Run ESLint with cache
 pnpm format           # Format all files with Prettier
-```
-
-### Building
-```bash
-pnpm build            # Type check + build for all platforms
 pnpm build:mac        # Build for macOS
 pnpm build:win        # Build for Windows
 pnpm build:linux      # Build for Linux
-pnpm build:unpack     # Build unpacked directory (for testing)
 ```
 
 ## Architecture
 
 ### Electron Process Model
 
-The application follows Electron's multi-process architecture:
+- **Main Process** (`src/main/index.ts`): Node.js environment managing app lifecycle, window creation, and native APIs. Window controls (minimize/maximize/close) are handled via IPC.
 
-- **Main Process** (`src/main/index.ts`): Node.js environment, manages app lifecycle, window creation, and native APIs. Communicates with renderer via IPC.
+- **Preload Script** (`src/preload/index.ts`): Secure bridge exposing `window.api` and `window.electron` to renderer. Add new IPC handlers here and update types in `src/preload/index.d.ts`.
 
-- **Preload Script** (`src/preload/index.ts`): Secure bridge between main and renderer. Uses `contextBridge` to expose Electron APIs to renderer. Extend the `api` object here to add custom IPC handlers.
+- **Renderer Process** (`src/renderer/`): React app with no direct Node.js access. Uses custom traffic lights on macOS (native ones hidden).
 
-- **Renderer Process** (`src/renderer/`): Browser environment running React app with no direct access to Node.js APIs. Must use APIs exposed through preload script.
+### Frontend State Management
 
-### Frontend Architecture
+The app uses React Context for state management with several key providers:
 
-- **UI Framework**: React 19 with TypeScript
-- **Styling**: Tailwind CSS 4 (via `@tailwindcss/vite`) with shadcn/ui component library
-- **Component System**: shadcn/ui "New York" style with multiple registry sources configured
-- **Path Aliases**:
-  - `@/` and `@renderer/` both resolve to `src/renderer/src/`
-  - Use `@/components`, `@/lib`, `@/lib/hooks` for imports
+- **TabProvider** (`contexts/tabs/`): VS Code-style tab system with split view support, tab persistence, pinning, and preview mode. Supports singleton tabs (only one instance allowed) for views like inbox, journal, tasks.
 
-### Project Structure
+- **TasksProvider** (`contexts/tasks/`): Centralized task and project state management.
+
+- **DragProvider** (`contexts/drag-context.tsx`): Global drag-drop context using @dnd-kit for task reordering, moving tasks between projects, and sidebar project reordering.
+
+- **AIAgentProvider** (`contexts/ai-agent-context.tsx`): AI assistant panel state.
+
+### Tab System Architecture
+
+The tab system (`contexts/tabs/`) mirrors VS Code behavior:
+- **Types**: `TabType` defines content types (inbox, tasks, note, journal, project, etc.)
+- **Split View**: Horizontal splits with resizable panes, layout stored as recursive tree structure
+- **Persistence**: Tab state persisted to localStorage with migrations support
+- **Singleton Tabs**: Certain tab types (inbox, journal, tasks) only allow one instance
+
+### Page Structure
+
+Pages in `src/renderer/src/pages/`:
+- `inbox.tsx` - Inbox for quick capture
+- `tasks.tsx` - Task management with multiple views (all, today, upcoming, completed) and kanban/calendar views
+- `journal.tsx` - Daily journaling with date navigation
+- `note.tsx` - Individual note editor
+
+### Custom Hooks
+
+Key hooks in `src/renderer/src/hooks/`:
+- `use-tab-keyboard-shortcuts.ts` - Tab navigation shortcuts
+- `use-chord-shortcuts.ts` - Multi-key shortcut combinations
+- `use-drag-handlers.ts` - Unified drag-drop handling
+- `use-task-order.ts` - Task ordering persistence
+- `use-task-selection.ts` - Multi-select for bulk operations
+
+### Component Organization
 
 ```
-src/
-├── main/           # Electron main process (Node.js)
-├── preload/        # Preload scripts (context bridge)
-└── renderer/       # React frontend
-    └── src/
-        ├── components/
-        │   ├── ui/          # shadcn/ui components
-        │   ├── app-sidebar.tsx
-        │   ├── nav-*.tsx    # Navigation components
-        │   └── team-switcher.tsx
-        ├── lib/
-        │   ├── hooks/       # Custom React hooks
-        │   └── utils.ts     # cn() and utilities
-        └── assets/          # CSS and static assets
+src/renderer/src/
+├── components/
+│   ├── ui/           # shadcn/ui components
+│   ├── tabs/         # Tab bar, drag overlay, context menus
+│   ├── tasks/        # Task components (kanban/, calendar/, filters/, completed/)
+│   ├── keyboard/     # Keyboard shortcut components
+│   └── split-view/   # Split view container
+├── contexts/         # React contexts
+├── hooks/            # Custom hooks
+├── lib/              # Utilities (task-utils, fuzzy-search, natural-date-parser)
+├── data/             # Sample data and type definitions
+└── pages/            # Main page components
 ```
+
+### Path Aliases
+
+Both `@/` and `@renderer/` resolve to `src/renderer/src/`. Use `@/components`, `@/lib`, `@/hooks` for imports.
 
 ## Adding shadcn/ui Components
 
-The project uses shadcn/ui with extended registries configured in `components.json`:
-- @alpine, @tailark, @magicui, @shadcn-form, @kokonutui, @diceui, @basecn, @animateui, @fancycomponents
+The project uses shadcn/ui with extended registries (configured in `components.json`):
+- @alpine, @tailark, @magicui, @shadcn-form, @kokonutui, @diceui, @basecn, @animateui, @fancycomponents, @kibo-ui, @cult-ui
 
-Install components with:
 ```bash
 npx shadcn@latest add <component-name>
-# Or from a specific registry:
-npx shadcn@latest add @magicui/<component-name>
+npx shadcn@latest add @magicui/<component-name>  # From specific registry
 ```
 
-Components are added to `src/renderer/src/components/ui/` and use the New York style with CSS variables enabled.
-
 ## IPC Communication Pattern
-
-When adding main/renderer communication:
 
 1. Define handler in `src/main/index.ts`:
 ```typescript
@@ -106,21 +113,14 @@ const api = {
 }
 ```
 
-3. Update TypeScript types in `src/preload/index.d.ts`
+3. Update types in `src/preload/index.d.ts`
 
-4. Use in renderer via `window.api.yourMethod()`
+4. Use in renderer: `window.api.yourMethod()`
 
-## Build Configuration
+## Code Style Guidelines
 
-- **electron-vite**: Handles bundling with separate configs for main, preload, and renderer
-- **Vite plugins**: React plugin + Tailwind CSS plugin in renderer
-- **electron-builder**: Configured via `electron-builder.yml` for packaging
-- Package manager: **pnpm** (check `pnpm-lock.yaml` before using npm/yarn)
-
-## Development Notes
-
-- Use `pnpm` as the package manager (required by pnpm workspace setup)
-- The main process has HMR support via electron-vite
-- Renderer runs on a dev server with React Fast Refresh
-- DevTools open automatically with F12 in development
-- External links automatically open in system browser (handled in main process)
+- Use `const` arrow functions with type definitions
+- Event handlers prefixed with `handle` (e.g., `handleClick`, `handleKeyDown`)
+- Early returns for readability
+- Tailwind classes for styling (no CSS files except for base styles)
+- Accessibility attributes on interactive elements (tabindex, aria-label, keyboard handlers)
