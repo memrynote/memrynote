@@ -253,43 +253,55 @@ export function NotePage({ noteId: _noteId }: NotePageProps) {
 
   return (
     <NoteLayout headings={headings} onHeadingClick={handleHeadingClick}>
-      {/* Note content */}
-      <div className="space-y-6">
+      {/* Note content with editorial aesthetic */}
+      <div className="space-y-8 journal-animate-in">
         <div style={{ paddingInline: "54px" }}>
-          {/* Title section */}
-          <div className="space-y-3">
-            <NoteTitle
-              emoji={emoji}
-              title={title}
-              onEmojiChange={handleEmojiChange}
-              onTitleChange={handleTitleChange}
-              placeholder="Untitled"
-            />
+          {/* Title section with decorative accent */}
+          <div className="space-y-4 journal-stagger-1">
+            <div className="relative">
+              {/* Decorative margin accent */}
+              <div
+                className="absolute -left-8 top-1/2 -translate-y-1/2 w-1 h-12 bg-gradient-to-b from-amber-400/40 via-amber-500/20 to-transparent rounded-full opacity-60"
+                aria-hidden="true"
+              />
+              <NoteTitle
+                emoji={emoji}
+                title={title}
+                onEmojiChange={handleEmojiChange}
+                onTitleChange={handleTitleChange}
+                placeholder="Untitled"
+              />
+            </div>
           </div>
 
           {/* Tags section */}
-          <TagsRow
-            tags={tags}
-            availableTags={availableTags}
-            recentTags={mockRecentTags}
-            onAddTag={handleAddTag}
-            onCreateTag={handleCreateTag}
-            onRemoveTag={handleRemoveTag}
-          />
+          <div className="journal-stagger-2">
+            <TagsRow
+              tags={tags}
+              availableTags={availableTags}
+              recentTags={mockRecentTags}
+              onAddTag={handleAddTag}
+              onCreateTag={handleCreateTag}
+              onRemoveTag={handleRemoveTag}
+            />
+          </div>
 
           {/* Info Section (Collapsible Properties) */}
-          <InfoSection
-            properties={properties}
-            isExpanded={isInfoExpanded}
-            onToggleExpand={() => setIsInfoExpanded(!isInfoExpanded)}
-            onPropertyChange={handlePropertyChange}
-            onAddProperty={handleAddProperty}
-            onDeleteProperty={handleDeleteProperty}
-          />
+          <div className="journal-stagger-3">
+            <InfoSection
+              properties={properties}
+              isExpanded={isInfoExpanded}
+              onToggleExpand={() => setIsInfoExpanded(!isInfoExpanded)}
+              onPropertyChange={handlePropertyChange}
+              onAddProperty={handleAddProperty}
+              onDeleteProperty={handleDeleteProperty}
+            />
+          </div>
         </div>
+
         {/* Main content - BlockNote Editor */}
         <div
-          className="editor-click-area min-h-[400px]"
+          className="editor-click-area min-h-[400px] journal-stagger-4 relative"
           onMouseDown={(e) => {
             const target = e.target as HTMLElement
             // If clicking directly on editable text, let it work normally
@@ -319,15 +331,25 @@ export function NotePage({ noteId: _noteId }: NotePageProps) {
           />
         </div>
 
-        {/* Backlinks section */}
-        <BacklinksSection
-          backlinks={mockBacklinks}
-          isLoading={false}
-          initialCount={5}
-          collapsible={true}
-          onBacklinkClick={handleBacklinkClick}
-        />
+        {/* Backlinks section with editorial separator */}
+        <div className="journal-stagger-5 pt-8 mx-[54px] border-t border-border/30">
+          <div className="flex items-baseline gap-2 mb-4">
+            <span className="font-sans text-xs font-medium uppercase tracking-wider text-text-tertiary/50">
+              References
+            </span>
+            <span className="font-serif text-xs italic text-text-tertiary/30">
+              {mockBacklinks.length} backlink{mockBacklinks.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <BacklinksSection
+            backlinks={mockBacklinks}
+            isLoading={false}
+            initialCount={5}
+            collapsible={true}
+            onBacklinkClick={handleBacklinkClick}
+          />
+        </div>
       </div>
-    </NoteLayout >
+    </NoteLayout>
   )
 }

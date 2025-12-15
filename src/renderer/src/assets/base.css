@@ -960,3 +960,126 @@
   letter-spacing: 0.15em;
   color: var(--text-tertiary);
 }
+
+/* ===== NOTE PAGE SPECIFIC STYLES ===== */
+
+/* Note title input placeholder styling */
+.note-title-input::placeholder {
+  font-family: var(--font-serif);
+  font-style: italic;
+  opacity: 0.4;
+}
+
+/* Note property divider - subtle gradient line */
+.note-property-divider {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    hsl(var(--border) / 0.3),
+    transparent
+  );
+}
+
+/* Backlink mention highlight - warm amber for wiki-style links */
+.backlink-mention {
+  color: rgb(217, 119, 6);
+  font-weight: 500;
+}
+
+.dark .backlink-mention {
+  color: rgb(251, 191, 36);
+}
+
+/* Note outline heading active state indicator */
+.outline-heading-active {
+  position: relative;
+}
+
+.outline-heading-active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: linear-gradient(
+    to bottom,
+    rgba(245, 158, 11, 0.6),
+    rgba(251, 191, 36, 0.3)
+  );
+  border-radius: 1px;
+}
+
+.dark .outline-heading-active::before {
+  background: linear-gradient(
+    to bottom,
+    rgba(251, 191, 36, 0.5),
+    rgba(245, 158, 11, 0.2)
+  );
+}
+
+/* Note backlink card hover effect */
+.backlink-card {
+  transition: all 0.2s var(--ease-out);
+}
+
+.backlink-card:hover {
+  background-color: color-mix(in srgb, var(--muted) 50%, transparent);
+  transform: translateX(2px);
+}
+
+/* Note info section collapse transition */
+.note-info-collapse {
+  transition: all 0.3s var(--ease-in-out);
+  overflow: hidden;
+}
+
+/* Note tags row - refined hover states */
+.note-tag-chip {
+  transition: all 0.2s var(--ease-out);
+}
+
+.note-tag-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.dark .note-tag-chip:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Note content area margin line - subtle left border */
+.note-margin-line {
+  position: relative;
+}
+
+.note-margin-line::before {
+  content: '';
+  position: absolute;
+  left: 48px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(180, 120, 100, 0.1) 10%,
+    rgba(180, 120, 100, 0.15) 50%,
+    rgba(180, 120, 100, 0.1) 90%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.dark .note-margin-line::before {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(200, 160, 140, 0.06) 10%,
+    rgba(200, 160, 140, 0.1) 50%,
+    rgba(200, 160, 140, 0.06) 90%,
+    transparent
+  );
+}
