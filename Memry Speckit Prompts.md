@@ -211,7 +211,7 @@ Implement Memry using the following technology stack and architecture:
 - **Frontend**: React 18+ with TypeScript for the renderer process
 - **State Management**: Zustand for global state, React Query for async data
 - **UI Components**: Radix UI primitives + Tailwind CSS for styling
-- **Markdown Editor**: TipTap (ProseMirror-based) with custom extensions for wikilinks, tasks, callouts
+- **Markdown Editor**: Blocknote with custom extensions for wikilinks, tasks, callouts
 - **Canvas Editor**: Custom React canvas component implementing JSON Canvas spec, or integration with existing library
 
 ### Backend/Main Process
