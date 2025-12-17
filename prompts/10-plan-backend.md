@@ -202,15 +202,6 @@ GET    /user/storage             // Get storage usage
 GET    /user/devices             // List devices
 ```
 
-## MOBILE APP (Future Phase)
-
-### Framework
-**Choice: React Native with Expo**
-- Share business logic with desktop
-- Expo for easier development
-- expo-sqlite for local database
-- Same encryption library (libsodium has RN bindings)
-
 ### Considerations
 - Selective sync (don't download all attachments)
 - Background sync (iOS/Android limitations)

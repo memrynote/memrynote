@@ -124,3 +124,9 @@ const api = {
 - Early returns for readability
 - Tailwind classes for styling (no CSS files except for base styles)
 - Accessibility attributes on interactive elements (tabindex, aria-label, keyboard handlers)
+
+## Active Technologies
+- TypeScript 5.9+ with strict mode (001-core-data-layer)
+
+## Recent Changes
+- 001-core-data-layer: Added TypeScript 5.9+ with strict mode
