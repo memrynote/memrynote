@@ -46,12 +46,12 @@
 ### Database Schemas (src/shared/db/schema/)
 
 - [x] T009 [P] Create projects schema in src/shared/db/schema/projects.ts
-- [ ] T010 [P] Create statuses schema in src/shared/db/schema/statuses.ts
-- [ ] T011 [P] Create tasks schema in src/shared/db/schema/tasks.ts
-- [ ] T012 [P] Create task-relations schema (taskNotes, taskTags) in src/shared/db/schema/task-relations.ts
-- [ ] T013 [P] Create inbox schema in src/shared/db/schema/inbox.ts
-- [ ] T014 [P] Create settings schema (settings, savedFilters) in src/shared/db/schema/settings.ts
-- [ ] T015 [P] Create notes-cache schema (noteCache, noteTags, noteLinks) in src/shared/db/schema/notes-cache.ts
+- [x] T010 [P] Create statuses schema in src/shared/db/schema/statuses.ts
+- [x] T011 [P] Create tasks schema in src/shared/db/schema/tasks.ts
+- [x] T012 [P] Create task-relations schema (taskNotes, taskTags) in src/shared/db/schema/task-relations.ts
+- [x] T013 [P] Create inbox schema in src/shared/db/schema/inbox.ts
+- [x] T014 [P] Create settings schema (settings, savedFilters) in src/shared/db/schema/settings.ts
+- [x] T015 [P] Create notes-cache schema (noteCache, noteTags, noteLinks) in src/shared/db/schema/notes-cache.ts
 - [ ] T016 Create schema index with re-exports in src/shared/db/schema/index.ts
 - [ ] T017 Run drizzle-kit generate to create initial migrations
 
