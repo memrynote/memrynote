@@ -52,7 +52,7 @@
 - [x] T013 [P] Create inbox schema in src/shared/db/schema/inbox.ts
 - [x] T014 [P] Create settings schema (settings, savedFilters) in src/shared/db/schema/settings.ts
 - [x] T015 [P] Create notes-cache schema (noteCache, noteTags, noteLinks) in src/shared/db/schema/notes-cache.ts
-- [ ] T016 Create schema index with re-exports in src/shared/db/schema/index.ts
+- [x] T016 Create schema index with re-exports in src/shared/db/schema/index.ts
 - [ ] T017 Run drizzle-kit generate to create initial migrations
 
 ### Database Module (src/main/database/)
