@@ -7,6 +7,10 @@
 
 import { z } from 'zod';
 
+// Import and re-export channels from shared (single source of truth)
+import { NotesChannels } from '../ipc-channels';
+export { NotesChannels };
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -77,7 +81,7 @@ export const NoteUpdateSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   content: z.string().optional(),
   tags: z.array(z.string().max(50)).max(50).optional(),
-  frontmatter: z.record(z.unknown()).optional(), // Custom frontmatter fields
+  frontmatter: z.record(z.string(), z.unknown()).optional(), // Custom frontmatter fields
 });
 
 export const NoteRenameSchema = z.object({
@@ -125,79 +129,6 @@ export interface NoteLinksResponse {
   outgoing: NoteLink[];
   incoming: Backlink[];
 }
-
-// ============================================================================
-// IPC Channel Definitions
-// ============================================================================
-
-export const NotesChannels = {
-  invoke: {
-    /** Create a new note */
-    CREATE: 'notes:create',
-
-    /** Get a note by ID */
-    GET: 'notes:get',
-
-    /** Get a note by path */
-    GET_BY_PATH: 'notes:get-by-path',
-
-    /** Update note content/metadata */
-    UPDATE: 'notes:update',
-
-    /** Rename a note (changes filename) */
-    RENAME: 'notes:rename',
-
-    /** Move note to different folder */
-    MOVE: 'notes:move',
-
-    /** Delete a note */
-    DELETE: 'notes:delete',
-
-    /** List notes with filtering */
-    LIST: 'notes:list',
-
-    /** Get all tags used in notes */
-    GET_TAGS: 'notes:get-tags',
-
-    /** Get note links (outgoing and incoming) */
-    GET_LINKS: 'notes:get-links',
-
-    /** Get folder structure */
-    GET_FOLDERS: 'notes:get-folders',
-
-    /** Create a new folder */
-    CREATE_FOLDER: 'notes:create-folder',
-
-    /** Check if note exists */
-    EXISTS: 'notes:exists',
-
-    /** Open note in external editor */
-    OPEN_EXTERNAL: 'notes:open-external',
-
-    /** Reveal note in file explorer */
-    REVEAL_IN_FINDER: 'notes:reveal-in-finder',
-  },
-
-  events: {
-    /** Note was created (externally or internally) */
-    CREATED: 'notes:created',
-
-    /** Note was updated */
-    UPDATED: 'notes:updated',
-
-    /** Note was deleted */
-    DELETED: 'notes:deleted',
-
-    /** Note was renamed */
-    RENAMED: 'notes:renamed',
-
-    /** Note was moved */
-    MOVED: 'notes:moved',
-
-    /** External change detected */
-    EXTERNAL_CHANGE: 'notes:external-change',
-  },
-} as const;
 
 // ============================================================================
 // Handler Signatures

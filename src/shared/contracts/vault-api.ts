@@ -7,6 +7,10 @@
 
 import { z } from 'zod';
 
+// Import and re-export channels from shared (single source of truth)
+import { VaultChannels } from '../ipc-channels';
+export { VaultChannels };
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -69,63 +73,6 @@ export interface GetVaultsResponse {
   vaults: VaultInfo[];
   currentVault: string | null;
 }
-
-// ============================================================================
-// IPC Channel Definitions
-// ============================================================================
-
-/**
- * IPC Channels for Vault operations
- *
- * invoke = request/response (ipcRenderer.invoke → ipcMain.handle)
- * on = one-way event (main → renderer via webContents.send)
- */
-export const VaultChannels = {
-  // Request/Response channels
-  invoke: {
-    /** Show folder picker and select vault */
-    SELECT: 'vault:select',
-
-    /** Create a new vault at specified path */
-    CREATE: 'vault:create',
-
-    /** Get list of known vaults */
-    GET_ALL: 'vault:get-all',
-
-    /** Get current vault status */
-    GET_STATUS: 'vault:get-status',
-
-    /** Get vault configuration */
-    GET_CONFIG: 'vault:get-config',
-
-    /** Update vault configuration */
-    UPDATE_CONFIG: 'vault:update-config',
-
-    /** Close current vault */
-    CLOSE: 'vault:close',
-
-    /** Switch to a different vault */
-    SWITCH: 'vault:switch',
-
-    /** Remove vault from known list (doesn't delete files) */
-    REMOVE: 'vault:remove',
-
-    /** Trigger manual reindex */
-    REINDEX: 'vault:reindex',
-  },
-
-  // Event channels (main → renderer)
-  events: {
-    /** Vault status changed */
-    STATUS_CHANGED: 'vault:status-changed',
-
-    /** Indexing progress update */
-    INDEX_PROGRESS: 'vault:index-progress',
-
-    /** Vault error occurred */
-    ERROR: 'vault:error',
-  },
-} as const;
 
 // ============================================================================
 // Handler Signatures (for main process implementation)

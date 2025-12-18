@@ -5,7 +5,7 @@
  * @module db/queries/notes
  */
 
-import { eq, desc, asc, and, like, inArray, sql, count } from 'drizzle-orm'
+import { eq, desc, asc, and, like, inArray, sql, count, type SQL } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import {
   noteCache,
@@ -13,7 +13,6 @@ import {
   noteLinks,
   type NoteCache,
   type NewNoteCache,
-  type NoteTag,
   type NewNoteTag,
   type NoteLink,
   type NewNoteLink
@@ -130,7 +129,7 @@ export function listNotesFromCache(
   } = options
 
   // Build conditions
-  const conditions = []
+  const conditions: SQL<unknown>[] = []
 
   if (folder) {
     // Match notes in folder (path starts with folder/)
@@ -141,14 +140,19 @@ export function listNotesFromCache(
   let noteIdsWithTags: string[] | undefined
   if (tags && tags.length > 0) {
     const tagResults = db
-      .select({ noteId: noteTags.noteId })
+      .select({
+        noteId: noteTags.noteId,
+        tagCount: sql<number>`count(distinct ${noteTags.tag})`
+      })
       .from(noteTags)
       .where(inArray(noteTags.tag, tags))
       .groupBy(noteTags.noteId)
-      .having(sql`count(distinct ${noteTags.tag}) = ${tags.length}`)
       .all()
 
-    noteIdsWithTags = tagResults.map((r) => r.noteId)
+    // Filter to notes that have ALL requested tags
+    noteIdsWithTags = tagResults
+      .filter((r) => r.tagCount === tags.length)
+      .map((r) => r.noteId)
 
     if (noteIdsWithTags.length === 0) {
       return [] // No notes match all tags
