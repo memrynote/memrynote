@@ -60,7 +60,7 @@
 - [x] T018 Create Drizzle client with better-sqlite3 driver in src/main/database/client.ts
 - [x] T019 Create migration runner in src/main/database/migrate.ts
 - [x] T020 Create database module exports in src/main/database/index.ts
-- [ ] T021 Create FTS5 virtual table setup for search in src/main/database/fts.ts
+- [x] T021 Create FTS5 virtual table setup for search in src/main/database/fts.ts
 
 ### Utility Modules (src/main/lib/)
 
