@@ -1,12 +1,69 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
+// Vault IPC channel names (mirrored from contracts to avoid import issues in preload)
+const VaultChannels = {
+  invoke: {
+    SELECT: 'vault:select',
+    CREATE: 'vault:create',
+    GET_ALL: 'vault:get-all',
+    GET_STATUS: 'vault:get-status',
+    GET_CONFIG: 'vault:get-config',
+    UPDATE_CONFIG: 'vault:update-config',
+    CLOSE: 'vault:close',
+    SWITCH: 'vault:switch',
+    REMOVE: 'vault:remove',
+    REINDEX: 'vault:reindex'
+  },
+  events: {
+    STATUS_CHANGED: 'vault:status-changed',
+    INDEX_PROGRESS: 'vault:index-progress',
+    ERROR: 'vault:error'
+  }
+} as const
+
 // Custom APIs for renderer
 const api = {
   // Window controls for custom traffic lights
   windowMinimize: (): void => ipcRenderer.send('window-minimize'),
   windowMaximize: (): void => ipcRenderer.send('window-maximize'),
-  windowClose: (): void => ipcRenderer.send('window-close')
+  windowClose: (): void => ipcRenderer.send('window-close'),
+
+  // Vault API
+  vault: {
+    select: (path?: string) => ipcRenderer.invoke(VaultChannels.invoke.SELECT, { path }),
+    create: (path: string, name: string) =>
+      ipcRenderer.invoke(VaultChannels.invoke.CREATE, { path, name }),
+    getAll: () => ipcRenderer.invoke(VaultChannels.invoke.GET_ALL),
+    getStatus: () => ipcRenderer.invoke(VaultChannels.invoke.GET_STATUS),
+    getConfig: () => ipcRenderer.invoke(VaultChannels.invoke.GET_CONFIG),
+    updateConfig: (config: Record<string, unknown>) =>
+      ipcRenderer.invoke(VaultChannels.invoke.UPDATE_CONFIG, config),
+    close: () => ipcRenderer.invoke(VaultChannels.invoke.CLOSE),
+    switch: (vaultPath: string) => ipcRenderer.invoke(VaultChannels.invoke.SWITCH, vaultPath),
+    remove: (vaultPath: string) => ipcRenderer.invoke(VaultChannels.invoke.REMOVE, vaultPath),
+    reindex: () => ipcRenderer.invoke(VaultChannels.invoke.REINDEX)
+  },
+
+  // Event subscription helpers
+  onVaultStatusChanged: (callback: (status: unknown) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: unknown): void => callback(status)
+    ipcRenderer.on(VaultChannels.events.STATUS_CHANGED, handler)
+    return () => ipcRenderer.removeListener(VaultChannels.events.STATUS_CHANGED, handler)
+  },
+
+  onVaultIndexProgress: (callback: (progress: number) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: number): void =>
+      callback(progress)
+    ipcRenderer.on(VaultChannels.events.INDEX_PROGRESS, handler)
+    return () => ipcRenderer.removeListener(VaultChannels.events.INDEX_PROGRESS, handler)
+  },
+
+  onVaultError: (callback: (error: string) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, error: string): void => callback(error)
+    ipcRenderer.on(VaultChannels.events.ERROR, handler)
+    return () => ipcRenderer.removeListener(VaultChannels.events.ERROR, handler)
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

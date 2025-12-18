@@ -1,0 +1,356 @@
+import { dialog, BrowserWindow } from 'electron'
+import type {
+  VaultInfo,
+  VaultStatus,
+  VaultConfig,
+  SelectVaultResponse,
+  GetVaultsResponse
+} from '@shared/contracts/vault-api'
+import {
+  getCurrentVaultPath,
+  setCurrentVaultPath,
+  getVaults,
+  upsertVault,
+  removeVault as removeVaultFromStore,
+  findVault,
+  touchVault,
+  type StoredVaultInfo
+} from '../store'
+import {
+  initVault,
+  isVaultInitialized,
+  isValidDirectory,
+  hasWritePermission,
+  getVaultName,
+  readVaultConfig,
+  writeVaultConfig,
+  countMarkdownFiles,
+  getDataDbPath,
+  getIndexDbPath
+} from './init'
+import {
+  initDatabase,
+  initIndexDatabase,
+  closeAllDatabases,
+  runMigrations,
+  runIndexMigrations,
+  initializeFts,
+  getIndexDatabase
+} from '../database'
+import { VaultError, VaultErrorCode } from '../lib/errors'
+
+/**
+ * Current vault status
+ */
+let currentStatus: VaultStatus = {
+  isOpen: false,
+  path: null,
+  isIndexing: false,
+  indexProgress: 0,
+  error: null
+}
+
+/**
+ * Show native folder picker dialog
+ */
+async function showFolderPicker(): Promise<string | null> {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory', 'createDirectory'],
+    title: 'Select Vault Folder',
+    buttonLabel: 'Select Vault'
+  })
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null
+  }
+
+  return result.filePaths[0]
+}
+
+/**
+ * Validate a vault path
+ */
+function validateVaultPath(vaultPath: string): void {
+  if (!isValidDirectory(vaultPath)) {
+    throw new VaultError('Selected path is not a valid directory', VaultErrorCode.INVALID_PATH)
+  }
+
+  if (!hasWritePermission(vaultPath)) {
+    throw new VaultError(
+      'No write permission for selected directory',
+      VaultErrorCode.PERMISSION_DENIED
+    )
+  }
+}
+
+/**
+ * Convert stored vault info to VaultInfo interface
+ */
+function toVaultInfo(stored: StoredVaultInfo): VaultInfo {
+  return {
+    path: stored.path,
+    name: stored.name,
+    noteCount: stored.noteCount,
+    taskCount: stored.taskCount,
+    lastOpened: stored.lastOpened,
+    isDefault: stored.isDefault
+  }
+}
+
+/**
+ * Create VaultInfo for a vault path
+ */
+function createVaultInfo(vaultPath: string): VaultInfo {
+  const config = readVaultConfig(vaultPath)
+  const noteCount = countMarkdownFiles(vaultPath, config.excludePatterns)
+  const existingVault = findVault(vaultPath)
+
+  return {
+    path: vaultPath,
+    name: getVaultName(vaultPath),
+    noteCount,
+    taskCount: existingVault?.taskCount ?? 0,
+    lastOpened: new Date().toISOString(),
+    isDefault: existingVault?.isDefault ?? getVaults().length === 0
+  }
+}
+
+/**
+ * Update vault status and emit to all windows
+ */
+export function updateStatus(updates: Partial<VaultStatus>): void {
+  currentStatus = { ...currentStatus, ...updates }
+  emitStatusChanged()
+}
+
+/**
+ * Emit vault status changed event to all windows
+ */
+function emitStatusChanged(): void {
+  BrowserWindow.getAllWindows().forEach((win) => {
+    win.webContents.send('vault:status-changed', currentStatus)
+  })
+}
+
+/**
+ * Emit indexing progress event to all windows
+ */
+export function emitIndexProgress(progress: number): void {
+  updateStatus({ indexProgress: progress })
+  BrowserWindow.getAllWindows().forEach((win) => {
+    win.webContents.send('vault:index-progress', progress)
+  })
+}
+
+/**
+ * Emit vault error event to all windows
+ */
+export function emitVaultError(error: string): void {
+  updateStatus({ error })
+  BrowserWindow.getAllWindows().forEach((win) => {
+    win.webContents.send('vault:error', error)
+  })
+}
+
+/**
+ * Open a vault: initialize structure, run migrations, start database
+ */
+async function openVault(vaultPath: string): Promise<void> {
+  // Initialize vault structure if needed
+  if (!isVaultInitialized(vaultPath)) {
+    initVault(vaultPath)
+  }
+
+  // Get database paths
+  const dataDbPath = getDataDbPath(vaultPath)
+  const indexDbPath = getIndexDbPath(vaultPath)
+
+  // Run migrations
+  runMigrations(dataDbPath)
+  runIndexMigrations(indexDbPath)
+
+  // Initialize databases
+  initDatabase(dataDbPath)
+  initIndexDatabase(indexDbPath)
+
+  // Initialize FTS
+  initializeFts(getIndexDatabase())
+
+  // Update status
+  updateStatus({
+    isOpen: true,
+    path: vaultPath,
+    error: null
+  })
+}
+
+/**
+ * Select a vault (show folder picker if no path provided)
+ */
+export async function selectVault(input: { path?: string }): Promise<SelectVaultResponse> {
+  try {
+    const vaultPath = input.path ?? (await showFolderPicker())
+
+    if (!vaultPath) {
+      return { success: false, vault: null, error: 'No folder selected' }
+    }
+
+    // Validate the path
+    validateVaultPath(vaultPath)
+
+    // Close current vault if open
+    if (currentStatus.isOpen) {
+      await closeVault()
+    }
+
+    // Open the vault
+    await openVault(vaultPath)
+
+    // Create vault info
+    const vaultInfo = createVaultInfo(vaultPath)
+
+    // Store in electron-store
+    setCurrentVaultPath(vaultPath)
+    upsertVault(vaultInfo)
+    touchVault(vaultPath)
+
+    return { success: true, vault: vaultInfo }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to select vault'
+    updateStatus({ error: message })
+    return { success: false, vault: null, error: message }
+  }
+}
+
+/**
+ * Get current vault status
+ */
+export function getStatus(): VaultStatus {
+  return currentStatus
+}
+
+/**
+ * Get vault configuration
+ */
+export function getConfig(): VaultConfig {
+  if (!currentStatus.path) {
+    return {
+      excludePatterns: [],
+      defaultNoteFolder: 'notes',
+      journalFolder: 'journal',
+      attachmentsFolder: 'attachments'
+    }
+  }
+
+  const config = readVaultConfig(currentStatus.path)
+  return {
+    excludePatterns: config.excludePatterns,
+    defaultNoteFolder: config.defaultNoteFolder,
+    journalFolder: config.journalFolder,
+    attachmentsFolder: config.attachmentsFolder
+  }
+}
+
+/**
+ * Update vault configuration
+ */
+export function updateConfig(updates: Partial<VaultConfig>): VaultConfig {
+  if (!currentStatus.path) {
+    throw new VaultError('No vault is currently open', VaultErrorCode.NOT_INITIALIZED)
+  }
+
+  writeVaultConfig(currentStatus.path, updates)
+  return getConfig()
+}
+
+/**
+ * Close current vault
+ */
+export async function closeVault(): Promise<void> {
+  if (!currentStatus.isOpen) {
+    return
+  }
+
+  // Close databases
+  closeAllDatabases()
+
+  // Update status
+  updateStatus({
+    isOpen: false,
+    path: null,
+    isIndexing: false,
+    indexProgress: 0,
+    error: null
+  })
+}
+
+/**
+ * Get all known vaults
+ */
+export function getAllVaults(): GetVaultsResponse {
+  const vaults = getVaults().map(toVaultInfo)
+  return {
+    vaults,
+    currentVault: getCurrentVaultPath()
+  }
+}
+
+/**
+ * Switch to a different vault
+ */
+export async function switchVault(vaultPath: string): Promise<SelectVaultResponse> {
+  return selectVault({ path: vaultPath })
+}
+
+/**
+ * Remove a vault from known list (doesn't delete files)
+ */
+export async function removeVault(vaultPath: string): Promise<void> {
+  // Close if it's the current vault
+  if (currentStatus.path === vaultPath) {
+    await closeVault()
+    setCurrentVaultPath(null)
+  }
+
+  removeVaultFromStore(vaultPath)
+}
+
+/**
+ * Trigger manual reindex of current vault
+ */
+export async function reindex(): Promise<void> {
+  if (!currentStatus.path) {
+    throw new VaultError('No vault is currently open', VaultErrorCode.NOT_INITIALIZED)
+  }
+
+  updateStatus({ isIndexing: true, indexProgress: 0 })
+
+  try {
+    // TODO: Implement full reindex logic in later phases
+    // For now, just mark as complete
+    updateStatus({ isIndexing: false, indexProgress: 100 })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Reindex failed'
+    updateStatus({ isIndexing: false, error: message })
+    throw error
+  }
+}
+
+/**
+ * Auto-open the last vault on app start
+ */
+export async function autoOpenLastVault(): Promise<void> {
+  const lastVault = getCurrentVaultPath()
+
+  if (lastVault && isVaultInitialized(lastVault)) {
+    try {
+      await openVault(lastVault)
+      touchVault(lastVault)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to open last vault'
+      updateStatus({ error: message })
+      // Clear the invalid vault path
+      setCurrentVaultPath(null)
+    }
+  }
+}

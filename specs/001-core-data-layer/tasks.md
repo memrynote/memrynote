@@ -72,21 +72,21 @@
 
 **Goal**: Enable vault folder selection and persistence - prerequisite for all file operations
 
-- [ ] T025 Install and configure electron-store for vault path persistence
-- [ ] T026 Create vault index module with folder selection dialog in src/main/vault/index.ts
-- [ ] T027 Create vault initialization (create .memry folder structure) in src/main/vault/init.ts
-- [ ] T028 Create vault-handlers.ts with SELECT, GET_STATUS, GET_CONFIG channels in src/main/ipc/vault-handlers.ts
-- [ ] T029 Update preload script with vault API in src/preload/index.ts
-- [ ] T030 Update preload types in src/preload/index.d.ts with vault API
-- [ ] T031 Create vault-service.ts client in src/renderer/src/services/vault-service.ts
-- [ ] T032 Create use-vault.ts hook in src/renderer/src/hooks/use-vault.ts
-- [ ] T033 Register vault handlers in main process in src/main/ipc/index.ts
-- [ ] T034 Initialize database and run migrations on vault open in src/main/index.ts
+- [x] T025 Install and configure electron-store for vault path persistence
+- [x] T026 Create vault index module with folder selection dialog in src/main/vault/index.ts
+- [x] T027 Create vault initialization (create .memry folder structure) in src/main/vault/init.ts
+- [x] T028 Create vault-handlers.ts with SELECT, GET_STATUS, GET_CONFIG channels in src/main/ipc/vault-handlers.ts
+- [x] T029 Update preload script with vault API in src/preload/index.ts
+- [x] T030 Update preload types in src/preload/index.d.ts with vault API
+- [x] T031 Create vault-service.ts client in src/renderer/src/services/vault-service.ts
+- [x] T032 Create use-vault.ts hook in src/renderer/src/hooks/use-vault.ts
+- [x] T033 Register vault handlers in main process in src/main/ipc/index.ts
+- [x] T034 Initialize database and run migrations on vault open in src/main/index.ts
 
 ### IPC Infrastructure
 
-- [ ] T035 Create IPC handler registration pattern in src/main/ipc/index.ts
-- [ ] T036 Create Zod validation middleware for IPC handlers in src/main/ipc/validate.ts
+- [x] T035 Create IPC handler registration pattern in src/main/ipc/index.ts
+- [x] T036 Create Zod validation middleware for IPC handlers in src/main/ipc/validate.ts
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 

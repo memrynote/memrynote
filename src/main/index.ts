@@ -1,6 +1,9 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { registerAllHandlers } from './ipc'
+import { autoOpenLastVault, closeVault } from './vault'
+import { closeAllDatabases } from './database'
 
 function createWindow(): void {
   // Create the browser window.
@@ -45,7 +48,7 @@ function createWindow(): void {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -79,6 +82,12 @@ app.whenReady().then(() => {
     win?.close()
   })
 
+  // Register all IPC handlers (vault, notes, tasks, search)
+  registerAllHandlers()
+
+  // Auto-open the last vault if one was previously open
+  await autoOpenLastVault()
+
   createWindow()
 
   app.on('activate', function () {
@@ -86,6 +95,16 @@ app.whenReady().then(() => {
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+// Graceful shutdown: close vault and databases before quitting
+app.on('before-quit', async () => {
+  try {
+    await closeVault()
+    closeAllDatabases()
+  } catch (error) {
+    console.error('Error during shutdown:', error)
+  }
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common
