@@ -38,6 +38,7 @@ import {
   getIndexDatabase
 } from '../database'
 import { VaultError, VaultErrorCode } from '../lib/errors'
+import { startWatcher, stopWatcher } from './watcher'
 
 /**
  * Current vault status
@@ -176,6 +177,9 @@ async function openVault(vaultPath: string): Promise<void> {
   // Initialize FTS
   initializeFts(getIndexDatabase())
 
+  // Start file watcher for external changes
+  await startWatcher(vaultPath)
+
   // Update status
   updateStatus({
     isOpen: true,
@@ -270,6 +274,9 @@ export async function closeVault(): Promise<void> {
   if (!currentStatus.isOpen) {
     return
   }
+
+  // Stop file watcher
+  await stopWatcher()
 
   // Close databases
   closeAllDatabases()

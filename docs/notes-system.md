@@ -1,8 +1,8 @@
 # Notes System Architecture
 
-**Status**: Phase 3 (US1) Complete - Core CRUD Operations
+**Status**: Phase 4 (US2) Complete - External File Change Detection
 **Branch**: `001-core-data-layer`
-**Tasks**: T037-T048 (GitHub Issues #37-#48)
+**Tasks**: T037-T054 (GitHub Issues #37-#54)
 
 This document describes the notes system implementation for Claude Code reference.
 
@@ -657,18 +657,29 @@ CREATE TABLE note_links (
 
 ---
 
-## What's NOT Implemented Yet
+## What's Implemented
 
-### Phase 4: File Watcher (US2) - T049-T054
-**Impact**: External file changes are NOT detected automatically.
+### Phase 4: File Watcher (US2) - T049-T054 ✓
+**Status**: Complete
 
-Missing:
-- `src/main/vault/watcher.ts` - chokidar file watcher
+Implemented:
+- `src/main/vault/watcher.ts` - chokidar file watcher with VaultWatcher class
 - Debounced event handling (100ms stabilization)
-- Cache updates on external changes
-- `notes:external-change` events not fired
+- Cache updates on external file add/change/delete
+- Events emitted via `notes:created`, `notes:updated`, `notes:deleted` with `source: 'external'`
+- Watcher starts on vault open, stops on vault close
 
-**Workaround**: Call `refresh()` manually after external edits.
+**Features**:
+- Watches `notes/` and `journal/` directories recursively
+- Filters: only `.md` files
+- Ignores: hidden files, `.git`, `node_modules`, `.memry/`
+- Debounces rapid changes (100ms per-file batching)
+- Updates index.db cache automatically
+- Emits IPC events to all renderer windows
+
+---
+
+## What's NOT Implemented Yet
 
 ### Phase 5: Rename Tracking (US3) - T055-T059
 **Impact**: File renames in Finder break links.
@@ -782,6 +793,8 @@ This is a test.
 | Frontmatter | `src/main/vault/frontmatter.ts` |
 | File Operations | `src/main/vault/file-ops.ts` |
 | Note CRUD | `src/main/vault/notes.ts` |
+| File Watcher | `src/main/vault/watcher.ts` |
+| Vault Manager | `src/main/vault/index.ts` |
 | DB Queries | `src/shared/db/queries/notes.ts` |
 | IPC Handlers | `src/main/ipc/notes-handlers.ts` |
 | IPC Registration | `src/main/ipc/index.ts` |

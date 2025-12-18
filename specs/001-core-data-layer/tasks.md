@@ -125,12 +125,12 @@
 
 ### Implementation for User Story 2
 
-- [ ] T049 [US2] Create chokidar file watcher setup in src/main/vault/watcher.ts
-- [ ] T050 [US2] Implement debounced event handling with 100ms stabilization in src/main/vault/watcher.ts
-- [ ] T051 [US2] Create IPC events for file change notifications (CREATED, UPDATED, DELETED) in src/main/ipc/notes-handlers.ts
-- [ ] T052 [US2] Update index.db cache on external file changes in src/main/vault/watcher.ts
-- [ ] T053 [US2] Subscribe to file change events in use-notes.ts hook in src/renderer/src/hooks/use-notes.ts
-- [ ] T054 [US2] Start watcher when vault opens, stop when vault closes in src/main/vault/index.ts
+- [x] T049 [US2] Create chokidar file watcher setup in src/main/vault/watcher.ts
+- [x] T050 [US2] Implement debounced event handling with 100ms stabilization in src/main/vault/watcher.ts
+- [x] T051 [US2] Create IPC events for file change notifications (CREATED, UPDATED, DELETED) in src/main/ipc/notes-handlers.ts
+- [x] T052 [US2] Update index.db cache on external file changes in src/main/vault/watcher.ts
+- [x] T053 [US2] Subscribe to file change events in use-notes.ts hook in src/renderer/src/hooks/use-notes.ts
+- [x] T054 [US2] Start watcher when vault opens, stop when vault closes in src/main/vault/index.ts
 
 **Checkpoint**: US2 complete - external file changes are detected and reflected in UI within 500ms
 
