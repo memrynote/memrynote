@@ -221,8 +221,11 @@ export function NotesTree() {
   const { openTab, closeTab } = useTabs()
   const [isCreating, setIsCreating] = useState(false)
 
-  // Dialog state
-  const [selectedNote, setSelectedNote] = useState<NoteListItem | null>(null)
+  // Multi-selection state (controlled mode)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  // Dialog state for single/bulk delete
+  const [notesToDelete, setNotesToDelete] = useState<NoteListItem[]>([])
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -231,6 +234,7 @@ export function NotesTree() {
   const [renameValue, setRenameValue] = useState("")
   const [isRenaming, setIsRenaming] = useState(false)
   const renameInputRef = useRef<HTMLInputElement>(null)
+  const treeContainerRef = useRef<HTMLDivElement>(null)
 
   // Focus input when renaming starts
   useEffect(() => {
@@ -252,25 +256,28 @@ export function NotesTree() {
     return map
   }, [notes])
 
-  // Handle note selection - open in tab
+  // Handle note selection - update state and optionally open in tab
   const handleSelectionChange = useCallback(
     (ids: string[]) => {
-      if (ids.length === 0) return
+      // Filter to only include note IDs (not folder IDs)
+      const noteIds = ids.filter((id) => !id.startsWith("folder-") && id !== "notes-root")
+      setSelectedIds(noteIds)
 
-      const selectedId = ids[0]
-      const note = noteMap.get(selectedId)
-
-      if (note) {
-        openTab({
-          type: "note",
-          title: getDisplayName(note.path),
-          icon: "file-text",
-          path: `/notes/${note.id}`,
-          entityId: note.id,
-          isPinned: false,
-          isModified: false,
-          isPreview: true,
-        })
+      // Only open in tab on single selection (not during multi-select)
+      if (noteIds.length === 1) {
+        const note = noteMap.get(noteIds[0])
+        if (note) {
+          openTab({
+            type: "note",
+            title: getDisplayName(note.path),
+            icon: "file-text",
+            path: `/notes/${note.id}`,
+            entityId: note.id,
+            isPinned: false,
+            isModified: false,
+            isPreview: true,
+          })
+        }
       }
     },
     [noteMap, openTab]
@@ -341,28 +348,46 @@ export function NotesTree() {
     setRenameValue("")
   }, [])
 
+  // Delete single note from context menu
   const handleDeleteClick = useCallback((note: NoteListItem) => {
-    setSelectedNote(note)
+    setNotesToDelete([note])
     setIsDeleteDialogOpen(true)
   }, [])
 
+  // Delete all selected notes (bulk delete)
+  const handleBulkDelete = useCallback(() => {
+    const selectedNotes = selectedIds
+      .map((id) => noteMap.get(id))
+      .filter((note): note is NoteListItem => note !== undefined)
+
+    if (selectedNotes.length > 0) {
+      setNotesToDelete(selectedNotes)
+      setIsDeleteDialogOpen(true)
+    }
+  }, [selectedIds, noteMap])
+
   const handleDeleteConfirm = useCallback(async () => {
-    if (!selectedNote || isDeleting) return
+    if (notesToDelete.length === 0 || isDeleting) return
 
     setIsDeleting(true)
     try {
-      const success = await deleteNote(selectedNote.id)
-      if (success) {
-        // Close the tab if it's open
-        closeTab(`/notes/${selectedNote.id}`)
+      // Delete all notes in sequence
+      for (const note of notesToDelete) {
+        const success = await deleteNote(note.id)
+        if (success) {
+          // Close the tab if it's open
+          closeTab(`/notes/${note.id}`)
+        }
       }
       setIsDeleteDialogOpen(false)
+      setNotesToDelete([])
+      setSelectedIds([]) // Clear selection after delete
     } catch (err) {
-      console.error("Failed to delete note:", err)
+      console.error("Failed to delete notes:", err)
     } finally {
       setIsDeleting(false)
     }
-  }, [selectedNote, isDeleting, deleteNote, closeTab])
+  }, [notesToDelete, isDeleting, deleteNote, closeTab])
 
   const handleOpenExternal = useCallback(async (note: NoteListItem) => {
     try {
@@ -379,6 +404,32 @@ export function NotesTree() {
       console.error("Failed to reveal note in Finder:", err)
     }
   }, [])
+
+  // Handle Delete key to delete selected notes
+  useEffect(() => {
+    const container = treeContainerRef.current
+    if (!container) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if we're renaming
+      if (renamingNoteId) return
+
+      // Delete or Backspace key
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.length > 0) {
+        // Make sure we're focused on the tree, not an input
+        const activeElement = document.activeElement
+        if (activeElement?.tagName === "INPUT" || activeElement?.tagName === "TEXTAREA") {
+          return
+        }
+
+        e.preventDefault()
+        handleBulkDelete()
+      }
+    }
+
+    container.addEventListener("keydown", handleKeyDown)
+    return () => container.removeEventListener("keydown", handleKeyDown)
+  }, [selectedIds, renamingNoteId, handleBulkDelete])
 
   // Render loading state
   if (isLoading) {
@@ -398,6 +449,9 @@ export function NotesTree() {
   // Render note item with context menu
   const renderNote = (note: NoteListItem, level: number, isLast: boolean) => {
     const isBeingRenamed = renamingNoteId === note.id
+    const isSelected = selectedIds.includes(note.id)
+    const hasMultipleSelected = selectedIds.length > 1
+    const isPartOfSelection = isSelected && hasMultipleSelected
 
     return (
       <TreeNode
@@ -409,27 +463,42 @@ export function NotesTree() {
         <TreeNodeTrigger
           contextMenuContent={
             <>
-              <ContextMenuItem onClick={() => handleRenameClick(note)}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Rename
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-              <ContextMenuItem onClick={() => handleOpenExternal(note)}>
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Open in External Editor
-              </ContextMenuItem>
-              <ContextMenuItem onClick={() => handleRevealInFinder(note)}>
-                <FolderOpen className="mr-2 h-4 w-4" />
-                Reveal in Finder
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-              <ContextMenuItem
-                variant="destructive"
-                onClick={() => handleDeleteClick(note)}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </ContextMenuItem>
+              {/* Single item actions - only show when not part of multi-select */}
+              {!isPartOfSelection && (
+                <>
+                  <ContextMenuItem onClick={() => handleRenameClick(note)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Rename
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem onClick={() => handleOpenExternal(note)}>
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Open in External Editor
+                  </ContextMenuItem>
+                  <ContextMenuItem onClick={() => handleRevealInFinder(note)}>
+                    <FolderOpen className="mr-2 h-4 w-4" />
+                    Reveal in Finder
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    variant="destructive"
+                    onClick={() => handleDeleteClick(note)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </ContextMenuItem>
+                </>
+              )}
+              {/* Bulk actions - show when part of multi-select */}
+              {isPartOfSelection && (
+                <ContextMenuItem
+                  variant="destructive"
+                  onClick={handleBulkDelete}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete {selectedIds.length} Notes
+                </ContextMenuItem>
+              )}
             </>
           }
         >
@@ -512,41 +581,50 @@ export function NotesTree() {
   }
 
   return (
-    <div className="flex flex-col">
+    <div ref={treeContainerRef} className="flex flex-col" tabIndex={-1}>
       {/* Header with New Note button */}
       <div className="flex items-center justify-between px-2 py-1.5 border-b border-border/50">
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
           Notes
         </span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={handleCreateNote}
-              disabled={isCreating}
-            >
-              {isCreating ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Plus className="h-3.5 w-3.5" />
-              )}
-              <span className="sr-only">New Note</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            <p>Create new note</p>
-          </TooltipContent>
-        </Tooltip>
+        <div className="flex items-center gap-1">
+          {/* Show selection count when multi-selecting */}
+          {selectedIds.length > 1 && (
+            <span className="text-xs text-muted-foreground mr-1">
+              {selectedIds.length} selected
+            </span>
+          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={handleCreateNote}
+                disabled={isCreating}
+              >
+                {isCreating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
+                <span className="sr-only">New Note</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>Create new note</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
       </div>
 
       {/* Tree View */}
       <TreeProvider
+        selectedIds={selectedIds}
         onSelectionChange={handleSelectionChange}
         draggable={false}
         animateExpand={true}
-        multiSelect={false}
+        multiSelect={true}
         indent={16}
       >
         <TreeView>
@@ -590,9 +668,25 @@ export function NotesTree() {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Note</AlertDialogTitle>
+            <AlertDialogTitle>
+              {notesToDelete.length === 1 ? "Delete Note" : `Delete ${notesToDelete.length} Notes`}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{selectedNote ? getDisplayName(selectedNote.path) : ''}&quot;? This action cannot be undone.
+              {notesToDelete.length === 1 ? (
+                <>Are you sure you want to delete &quot;{getDisplayName(notesToDelete[0]?.path || "")}&quot;? This action cannot be undone.</>
+              ) : (
+                <>
+                  Are you sure you want to delete these {notesToDelete.length} notes? This action cannot be undone.
+                  <ul className="mt-2 max-h-32 overflow-y-auto text-sm list-disc list-inside">
+                    {notesToDelete.slice(0, 5).map((note) => (
+                      <li key={note.id}>{getDisplayName(note.path)}</li>
+                    ))}
+                    {notesToDelete.length > 5 && (
+                      <li className="text-muted-foreground">...and {notesToDelete.length - 5} more</li>
+                    )}
+                  </ul>
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -608,7 +702,7 @@ export function NotesTree() {
                   Deleting...
                 </>
               ) : (
-                "Delete"
+                notesToDelete.length === 1 ? "Delete" : `Delete ${notesToDelete.length}`
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
