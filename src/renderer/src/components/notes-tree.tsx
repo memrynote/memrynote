@@ -880,20 +880,13 @@ export function NotesTree() {
         indent={16}
       >
         <TreeView>
-          {/* Root Notes Section */}
-          {tree.rootNotes.length > 0 && (
-            <TreeNode nodeId="notes-root">
-              <TreeNodeTrigger>
-                <TreeExpander hasChildren />
-                <TreeIcon hasChildren />
-                <TreeLabel>Notes</TreeLabel>
-              </TreeNodeTrigger>
-              <TreeNodeContent hasChildren>
-                {tree.rootNotes.map((note, index) =>
-                  renderNote(note, 1, index === tree.rootNotes.length - 1)
-                )}
-              </TreeNodeContent>
-            </TreeNode>
+          {/* Root Notes - displayed directly without wrapper */}
+          {tree.rootNotes.map((note, index) =>
+            renderNote(
+              note,
+              0,
+              index === tree.rootNotes.length - 1 && tree.folders.length === 0
+            )
           )}
 
           {/* Folders */}
@@ -901,17 +894,8 @@ export function NotesTree() {
             renderFolder(
               folder,
               0,
-              index === tree.folders.length - 1 && tree.rootNotes.length === 0
+              index === tree.folders.length - 1
             )
-          )}
-
-          {/* If no folders and no root notes section rendered, show flat list */}
-          {tree.folders.length === 0 && tree.rootNotes.length === 0 && notes.length > 0 && (
-            <>
-              {notes.map((note, index) =>
-                renderNote(note, 0, index === notes.length - 1)
-              )}
-            </>
           )}
         </TreeView>
       </TreeProvider>
