@@ -58,7 +58,7 @@ type TreeContextType = {
   focusedId: string | null;
   dragState: DragState;
   toggleExpanded: (nodeId: string) => void;
-  handleSelection: (nodeId: string, ctrlKey: boolean) => void;
+  handleSelection: (nodeId: string, ctrlKey: boolean, shiftKey?: boolean) => void;
   setFocusedId: (nodeId: string | null) => void;
   registerNode: (nodeId: string, parentId: string | null, hasChildren: boolean, customIcon?: string, inheritedIcon?: string) => void;
   unregisterNode: (nodeId: string) => void;
@@ -157,6 +157,7 @@ export const TreeProvider = ({
     selectedIds ?? []
   );
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [anchorId, setAnchorId] = useState<string | null>(null); // For shift+click range selection
   const [dragState, setDragStateInternal] = useState<DragState>({
     draggedId: null,
     dropTargetId: null,
@@ -305,20 +306,39 @@ export const TreeProvider = ({
   }, []);
 
   const handleSelection = useCallback(
-    (nodeId: string, ctrlKey = false) => {
+    (nodeId: string, ctrlKey = false, shiftKey = false) => {
       if (!selectable) {
         return;
       }
 
       let newSelection: string[];
 
-      if (multiSelect && ctrlKey) {
+      if (multiSelect && shiftKey && anchorId) {
+        // Shift+click: select range from anchor to clicked item
+        const visibleNodes = getVisibleNodes();
+        const anchorIndex = visibleNodes.indexOf(anchorId);
+        const clickedIndex = visibleNodes.indexOf(nodeId);
+
+        if (anchorIndex !== -1 && clickedIndex !== -1) {
+          const start = Math.min(anchorIndex, clickedIndex);
+          const end = Math.max(anchorIndex, clickedIndex);
+          newSelection = visibleNodes.slice(start, end + 1);
+        } else {
+          newSelection = [nodeId];
+        }
+        // Don't update anchor on shift+click
+      } else if (multiSelect && ctrlKey) {
+        // Cmd/Ctrl+click: toggle individual item
         newSelection = currentSelectedIds.includes(nodeId)
           ? currentSelectedIds.filter((id) => id !== nodeId)
           : [...currentSelectedIds, nodeId];
+        // Update anchor to last clicked item
+        setAnchorId(nodeId);
       } else {
-        // Always select the clicked item (don't toggle off)
+        // Regular click: select only this item
         newSelection = [nodeId];
+        // Update anchor
+        setAnchorId(nodeId);
       }
 
       if (isControlled) {
@@ -335,6 +355,8 @@ export const TreeProvider = ({
       currentSelectedIds,
       isControlled,
       onSelectionChange,
+      anchorId,
+      getVisibleNodes,
     ]
   );
 
@@ -681,7 +703,7 @@ export const TreeNodeTrigger = ({
             onClick={(e) => {
               setFocusedId(nodeId);
               toggleExpanded(nodeId);
-              handleSelection(nodeId, e.ctrlKey || e.metaKey);
+              handleSelection(nodeId, e.ctrlKey || e.metaKey, e.shiftKey);
               onClick?.(e);
             }}
             onFocus={() => setFocusedId(nodeId)}
