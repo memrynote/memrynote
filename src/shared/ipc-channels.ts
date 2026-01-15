@@ -741,3 +741,173 @@ export type FolderViewInvokeChannel =
   (typeof FolderViewChannels.invoke)[keyof typeof FolderViewChannels.invoke]
 export type FolderViewEventChannel =
   (typeof FolderViewChannels.events)[keyof typeof FolderViewChannels.events]
+
+// ============================================================================
+// Sync Channels (E2EE Sync)
+// ============================================================================
+
+export const SyncChannels = {
+  invoke: {
+    // Setup
+    /** Setup first device (initial key generation) */
+    SETUP_FIRST_DEVICE: 'sync:setup-first-device',
+    /** Get current setup status */
+    GET_SETUP_STATUS: 'sync:get-setup-status',
+
+    // Auth (Email)
+    /** Email signup (creates account + first device) */
+    EMAIL_SIGNUP: 'sync:email-signup',
+    /** Email login (authenticates existing user) */
+    EMAIL_LOGIN: 'sync:email-login',
+    /** Verify email address */
+    EMAIL_VERIFY: 'sync:email-verify',
+    /** Resend verification email */
+    RESEND_VERIFICATION: 'sync:resend-verification',
+    /** Request password reset */
+    FORGOT_PASSWORD: 'sync:forgot-password',
+    /** Complete password reset */
+    RESET_PASSWORD: 'sync:reset-password',
+    /** Change password (authenticated) */
+    CHANGE_PASSWORD: 'sync:change-password',
+    /** Logout from current device */
+    LOGOUT: 'sync:logout',
+
+    // Auth (OAuth)
+    /** Start OAuth flow */
+    OAUTH_START: 'sync:oauth-start',
+    /** Handle OAuth callback */
+    OAUTH_CALLBACK: 'sync:oauth-callback',
+
+    // Sync Status
+    /** Get current sync status */
+    GET_STATUS: 'sync:get-status',
+    /** Trigger a sync manually */
+    TRIGGER_SYNC: 'sync:trigger-sync',
+    /** Pause sync operations */
+    PAUSE_SYNC: 'sync:pause-sync',
+    /** Resume sync operations */
+    RESUME_SYNC: 'sync:resume-sync',
+    /** Get number of items in sync queue */
+    GET_QUEUE_SIZE: 'sync:get-queue-size',
+
+    // Sync History
+    /** Get sync history entries */
+    GET_HISTORY: 'sync:get-history',
+    /** Clear sync history */
+    CLEAR_HISTORY: 'sync:clear-history',
+
+    // Devices
+    /** Get list of linked devices */
+    GET_DEVICES: 'sync:get-devices',
+    /** Remove a device */
+    REMOVE_DEVICE: 'sync:remove-device',
+    /** Rename a device */
+    RENAME_DEVICE: 'sync:rename-device',
+
+    // Device Linking (QR)
+    /** Generate QR code for device linking */
+    GENERATE_LINKING_QR: 'sync:generate-linking-qr',
+    /** Link new device via QR scan */
+    LINK_VIA_QR: 'sync:link-via-qr',
+    /** Approve device linking request */
+    APPROVE_LINKING: 'sync:approve-linking',
+    /** Cancel device linking */
+    CANCEL_LINKING: 'sync:cancel-linking',
+    /** Get current linking session status */
+    GET_LINKING_STATUS: 'sync:get-linking-status',
+
+    // Device Linking (Recovery Phrase)
+    /** Link new device via recovery phrase */
+    LINK_VIA_RECOVERY: 'sync:link-via-recovery',
+
+    // Settings
+    /** Get synced settings */
+    GET_SYNCED_SETTINGS: 'sync:get-synced-settings',
+    /** Update synced settings */
+    UPDATE_SYNCED_SETTINGS: 'sync:update-synced-settings'
+  },
+  events: {
+    /** Sync status changed */
+    STATUS_CHANGED: 'sync:status-changed',
+    /** An item was synced */
+    ITEM_SYNCED: 'sync:item-synced',
+    /** Sync error occurred */
+    SYNC_ERROR: 'sync:sync-error',
+    /** Device linking request received */
+    LINKING_REQUEST: 'sync:linking-request',
+    /** Device linking was approved */
+    LINKING_APPROVED: 'sync:linking-approved',
+    /** Device linking was rejected */
+    LINKING_REJECTED: 'sync:linking-rejected',
+    /** Device linking session expired */
+    LINKING_EXPIRED: 'sync:linking-expired',
+    /** Session expired (needs re-auth) */
+    SESSION_EXPIRED: 'sync:session-expired',
+    /** Device was removed by another device */
+    DEVICE_REMOVED: 'sync:device-removed',
+    /** Initial sync progress update */
+    INITIAL_SYNC_PROGRESS: 'sync:initial-sync-progress'
+  }
+} as const
+
+export type SyncInvokeChannel = (typeof SyncChannels.invoke)[keyof typeof SyncChannels.invoke]
+export type SyncEventChannel = (typeof SyncChannels.events)[keyof typeof SyncChannels.events]
+
+// ============================================================================
+// Crypto Channels (E2EE Operations)
+// ============================================================================
+
+export const CryptoChannels = {
+  invoke: {
+    // Recovery Phrase
+    /** Generate a new recovery phrase */
+    GENERATE_RECOVERY_PHRASE: 'crypto:generate-recovery-phrase',
+    /** Validate a recovery phrase */
+    VALIDATE_RECOVERY_PHRASE: 'crypto:validate-recovery-phrase',
+    /** Confirm recovery phrase (user entered confirmation words) */
+    CONFIRM_RECOVERY_PHRASE: 'crypto:confirm-recovery-phrase',
+
+    // Key Operations
+    /** Derive all keys from master key */
+    DERIVE_KEYS: 'crypto:derive-keys',
+    /** Get public signing key */
+    GET_PUBLIC_KEY: 'crypto:get-public-key',
+
+    // Encryption/Decryption
+    /** Encrypt an item (note, task, etc.) */
+    ENCRYPT_ITEM: 'crypto:encrypt-item',
+    /** Decrypt an item */
+    DECRYPT_ITEM: 'crypto:decrypt-item',
+    /** Encrypt a blob (attachment) */
+    ENCRYPT_BLOB: 'crypto:encrypt-blob',
+    /** Decrypt a blob */
+    DECRYPT_BLOB: 'crypto:decrypt-blob',
+
+    // Signatures
+    /** Sign data */
+    SIGN_DATA: 'crypto:sign-data',
+    /** Verify signature */
+    VERIFY_SIGNATURE: 'crypto:verify-signature',
+
+    // Key Rotation
+    /** Start key rotation process */
+    START_KEY_ROTATION: 'crypto:start-key-rotation',
+    /** Get key rotation progress */
+    GET_ROTATION_PROGRESS: 'crypto:get-rotation-progress',
+    /** Cancel key rotation */
+    CANCEL_KEY_ROTATION: 'crypto:cancel-key-rotation',
+
+    // Keychain
+    /** Check if master key exists in keychain */
+    HAS_MASTER_KEY: 'crypto:has-master-key',
+    /** Clear all keychain entries */
+    CLEAR_KEYCHAIN: 'crypto:clear-keychain'
+  },
+  events: {
+    /** Key rotation progress update */
+    ROTATION_PROGRESS: 'crypto:rotation-progress'
+  }
+} as const
+
+export type CryptoInvokeChannel = (typeof CryptoChannels.invoke)[keyof typeof CryptoChannels.invoke]
+export type CryptoEventChannel = (typeof CryptoChannels.events)[keyof typeof CryptoChannels.events]

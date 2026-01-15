@@ -49,51 +49,51 @@
 
 ### Database Schema
 
-- [ ] T014 Create D1 users table schema (kdf_salt, key_verifier) in sync-server/schema/d1.sql
-- [ ] T015 Create D1 devices table schema (auth_public_key optional) in sync-server/schema/d1.sql
-- [ ] T016 Create D1 linking_sessions table schema (new_device_confirm, key_confirm) in sync-server/schema/d1.sql
-- [ ] T017 Create D1 sync_items table schema in sync-server/schema/d1.sql
-- [ ] T018 Add sync-related tables (devices, sync_queue, sync_state, sync_history) to src/shared/db/schema/data-schema.ts
-- [ ] T019 Run drizzle migrations for local sync tables
+- [X] T014 Create D1 users table schema (kdf_salt, key_verifier) in sync-server/schema/d1.sql
+- [X] T015 Create D1 devices table schema (auth_public_key optional) in sync-server/schema/d1.sql
+- [X] T016 Create D1 linking_sessions table schema (new_device_confirm, key_confirm) in sync-server/schema/d1.sql
+- [X] T017 Create D1 sync_items table schema in sync-server/schema/d1.sql
+- [X] T018 Add sync-related tables (devices, sync_queue, sync_state, sync_history) to src/shared/db/schema/data-schema.ts
+- [X] T019 Run drizzle migrations for local sync tables
 
 ### Crypto Module Foundation
 
-- [ ] T020 [P] Implement HKDF key derivation with context strings in src/main/crypto/keys.ts
-- [ ] T020a [P] Implement canonical CBOR encoder helper in src/main/crypto/cbor.ts (cborg)
-- [ ] T021 [P] Implement BIP39 recovery phrase generation in src/main/crypto/recovery.ts
-- [ ] T022 [P] Implement BIP39 recovery phrase validation in src/main/crypto/recovery.ts
-- [ ] T023 Implement Argon2id master key derivation in src/main/crypto/keys.ts
-- [ ] T024 [P] Implement XChaCha20-Poly1305 encryption in src/main/crypto/encryption.ts
-- [ ] T025 [P] Implement XChaCha20-Poly1305 decryption in src/main/crypto/encryption.ts
-- [ ] T026 [P] Implement Ed25519 signing over canonical CBOR in src/main/crypto/signatures.ts
-- [ ] T027 [P] Implement Ed25519 signature verification over canonical CBOR in src/main/crypto/signatures.ts
-- [ ] T028 Implement keychain storage with keytar in src/main/crypto/keychain.ts
-- [ ] T029 Create crypto module index exports in src/main/crypto/index.ts
+- [X] T020 [P] Implement HKDF key derivation with context strings in src/main/crypto/keys.ts
+- [X] T020a [P] Implement canonical CBOR encoder helper in src/main/crypto/cbor.ts (cborg)
+- [X] T021 [P] Implement BIP39 recovery phrase generation in src/main/crypto/recovery.ts
+- [X] T022 [P] Implement BIP39 recovery phrase validation in src/main/crypto/recovery.ts
+- [X] T023 Implement Argon2id master key derivation in src/main/crypto/keys.ts
+- [X] T024 [P] Implement XChaCha20-Poly1305 encryption in src/main/crypto/encryption.ts
+- [X] T025 [P] Implement XChaCha20-Poly1305 decryption in src/main/crypto/encryption.ts
+- [X] T026 [P] Implement Ed25519 signing over canonical CBOR in src/main/crypto/signatures.ts
+- [X] T027 [P] Implement Ed25519 signature verification over canonical CBOR in src/main/crypto/signatures.ts
+- [X] T028 Implement keychain storage with keytar in src/main/crypto/keychain.ts
+- [X] T029 Create crypto module index exports in src/main/crypto/index.ts
 
 ### Server Foundation
 
-- [ ] T030 Set up Hono.js app entry point in sync-server/src/index.ts
-- [ ] T031 [P] Implement JWT validation middleware in sync-server/src/middleware/auth.ts
-- [ ] T032 [P] Implement rate limiting middleware in sync-server/src/middleware/rate-limit.ts
-- [ ] T033 Create base error handling in sync-server/src/lib/errors.ts
-- [ ] T033a [P] Implement canonical CBOR encoder helper in sync-server/src/lib/cbor.ts (cborg)
-- [ ] T034 [P] Set up Resend email service in sync-server/src/services/email.ts
+- [X] T030 Set up Hono.js app entry point in sync-server/src/index.ts
+- [X] T031 [P] Implement JWT validation middleware in sync-server/src/middleware/auth.ts
+- [X] T032 [P] Implement rate limiting middleware in sync-server/src/middleware/rate-limit.ts
+- [X] T033 Create base error handling in sync-server/src/lib/errors.ts
+- [X] T033a [P] Implement canonical CBOR encoder helper in sync-server/src/lib/cbor.ts (cborg)
+- [X] T034 [P] Set up Resend email service in sync-server/src/services/email.ts
 
 ### IPC Foundation
 
-- [ ] T035 Register sync IPC handlers entry point in src/main/ipc/sync-handlers.ts
-- [ ] T036 [P] Register crypto IPC handlers entry point in src/main/ipc/crypto-handlers.ts
-- [ ] T036a [P] Implement encrypt-item IPC handler in src/main/ipc/crypto-handlers.ts
-- [ ] T036b [P] Implement decrypt-item IPC handler in src/main/ipc/crypto-handlers.ts
-- [ ] T036c [P] Implement verify-signature IPC handler in src/main/ipc/crypto-handlers.ts
-- [ ] T037 Update src/main/ipc/index.ts to register sync and crypto handlers
-- [ ] T038 Expose sync API methods in src/preload/index.ts
-- [ ] T039 Update preload types in src/preload/index.d.ts for sync/crypto APIs
+- [X] T035 Register sync IPC handlers entry point in src/main/ipc/sync-handlers.ts
+- [X] T036 [P] Register crypto IPC handlers entry point in src/main/ipc/crypto-handlers.ts
+- [X] T036a [P] Implement encrypt-item IPC handler in src/main/ipc/crypto-handlers.ts
+- [X] T036b [P] Implement decrypt-item IPC handler in src/main/ipc/crypto-handlers.ts
+- [X] T036c [P] Implement verify-signature IPC handler in src/main/ipc/crypto-handlers.ts
+- [X] T037 Update src/main/ipc/index.ts to register sync and crypto handlers
+- [X] T038 Expose sync API methods in src/preload/index.ts
+- [X] T039 Update preload types in src/preload/index.d.ts for sync/crypto APIs
 
 ### Vector Clock Foundation
 
-- [ ] T040 Implement vector clock data structure in src/main/sync/vector-clock.ts
-- [ ] T041 Implement vector clock operations (increment, merge, compare) in src/main/sync/vector-clock.ts
+- [X] T040 Implement vector clock data structure in src/main/sync/vector-clock.ts
+- [X] T041 Implement vector clock operations (increment, merge, compare) in src/main/sync/vector-clock.ts
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
