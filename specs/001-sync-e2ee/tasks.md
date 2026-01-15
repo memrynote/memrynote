@@ -25,19 +25,19 @@
 
 **Purpose**: Project initialization, dependencies, and basic structure
 
-- [ ] T001 Install crypto dependencies (libsodium-wrappers, sodium-native, keytar, bip39) via pnpm
-- [ ] T002 Install CRDT dependencies (yjs, y-indexeddb, idb) via pnpm
-- [ ] T003 [P] Create sync-server Cloudflare Workers project in sync-server/
-- [ ] T004 [P] Create directory structure src/main/crypto/ for crypto module
-- [ ] T005 [P] Create directory structure src/main/sync/ for sync engine module
-- [ ] T006 [P] Create directory structure src/renderer/src/components/sync/ for sync UI
-- [ ] T007 [P] Create directory structure src/shared/contracts/ for shared type contracts
-- [ ] T008 Configure Cloudflare D1 database binding in sync-server/wrangler.toml
-- [ ] T009 Configure Cloudflare R2 bucket binding in sync-server/wrangler.toml
-- [ ] T010 Add sync-related environment variables to .env.development
-- [ ] T011 [P] Create shared TypeScript types in src/shared/contracts/sync-api.ts
-- [ ] T012 [P] Create shared crypto types in src/shared/contracts/crypto.ts
-- [ ] T013 [P] Create IPC channel types in src/shared/contracts/ipc-sync.ts
+- [X] T001 Install crypto dependencies (libsodium-wrappers, sodium-native, keytar, bip39) via pnpm
+- [X] T002 Install CRDT dependencies (yjs, y-indexeddb, idb) via pnpm
+- [X] T003 [P] Create sync-server Cloudflare Workers project in sync-server/
+- [X] T004 [P] Create directory structure src/main/crypto/ for crypto module
+- [X] T005 [P] Create directory structure src/main/sync/ for sync engine module
+- [X] T006 [P] Create directory structure src/renderer/src/components/sync/ for sync UI
+- [X] T007 [P] Create directory structure src/shared/contracts/ for shared type contracts
+- [X] T008 Configure Cloudflare D1 database binding in sync-server/wrangler.toml
+- [X] T009 Configure Cloudflare R2 bucket binding in sync-server/wrangler.toml
+- [X] T010 Add sync-related environment variables to .env.development
+- [X] T011 [P] Create shared TypeScript types in src/shared/contracts/sync-api.ts
+- [X] T012 [P] Create shared crypto types in src/shared/contracts/crypto.ts
+- [X] T013 [P] Create IPC channel types in src/shared/contracts/ipc-sync.ts
 
 ---
 

@@ -173,6 +173,9 @@ importers:
       bip39:
         specifier: ^3.1.0
         version: 3.1.0
+      cborg:
+        specifier: ^4.3.2
+        version: 4.3.2
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
@@ -3885,6 +3888,10 @@ packages:
 
   castable-video@1.1.11:
     resolution: {integrity: sha512-LCRTK6oe7SB1SiUQFzZCo6D6gcEzijqBTVIuj3smKpQdesXM18QTbCVqWgh9MfOeQgTx/i9ji5jGcdqNPeWg2g==}
+
+  cborg@4.3.2:
+    resolution: {integrity: sha512-l+QzebEAG0vb09YKkaOrMi2zmm80UNjmbvocMIeW5hO7JOXWdrQ/H49yOKfYX0MBgrj/KWgatBnEgRXyNyKD+A==}
+    hasBin: true
 
   ccount@2.0.1:
     resolution: {integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==}
@@ -11904,6 +11911,8 @@ snapshots:
   castable-video@1.1.11:
     dependencies:
       custom-media-element: 1.4.5
+
+  cborg@4.3.2: {}
 
   ccount@2.0.1: {}
 
