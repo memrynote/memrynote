@@ -144,23 +144,23 @@
 
 ### UI Components for US1
 
-- [ ] T063 [P] [US1] Create AuthProvider context in src/renderer/src/contexts/auth-context.tsx
-- [ ] T064 [P] [US1] Create signup form component (email/password) in src/renderer/src/components/sync/signup-form.tsx
-- [ ] T065 [P] [US1] Create login form component (email/password) in src/renderer/src/components/sync/login-form.tsx
-- [ ] T066 [P] [US1] Create OAuth buttons component in src/renderer/src/components/sync/oauth-buttons.tsx
-- [ ] T067 [US1] Create recovery phrase display component in src/renderer/src/components/sync/recovery-phrase-display.tsx
-- [ ] T068 [US1] Create recovery phrase confirmation component in src/renderer/src/components/sync/recovery-phrase-confirm.tsx
-- [ ] T069 [US1] Create first device setup wizard page in src/renderer/src/pages/settings/setup-wizard.tsx
-- [ ] T070 [US1] Implement password strength indicator in src/renderer/src/components/sync/password-strength.tsx
-- [ ] T071 [US1] Implement email verification pending screen in src/renderer/src/components/sync/verification-pending.tsx
-- [ ] T071a [P] [US1] Create forgot-password form in src/renderer/src/components/sync/forgot-password-form.tsx
-- [ ] T071b [P] [US1] Create reset-password form in src/renderer/src/components/sync/reset-password-form.tsx
-- [ ] T071c [US1] Create change-password dialog in src/renderer/src/components/sync/change-password-dialog.tsx
+- [X] T063 [P] [US1] Create AuthProvider context in src/renderer/src/contexts/auth-context.tsx
+- [X] T064 [P] [US1] Create signup form component (email/password) in src/renderer/src/components/sync/signup-form.tsx
+- [X] T065 [P] [US1] Create login form component (email/password) in src/renderer/src/components/sync/login-form.tsx
+- [X] T066 [P] [US1] Create OAuth buttons component in src/renderer/src/components/sync/oauth-buttons.tsx
+- [X] T067 [US1] Create recovery phrase display component in src/renderer/src/components/sync/recovery-phrase-display.tsx
+- [X] T068 [US1] Create recovery phrase confirmation component in src/renderer/src/components/sync/recovery-phrase-confirm.tsx
+- [X] T069 [US1] Create first device setup wizard page in src/renderer/src/pages/settings/setup-wizard.tsx
+- [X] T070 [US1] Implement password strength indicator in src/renderer/src/components/sync/password-strength.tsx
+- [X] T071 [US1] Implement email verification pending screen in src/renderer/src/components/sync/verification-pending.tsx
+- [X] T071a [P] [US1] Create forgot-password form in src/renderer/src/components/sync/forgot-password-form.tsx
+- [X] T071b [P] [US1] Create reset-password form in src/renderer/src/components/sync/reset-password-form.tsx
+- [X] T071c [US1] Create change-password dialog in src/renderer/src/components/sync/change-password-dialog.tsx
 
 ### Services for US1
 
-- [ ] T072 [US1] Create auth service for renderer in src/renderer/src/services/auth-service.ts
-- [ ] T073 [US1] Create useAuth hook in src/renderer/src/hooks/use-auth.ts
+- [X] T072 [US1] Create auth service for renderer in src/renderer/src/services/auth-service.ts
+- [X] T073 [US1] Create useAuth hook in src/renderer/src/hooks/use-auth.ts
 
 **Checkpoint**: User Story 1 complete - users can create accounts and set up encryption
 

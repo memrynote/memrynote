@@ -2,7 +2,7 @@
 
 > **Purpose**: Persistent context for Claude sessions. Update after each session.
 > **Last Updated**: 2026-01-15
-> **Current Phase**: Phase 3 (Client Implementation Complete) → UI Tasks Ready to Start
+> **Current Phase**: Phase 3 (US1 Complete) → Phase 4 Ready to Start
 
 ---
 
@@ -12,14 +12,14 @@
 |-------|------|--------|-------|
 | 1 | Setup | ✅ Complete | 13/13 |
 | 2 | Foundational | ✅ Complete | 28/28 |
-| 3 | US1 - First Device Setup | 🟡 In Progress | 26/32 (Server: 17/17, Client: 9/9, UI: 0/11) |
+| 3 | US1 - First Device Setup | ✅ Complete | 32/32 (Server: 17/17, Client: 9/9, UI: 14/14) |
 | 4 | US2 - Cross-Device Sync | 🔲 Not Started | 0/30 |
 | 5 | US3 - QR Device Linking | 🔲 Not Started | 0/18 |
 | 6 | US4 - Recovery Phrase Linking | 🔲 Not Started | 0/7 |
 | 7 | US5 - Note CRDT Merge | 🔲 Not Started | 0/12 |
 | 8-19 | US6-18 + Polish | 🔲 Not Started | 0/132 |
 
-**Total Progress**: 67/272 tasks (25%)
+**Total Progress**: 81/272 tasks (30%)
 
 ---
 
@@ -124,52 +124,71 @@ Specs (read-only reference):
 
 ## Current Focus
 
-### Completed: Phase 3 Server Implementation (T042-T053)
+### Completed: Phase 3 (US1 - First Device Setup)
 
-All 17 server tasks for US1 are complete:
-- ✅ Email signup/verification/login endpoints
-- ✅ Forgot/reset/change password endpoints
-- ✅ OAuth initiation and callback (Google, Apple, GitHub)
-- ✅ Device registration endpoint
-- ✅ First device setup endpoint (kdf_salt, key_verifier)
-- ✅ Password service with Argon2id hashing
-- ✅ User service (CRUD operations)
-- ✅ Auth service (JWT token issuance)
-- ✅ Device service (registration, management)
+**User Story 1 is 100% complete!** All 32 tasks done:
 
-### Completed: Phase 3 Client Implementation (T054-T062)
+#### Server Implementation (T042-T053) ✅
+- Email signup/verification/login endpoints
+- Forgot/reset/change password endpoints
+- OAuth initiation and callback (Google, Apple, GitHub)
+- Device registration and first device setup
+- Password, User, Auth, Device services
 
-All 9 client tasks for US1 are complete:
-- ✅ API client (`src/main/sync/api-client.ts`) - HTTP wrapper for sync server
-- ✅ T054 - Email signup IPC handler (generates recovery phrase)
-- ✅ T055 - Email verification IPC handler
-- ✅ T056 - Email login IPC handler
-- ✅ T056a - Forgot password handler
-- ✅ T056b - Reset password handler
-- ✅ T056c - Change password handler (authenticated)
-- ✅ T056d - Resend verification handler
-- ✅ T056e - Password validation helper function
-- ✅ T057 - OAuth start/callback handlers (PKCE support)
-- ✅ T062 - First device setup (key derivation + keychain storage)
-- ✅ T058-T061 - Already implemented in crypto module
+#### Client Implementation (T054-T062) ✅
+- API client for sync server
+- All IPC handlers for auth flows
+- Password validation, OAuth with PKCE
+- First device setup with keychain
 
-### Next: Phase 3 UI Implementation (T063-T073)
+#### UI Implementation (T063-T073) ✅
+- `auth-service.ts` - Renderer API wrapper
+- `use-auth.ts` - TanStack Query hooks
+- `auth-context.tsx` - AuthProvider context
+- `password-strength.tsx` - Strength indicator
+- `signup-form.tsx`, `login-form.tsx` - Auth forms
+- `oauth-buttons.tsx` - Google/Apple/GitHub OAuth
+- `forgot-password-form.tsx`, `reset-password-form.tsx`
+- `recovery-phrase-display.tsx`, `recovery-phrase-confirm.tsx`
+- `verification-pending.tsx` - Email verification screen
+- `change-password-dialog.tsx` - Password change dialog
+- `setup-wizard.tsx` - Multi-step setup wizard
 
-**UI Tasks (T063-T073)**: 11 tasks
-- AuthProvider context
-- Signup/Login forms
-- OAuth buttons
-- Recovery phrase display/confirm
-- Setup wizard page
-- Password strength indicator
+### Next: Phase 4 (US2 - Cross-Device Sync)
 
-### Blocking Dependencies
-- None - Server and client implementations are complete
-- Can start UI tasks immediately
+**Ready to start** - No blocking dependencies
+
+Key tasks:
+- T074-T081: Sync Engine Core (queue, WebSocket, retry logic)
+- T082-T089: Server Sync Endpoints (push/pull/manifest)
+- T090-T093: Durable Objects for WebSocket
+- T094-T100: Client IPC and events
+- T101-T103: Task sync integration
 
 ---
 
 ## Session History
+
+### 2026-01-15 - Phase 3 UI Implementation Complete (US1 Done!)
+- Implemented all 14 UI tasks for US1 (T063-T073):
+  - `auth-service.ts` - Service wrapper for window.api.sync/crypto
+  - `use-auth.ts` - TanStack Query hooks for auth operations
+  - `auth-context.tsx` - AuthProvider context with full state management
+  - `password-strength.tsx` - Visual strength indicator with checks
+  - `signup-form.tsx` - Email/password signup with device name
+  - `login-form.tsx` - Login form with forgot password link
+  - `oauth-buttons.tsx` - Google/Apple/GitHub OAuth buttons
+  - `forgot-password-form.tsx` - Password reset request
+  - `reset-password-form.tsx` - New password with token
+  - `recovery-phrase-display.tsx` - 24-word BIP39 display
+  - `recovery-phrase-confirm.tsx` - Random word verification
+  - `verification-pending.tsx` - Email verification screen
+  - `change-password-dialog.tsx` - Password change dialog
+  - `setup-wizard.tsx` - Multi-step first device setup wizard
+- Created barrel export in `components/sync/index.ts`
+- All typechecks pass for new code
+- **User Story 1 is now 100% complete!**
+- Progress: 67 → 81 tasks complete (25% → 30%)
 
 ### 2026-01-15 - Phase 3 Client Implementation Complete
 - Created `src/main/sync/api-client.ts` - HTTP wrapper for sync server
