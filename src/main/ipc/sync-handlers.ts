@@ -8,7 +8,8 @@
  * @module main/ipc/sync-handlers
  */
 
-import { ipcMain } from 'electron'
+import { ipcMain, shell } from 'electron'
+import { randomBytes } from 'crypto'
 import {
   SYNC_CHANNELS,
   SYNC_EVENTS,
@@ -27,28 +28,197 @@ import {
   ChangePasswordInputSchema,
   OAuthStartInputSchema,
   OAuthCallbackInputSchema,
-  type SyncStatus,
   type SetupStatus,
+  type EmailSignupInput,
+  type EmailLoginInput,
+  type EmailVerifyInput,
+  type ForgotPasswordInput,
+  type ResetPasswordInput,
+  type ChangePasswordInput,
+  type OAuthStartInput,
+  type OAuthCallbackInput,
 } from '@shared/contracts/ipc-sync'
+import type { SyncStatus } from '@shared/contracts/sync-api'
 import { createValidatedHandler, createHandler } from './validate'
+import { syncApi, SyncApiError } from '../sync/api-client'
+import { generateRecoveryPhrase, validateRecoveryPhrase, mnemonicToSeed } from '../crypto/recovery'
+import { deriveMasterKey, generateKdfSalt, computeKeyVerifier, verifyKeyVerifier } from '../crypto/keys'
+import {
+  saveSyncSession,
+  getSyncSession,
+  clearSyncSession,
+  getTokens,
+  saveTokens,
+  hasMasterKey,
+  getUserId,
+  getDeviceId,
+} from '../crypto/keychain'
+import { app } from 'electron'
+import os from 'os'
 
 // =============================================================================
-// Placeholder Implementations
+// Types
 // =============================================================================
 
-// These are placeholder implementations that will be filled in during Phase 3+
-// They return appropriate default values or stub responses for now
+/** Password validation result */
+export interface PasswordValidation {
+  valid: boolean
+  errors: string[]
+  strength: 'weak' | 'fair' | 'strong' | 'very-strong'
+}
+
+/** Stored state during signup flow */
+interface SignupState {
+  email: string
+  password: string
+  deviceName: string
+  recoveryPhrase: string
+  userId?: string
+}
+
+/** Stored state during OAuth flow */
+interface OAuthState {
+  provider: 'google' | 'apple' | 'github'
+  deviceName: string
+  state: string
+  codeVerifier: string
+}
+
+// =============================================================================
+// State (in-memory during signup flow)
+// =============================================================================
+
+/** Temporary state during signup flow (cleared after completion or timeout) */
+let pendingSignup: SignupState | null = null
+let signupTimeout: NodeJS.Timeout | null = null
+
+/** Temporary state during OAuth flow */
+let pendingOAuth: OAuthState | null = null
+
+// =============================================================================
+// Password Validation
+// =============================================================================
+
+/**
+ * Validate password strength.
+ *
+ * Requirements:
+ * - Minimum 12 characters
+ * - At least one uppercase letter
+ * - At least one lowercase letter
+ * - At least one number
+ * - At least one special character
+ *
+ * @param password - Password to validate
+ * @returns Validation result with strength assessment
+ */
+export function validatePassword(password: string): PasswordValidation {
+  const errors: string[] = []
+
+  if (password.length < 12) {
+    errors.push('Must be at least 12 characters')
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    errors.push('Must contain an uppercase letter')
+  }
+
+  if (!/[a-z]/.test(password)) {
+    errors.push('Must contain a lowercase letter')
+  }
+
+  if (!/[0-9]/.test(password)) {
+    errors.push('Must contain a number')
+  }
+
+  if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(password)) {
+    errors.push('Must contain a special character')
+  }
+
+  // Calculate strength
+  let strength: PasswordValidation['strength'] = 'weak'
+  const passedChecks = 5 - errors.length
+
+  if (errors.length === 0) {
+    if (password.length >= 20) {
+      strength = 'very-strong'
+    } else if (password.length >= 16) {
+      strength = 'strong'
+    } else {
+      strength = 'fair'
+    }
+  } else if (passedChecks >= 3) {
+    strength = 'fair'
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    strength,
+  }
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Get device platform from os module
+ */
+function getDevicePlatform(): 'macos' | 'windows' | 'linux' {
+  const platform = os.platform()
+  switch (platform) {
+    case 'darwin':
+      return 'macos'
+    case 'win32':
+      return 'windows'
+    default:
+      return 'linux'
+  }
+}
+
+/**
+ * Clear pending signup state
+ */
+function clearPendingSignup(): void {
+  pendingSignup = null
+  if (signupTimeout) {
+    clearTimeout(signupTimeout)
+    signupTimeout = null
+  }
+}
+
+/**
+ * Generate PKCE code verifier and challenge
+ */
+function generatePKCE(): { codeVerifier: string; codeChallenge: string } {
+  // Generate random 32 bytes for code verifier
+  const verifierBytes = randomBytes(32)
+  const codeVerifier = verifierBytes.toString('base64url')
+
+  // SHA256 hash the verifier and base64url encode for challenge
+  const crypto = require('crypto')
+  const hash = crypto.createHash('sha256').update(codeVerifier).digest()
+  const codeChallenge = hash.toString('base64url')
+
+  return { codeVerifier, codeChallenge }
+}
+
+// =============================================================================
+// Status Functions
+// =============================================================================
 
 /**
  * Get current setup status
  */
 const getSetupStatus = async (): Promise<SetupStatus> => {
-  // TODO: Implement in Phase 3 (User Story 1)
+  const [userId, deviceId, masterKeyExists] = await Promise.all([getUserId(), getDeviceId(), hasMasterKey()])
+
   return {
-    isSetup: false,
-    hasUser: false,
-    hasDevice: false,
-    hasMasterKey: false,
+    isSetup: !!(userId && deviceId && masterKeyExists),
+    hasUser: !!userId,
+    hasDevice: !!deviceId,
+    hasMasterKey: masterKeyExists,
   }
 }
 
@@ -56,13 +226,14 @@ const getSetupStatus = async (): Promise<SetupStatus> => {
  * Get current sync status
  */
 const getSyncStatus = async (): Promise<SyncStatus> => {
-  // TODO: Implement in Phase 3+
+  // TODO: Implement full sync status in Phase 3+
+  const session = await getSyncSession()
+
   return {
-    state: 'offline',
-    lastSyncAt: null,
+    state: session ? 'idle' : 'offline',
     pendingCount: 0,
-    errorCount: 0,
-    currentOperation: null,
+    retryCount: 0,
+    isOnline: !!session,
   }
 }
 
@@ -72,116 +243,486 @@ const getSyncStatus = async (): Promise<SyncStatus> => {
 
 /**
  * Register all sync-related IPC handlers.
- *
- * These handlers provide the main process side of sync operations.
- * They will be implemented progressively in later phases.
  */
 export function registerSyncHandlers(): void {
-  // --- Setup ---
-  ipcMain.handle(
-    SYNC_CHANNELS.GET_SETUP_STATUS,
-    createHandler(async () => {
-      return getSetupStatus()
-    })
-  )
+  // ---------------------------------------------------------------------------
+  // Setup
+  // ---------------------------------------------------------------------------
 
+  ipcMain.handle(SYNC_CHANNELS.GET_SETUP_STATUS, createHandler(getSetupStatus))
+
+  /**
+   * T062 - First Device Setup (Complete signup after recovery phrase confirmation)
+   *
+   * Called after user has confirmed their recovery phrase words.
+   * Derives master key, stores in keychain, and registers device with server.
+   */
   ipcMain.handle(
     SYNC_CHANNELS.SETUP_FIRST_DEVICE,
     createHandler(async () => {
-      // TODO: Implement in Phase 3 (User Story 1)
-      throw new Error('Not implemented: SETUP_FIRST_DEVICE')
+      // Verify we have a pending signup
+      if (!pendingSignup) {
+        throw new Error('No pending signup. Please start the signup process again.')
+      }
+
+      const { recoveryPhrase, deviceName } = pendingSignup
+
+      try {
+        // Get tokens from keychain (set during email verification)
+        const tokens = await getTokens()
+        if (!tokens) {
+          throw new Error('No authentication tokens found. Please verify your email first.')
+        }
+
+        // Generate KDF salt
+        const kdfSalt = generateKdfSalt()
+        const kdfSaltBase64 = kdfSalt.toString('base64')
+
+        // Derive seed from recovery phrase
+        const seed = await mnemonicToSeed(recoveryPhrase)
+
+        // Derive master key
+        const masterKey = deriveMasterKey(seed, kdfSalt)
+
+        // Compute key verifier
+        const keyVerifier = computeKeyVerifier(masterKey)
+        const keyVerifierBase64 = keyVerifier.toString('base64')
+
+        // Send KDF salt and key verifier to server
+        await syncApi.setupDevice(kdfSaltBase64, keyVerifierBase64, tokens.accessToken)
+
+        // Register device with server
+        const device = await syncApi.registerDevice(
+          deviceName,
+          getDevicePlatform(),
+          app.getVersion(),
+          tokens.accessToken,
+          os.release()
+        )
+
+        // Save complete session to keychain
+        const userId = await getUserId()
+        if (!userId) {
+          throw new Error('User ID not found in keychain')
+        }
+
+        await saveSyncSession({
+          userId,
+          deviceId: device.id,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          masterKey,
+        })
+
+        // Clear pending signup state
+        clearPendingSignup()
+
+        return {
+          success: true,
+          deviceId: device.id,
+          userId,
+        }
+      } catch (error) {
+        // Don't clear signup state on error so user can retry
+        if (error instanceof SyncApiError) {
+          throw new Error(`Setup failed: ${error.message}`)
+        }
+        throw error
+      }
     })
   )
 
-  // --- Auth (Email) ---
+  // ---------------------------------------------------------------------------
+  // Auth (Email)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * T054 - Email Signup
+   *
+   * Creates user account and generates recovery phrase.
+   * Recovery phrase is returned to UI for user to write down.
+   * User must verify email and confirm recovery phrase before keys are derived.
+   */
   ipcMain.handle(
     SYNC_CHANNELS.EMAIL_SIGNUP,
-    createValidatedHandler(EmailSignupInputSchema, async (_input) => {
-      // TODO: Implement in Phase 3 (User Story 1)
-      throw new Error('Not implemented: EMAIL_SIGNUP')
+    createValidatedHandler(EmailSignupInputSchema, async (input: EmailSignupInput) => {
+      const { email, password, deviceName } = input
+
+      // Validate password strength
+      const passwordCheck = validatePassword(password)
+      if (!passwordCheck.valid) {
+        throw new Error(`Password too weak: ${passwordCheck.errors.join(', ')}`)
+      }
+
+      // Generate recovery phrase
+      const recoveryPhrase = generateRecoveryPhrase()
+
+      try {
+        // Create account on server (sends verification email)
+        const result = await syncApi.emailSignup(email, password)
+
+        // Store pending signup state (cleared after 30 minutes or completion)
+        pendingSignup = {
+          email,
+          password,
+          deviceName,
+          recoveryPhrase,
+          userId: result.user_id,
+        }
+
+        // Set timeout to clear state after 30 minutes
+        clearPendingSignup() // Clear any existing timeout
+        signupTimeout = setTimeout(clearPendingSignup, 30 * 60 * 1000)
+
+        return {
+          success: true,
+          userId: result.user_id,
+          recoveryPhrase,
+          message: 'Verification email sent. Please check your inbox.',
+        }
+      } catch (error) {
+        if (error instanceof SyncApiError) {
+          if (error.isConflictError()) {
+            throw new Error('An account with this email already exists')
+          }
+          throw new Error(error.message)
+        }
+        throw error
+      }
     })
   )
 
-  ipcMain.handle(
-    SYNC_CHANNELS.EMAIL_LOGIN,
-    createValidatedHandler(EmailLoginInputSchema, async (_input) => {
-      // TODO: Implement in Phase 3 (User Story 2)
-      throw new Error('Not implemented: EMAIL_LOGIN')
-    })
-  )
-
+  /**
+   * T055 - Email Verification
+   *
+   * Verifies email with token from verification link.
+   * Returns auth tokens but does NOT derive keys yet.
+   */
   ipcMain.handle(
     SYNC_CHANNELS.EMAIL_VERIFY,
-    createValidatedHandler(EmailVerifyInputSchema, async (_input) => {
-      // TODO: Implement in Phase 3 (User Story 1)
-      throw new Error('Not implemented: EMAIL_VERIFY')
+    createValidatedHandler(EmailVerifyInputSchema, async (input: EmailVerifyInput) => {
+      const { token } = input
+
+      try {
+        const result = await syncApi.emailVerify(token)
+
+        // Store tokens and user ID in keychain (master key comes later in setup)
+        await saveTokens(result.tokens.accessToken, result.tokens.refreshToken)
+        const keychain = await import('../crypto/keychain')
+        await keychain.saveUserId(result.user.id)
+
+        // Update pending signup with userId if present
+        if (pendingSignup && pendingSignup.email === result.user.email) {
+          pendingSignup.userId = result.user.id
+        }
+
+        return {
+          success: true,
+          user: result.user,
+          needsSetup: result.needsDeviceSetup,
+          hasRecoveryPhrase: !!pendingSignup?.recoveryPhrase,
+        }
+      } catch (error) {
+        if (error instanceof SyncApiError) {
+          throw new Error(error.message)
+        }
+        throw error
+      }
     })
   )
 
+  /**
+   * T056 - Email Login
+   *
+   * Login with email and password.
+   * For existing users, retrieves KDF salt to derive master key.
+   */
+  ipcMain.handle(
+    SYNC_CHANNELS.EMAIL_LOGIN,
+    createValidatedHandler(EmailLoginInputSchema, async (input: EmailLoginInput) => {
+      const { email, password, deviceName } = input
+
+      try {
+        // Login to server
+        const result = await syncApi.emailLogin(email, password)
+
+        // Check if this is a new device (needs recovery phrase)
+        if (result.needsDeviceSetup) {
+          // Get recovery data from server
+          const recoveryData = await syncApi.getRecoveryData(result.user.id)
+
+          return {
+            success: true,
+            user: result.user,
+            needsRecoveryPhrase: true,
+            kdfSalt: recoveryData.kdf_salt,
+            keyVerifier: recoveryData.key_verifier,
+            tokens: result.tokens,
+            deviceName,
+          }
+        }
+
+        // For returning device (already has session)
+        // This shouldn't normally happen as we'd have existing keys
+        return {
+          success: true,
+          user: result.user,
+          needsRecoveryPhrase: false,
+          tokens: result.tokens,
+        }
+      } catch (error) {
+        if (error instanceof SyncApiError) {
+          if (error.isAuthError()) {
+            throw new Error('Invalid email or password')
+          }
+          throw new Error(error.message)
+        }
+        throw error
+      }
+    })
+  )
+
+  /**
+   * T056d - Resend Verification Email
+   */
   ipcMain.handle(
     SYNC_CHANNELS.RESEND_VERIFICATION,
     createHandler(async () => {
-      // TODO: Implement in Phase 3
-      throw new Error('Not implemented: RESEND_VERIFICATION')
+      // Get email from pending signup or throw
+      if (!pendingSignup?.email) {
+        throw new Error('No pending signup. Please start the signup process again.')
+      }
+
+      try {
+        await syncApi.resendVerification(pendingSignup.email)
+        return { success: true, message: 'Verification email sent' }
+      } catch (error) {
+        if (error instanceof SyncApiError) {
+          throw new Error(error.message)
+        }
+        throw error
+      }
     })
   )
 
+  /**
+   * T056a - Forgot Password
+   */
   ipcMain.handle(
     SYNC_CHANNELS.FORGOT_PASSWORD,
-    createValidatedHandler(ForgotPasswordInputSchema, async (_input) => {
-      // TODO: Implement in Phase 4+
-      throw new Error('Not implemented: FORGOT_PASSWORD')
+    createValidatedHandler(ForgotPasswordInputSchema, async (input: ForgotPasswordInput) => {
+      try {
+        await syncApi.forgotPassword(input.email)
+        return {
+          success: true,
+          message: 'If an account exists with this email, a password reset link has been sent',
+        }
+      } catch (error) {
+        // Always return success to prevent email enumeration
+        return {
+          success: true,
+          message: 'If an account exists with this email, a password reset link has been sent',
+        }
+      }
     })
   )
 
+  /**
+   * T056b - Reset Password
+   */
   ipcMain.handle(
     SYNC_CHANNELS.RESET_PASSWORD,
-    createValidatedHandler(ResetPasswordInputSchema, async (_input) => {
-      // TODO: Implement in Phase 4+
-      throw new Error('Not implemented: RESET_PASSWORD')
+    createValidatedHandler(ResetPasswordInputSchema, async (input: ResetPasswordInput) => {
+      const { token, newPassword } = input
+
+      // Validate new password
+      const passwordCheck = validatePassword(newPassword)
+      if (!passwordCheck.valid) {
+        throw new Error(`Password too weak: ${passwordCheck.errors.join(', ')}`)
+      }
+
+      try {
+        await syncApi.resetPassword(token, newPassword)
+        return { success: true, message: 'Password has been reset successfully' }
+      } catch (error) {
+        if (error instanceof SyncApiError) {
+          throw new Error(error.message)
+        }
+        throw error
+      }
     })
   )
 
+  /**
+   * T056c - Change Password (Authenticated)
+   */
   ipcMain.handle(
     SYNC_CHANNELS.CHANGE_PASSWORD,
-    createValidatedHandler(ChangePasswordInputSchema, async (_input) => {
-      // TODO: Implement in Phase 4+
-      throw new Error('Not implemented: CHANGE_PASSWORD')
+    createValidatedHandler(ChangePasswordInputSchema, async (input: ChangePasswordInput) => {
+      const { currentPassword, newPassword } = input
+
+      // Validate new password
+      const passwordCheck = validatePassword(newPassword)
+      if (!passwordCheck.valid) {
+        throw new Error(`Password too weak: ${passwordCheck.errors.join(', ')}`)
+      }
+
+      // Get current tokens
+      const tokens = await getTokens()
+      if (!tokens) {
+        throw new Error('Not logged in')
+      }
+
+      try {
+        await syncApi.changePassword(currentPassword, newPassword, tokens.accessToken)
+        return { success: true, message: 'Password changed successfully' }
+      } catch (error) {
+        if (error instanceof SyncApiError) {
+          if (error.isAuthError()) {
+            throw new Error('Current password is incorrect')
+          }
+          throw new Error(error.message)
+        }
+        throw error
+      }
     })
   )
 
+  /**
+   * Logout - Clear session
+   */
   ipcMain.handle(
     SYNC_CHANNELS.LOGOUT,
     createHandler(async () => {
-      // TODO: Implement in Phase 3+
-      throw new Error('Not implemented: LOGOUT')
+      await clearSyncSession()
+      clearPendingSignup()
+      pendingOAuth = null
+      return { success: true }
     })
   )
 
-  // --- Auth (OAuth) ---
+  // ---------------------------------------------------------------------------
+  // Auth (OAuth)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * T057 - OAuth Start
+   *
+   * Opens OAuth provider authorization URL in default browser.
+   */
   ipcMain.handle(
     SYNC_CHANNELS.OAUTH_START,
-    createValidatedHandler(OAuthStartInputSchema, async (_input) => {
-      // TODO: Implement in Phase 4+ (P2 MVP)
-      throw new Error('Not implemented: OAUTH_START')
+    createValidatedHandler(OAuthStartInputSchema, async (input: OAuthStartInput) => {
+      const { provider, deviceName } = input
+
+      // Generate PKCE challenge
+      const { codeVerifier, codeChallenge } = generatePKCE()
+
+      // Generate state for CSRF protection
+      const state = randomBytes(16).toString('hex')
+
+      // Store OAuth state
+      pendingOAuth = {
+        provider,
+        deviceName,
+        state,
+        codeVerifier,
+      }
+
+      // Get OAuth URL
+      const redirectUri = 'memry://oauth/callback'
+      const authUrl = syncApi.getOAuthUrl(provider, redirectUri, state, codeChallenge)
+
+      // Open in default browser
+      await shell.openExternal(authUrl)
+
+      return {
+        success: true,
+        state,
+        message: 'Opening authorization page in browser',
+      }
     })
   )
 
+  /**
+   * T057 - OAuth Callback
+   *
+   * Handles OAuth callback after user authorizes.
+   * For new users, generates recovery phrase.
+   */
   ipcMain.handle(
     SYNC_CHANNELS.OAUTH_CALLBACK,
-    createValidatedHandler(OAuthCallbackInputSchema, async (_input) => {
-      // TODO: Implement in Phase 4+ (P2 MVP)
-      throw new Error('Not implemented: OAUTH_CALLBACK')
+    createValidatedHandler(OAuthCallbackInputSchema, async (input: OAuthCallbackInput) => {
+      const { code, state } = input
+
+      // Verify state matches
+      if (!pendingOAuth || pendingOAuth.state !== state) {
+        throw new Error('Invalid OAuth state. Please try again.')
+      }
+
+      const { provider, deviceName, codeVerifier } = pendingOAuth
+
+      try {
+        // Exchange code for tokens
+        const result = await syncApi.oauthCallback(provider, code, state, codeVerifier)
+
+        // Store tokens
+        await saveTokens(result.tokens.accessToken, result.tokens.refreshToken)
+        const keychain = await import('../crypto/keychain')
+        await keychain.saveUserId(result.user.id)
+
+        // Clear OAuth state
+        pendingOAuth = null
+
+        if (result.isNewUser) {
+          // Generate recovery phrase for new OAuth users
+          const recoveryPhrase = generateRecoveryPhrase()
+
+          // Store as pending signup
+          pendingSignup = {
+            email: result.user.email,
+            password: '', // OAuth users don't have password
+            deviceName,
+            recoveryPhrase,
+            userId: result.user.id,
+          }
+
+          return {
+            success: true,
+            isNewUser: true,
+            user: result.user,
+            recoveryPhrase,
+            needsSetup: true,
+          }
+        }
+
+        // Existing OAuth user needs to enter recovery phrase
+        const recoveryData = await syncApi.getRecoveryData(result.user.id)
+
+        return {
+          success: true,
+          isNewUser: false,
+          user: result.user,
+          needsRecoveryPhrase: true,
+          kdfSalt: recoveryData.kdf_salt,
+          keyVerifier: recoveryData.key_verifier,
+          deviceName,
+        }
+      } catch (error) {
+        pendingOAuth = null
+        if (error instanceof SyncApiError) {
+          throw new Error(error.message)
+        }
+        throw error
+      }
     })
   )
 
-  // --- Sync Status ---
-  ipcMain.handle(
-    SYNC_CHANNELS.GET_STATUS,
-    createHandler(async () => {
-      return getSyncStatus()
-    })
-  )
+  // ---------------------------------------------------------------------------
+  // Sync Status
+  // ---------------------------------------------------------------------------
+
+  ipcMain.handle(SYNC_CHANNELS.GET_STATUS, createHandler(getSyncStatus))
 
   ipcMain.handle(
     SYNC_CHANNELS.TRIGGER_SYNC,
@@ -215,7 +756,10 @@ export function registerSyncHandlers(): void {
     })
   )
 
-  // --- Sync History ---
+  // ---------------------------------------------------------------------------
+  // Sync History
+  // ---------------------------------------------------------------------------
+
   ipcMain.handle(
     SYNC_CHANNELS.GET_HISTORY,
     createValidatedHandler(GetHistoryInputSchema, async (_input) => {
@@ -232,7 +776,10 @@ export function registerSyncHandlers(): void {
     })
   )
 
-  // --- Devices ---
+  // ---------------------------------------------------------------------------
+  // Devices
+  // ---------------------------------------------------------------------------
+
   ipcMain.handle(
     SYNC_CHANNELS.GET_DEVICES,
     createHandler(async () => {
@@ -257,7 +804,10 @@ export function registerSyncHandlers(): void {
     })
   )
 
-  // --- Device Linking (QR) ---
+  // ---------------------------------------------------------------------------
+  // Device Linking (QR)
+  // ---------------------------------------------------------------------------
+
   ipcMain.handle(
     SYNC_CHANNELS.GENERATE_LINKING_QR,
     createHandler(async () => {
@@ -298,16 +848,63 @@ export function registerSyncHandlers(): void {
     })
   )
 
-  // --- Device Linking (Recovery Phrase) ---
+  // ---------------------------------------------------------------------------
+  // Device Linking (Recovery Phrase)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Link via Recovery Phrase
+   *
+   * Used when adding a new device to an existing account.
+   * Requires the user to enter their recovery phrase to derive keys.
+   */
   ipcMain.handle(
     SYNC_CHANNELS.LINK_VIA_RECOVERY,
-    createValidatedHandler(LinkViaRecoveryInputSchema, async (_input) => {
-      // TODO: Implement in Phase 3 (User Story 4)
-      throw new Error('Not implemented: LINK_VIA_RECOVERY')
+    createValidatedHandler(LinkViaRecoveryInputSchema, async (input) => {
+      const { recoveryPhrase, email, deviceName: _deviceName } = input
+
+      // Validate recovery phrase
+      const validation = validateRecoveryPhrase(recoveryPhrase)
+      if (!validation.valid) {
+        throw new Error(`Invalid recovery phrase: ${validation.error}`)
+      }
+
+      try {
+        // Login to get tokens
+        // Note: For recovery-based linking, we need a different endpoint
+        // For now, we'll get the recovery data and verify the phrase
+        // deviceName will be used when we implement device registration
+        const recoveryData = await syncApi.getRecoveryData(email)
+
+        // Derive seed from recovery phrase
+        const seed = await mnemonicToSeed(recoveryPhrase)
+
+        // Derive master key using stored KDF salt
+        const kdfSalt = Buffer.from(recoveryData.kdf_salt, 'base64')
+        const masterKey = deriveMasterKey(seed, kdfSalt)
+
+        // Verify against stored key verifier
+        const expectedVerifier = Buffer.from(recoveryData.key_verifier, 'base64')
+        if (!verifyKeyVerifier(masterKey, expectedVerifier)) {
+          throw new Error('Recovery phrase does not match. Please check and try again.')
+        }
+
+        // TODO: Register device with server (needs auth endpoint for recovery-based login)
+        // For now, throw not implemented
+        throw new Error('Recovery phrase linking not fully implemented yet')
+      } catch (error) {
+        if (error instanceof SyncApiError) {
+          throw new Error(error.message)
+        }
+        throw error
+      }
     })
   )
 
-  // --- Settings ---
+  // ---------------------------------------------------------------------------
+  // Settings
+  // ---------------------------------------------------------------------------
+
   ipcMain.handle(
     SYNC_CHANNELS.GET_SYNCED_SETTINGS,
     createHandler(async () => {
@@ -331,10 +928,12 @@ export function registerSyncHandlers(): void {
  * Unregister all sync-related IPC handlers.
  */
 export function unregisterSyncHandlers(): void {
-  // Remove all sync channel handlers
   Object.values(SYNC_CHANNELS).forEach((channel) => {
     ipcMain.removeHandler(channel)
   })
+
+  clearPendingSignup()
+  pendingOAuth = null
 
   console.log('[IPC] Sync handlers unregistered')
 }
@@ -345,22 +944,13 @@ export function unregisterSyncHandlers(): void {
 
 /**
  * Emit sync status changed event to all renderer windows.
- *
- * @param webContents - Target webContents
- * @param status - New sync status
  */
-export function emitSyncStatusChanged(
-  webContents: Electron.WebContents,
-  status: SyncStatus
-): void {
+export function emitSyncStatusChanged(webContents: Electron.WebContents, status: SyncStatus): void {
   webContents.send(SYNC_EVENTS.STATUS_CHANGED, { status })
 }
 
 /**
  * Emit item synced event to all renderer windows.
- *
- * @param webContents - Target webContents
- * @param event - Item synced event data
  */
 export function emitItemSynced(
   webContents: Electron.WebContents,
@@ -375,9 +965,6 @@ export function emitItemSynced(
 
 /**
  * Emit sync error event to all renderer windows.
- *
- * @param webContents - Target webContents
- * @param event - Error event data
  */
 export function emitSyncError(
   webContents: Electron.WebContents,
@@ -387,10 +974,7 @@ export function emitSyncError(
 }
 
 /**
- * Emit device linking request event (for existing device approval UI).
- *
- * @param webContents - Target webContents
- * @param event - Linking request data
+ * Emit device linking request event.
  */
 export function emitLinkingRequest(
   webContents: Electron.WebContents,
@@ -401,9 +985,6 @@ export function emitLinkingRequest(
 
 /**
  * Emit session expired event.
- *
- * @param webContents - Target webContents
- * @param reason - Reason for session expiry
  */
 export function emitSessionExpired(
   webContents: Electron.WebContents,
