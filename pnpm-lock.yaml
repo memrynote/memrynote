@@ -170,6 +170,9 @@ importers:
       '@tiptap/suggestion':
         specifier: ^3.14.0
         version: 3.14.0(@tiptap/core@3.14.0(@tiptap/pm@3.14.0))(@tiptap/pm@3.14.0)
+      argon2-wasm-edge:
+        specifier: ^1.0.23
+        version: 1.0.23
       bip39:
         specifier: ^3.1.0
         version: 3.1.0
@@ -3616,6 +3619,9 @@ packages:
     resolution: {integrity: sha512-QZW4EDmGwlYur0Yyf/b2uGucHQMa8aFUP7eu9ddR73vvhFyt4V0Vl3QHPcTNJ8l6qYOBdxgXdnBXQrHilfRQBg==}
     engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
     deprecated: This package is no longer supported.
+
+  argon2-wasm-edge@1.0.23:
+    resolution: {integrity: sha512-9OGfPkqC9Oe1sP50HNTemwbk/x+CJF7ci74jKsFXPIt7F0aJmSySx5JCOZ4+Zj4VmXIDaXr8y1p5FKFR633YVA==}
 
   argparse@1.0.10:
     resolution: {integrity: sha512-o5Roy6tNG4SL/FOkCAN6RzjiakZS25RLYFrcMttJqbdd8BWrnA+fGz57iN5Pb06pvBGvl5gQ0B48dJlslXvoTg==}
@@ -11537,6 +11543,8 @@ snapshots:
     dependencies:
       delegates: 1.0.0
       readable-stream: 3.6.2
+
+  argon2-wasm-edge@1.0.23: {}
 
   argparse@1.0.10:
     dependencies:

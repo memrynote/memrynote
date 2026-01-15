@@ -107,40 +107,40 @@
 
 ### Server Implementation for US1
 
-- [ ] T042 [P] [US1] Implement email signup endpoint in sync-server/src/routes/auth.ts
-- [ ] T043 [P] [US1] Implement email verification endpoint in sync-server/src/routes/auth.ts
-- [ ] T044 [P] [US1] Implement email login endpoint in sync-server/src/routes/auth.ts
-- [ ] T045 [P] [US1] Implement password validation service in sync-server/src/services/password.ts
-- [ ] T046 [US1] Implement Argon2id password hashing in sync-server/src/services/password.ts
-- [ ] T047 [P] [US1] Create verification email template in sync-server/src/emails/verification.tsx
-- [ ] T047a [P] [US1] Implement forgot-password endpoint in sync-server/src/routes/auth.ts
-- [ ] T047b [P] [US1] Implement reset-password endpoint in sync-server/src/routes/auth.ts
-- [ ] T047c [US1] Implement change-password endpoint (authenticated) in sync-server/src/routes/auth.ts
-- [ ] T047d [P] [US1] Implement resend-verification endpoint in sync-server/src/routes/auth.ts
-- [ ] T047e [P] [US1] Create password reset email template in sync-server/src/emails/password-reset.tsx
-- [ ] T048 [US1] Implement OAuth initiation endpoint for Google/Apple/GitHub in sync-server/src/routes/auth.ts
-- [ ] T049 [US1] Implement OAuth callback handler in sync-server/src/routes/auth.ts
-- [ ] T050 [US1] Implement device registration endpoint in sync-server/src/routes/auth.ts
-- [ ] T051 [US1] Implement first device setup endpoint (stores kdf_salt, key_verifier) in sync-server/src/routes/auth.ts
-- [ ] T052 [US1] Implement JWT token issuance service in sync-server/src/services/auth.ts
-- [ ] T053 [US1] Implement user service (create, get, update) in sync-server/src/services/user.ts
+- [X] T042 [P] [US1] Implement email signup endpoint in sync-server/src/routes/auth.ts
+- [X] T043 [P] [US1] Implement email verification endpoint in sync-server/src/routes/auth.ts
+- [X] T044 [P] [US1] Implement email login endpoint in sync-server/src/routes/auth.ts
+- [X] T045 [P] [US1] Implement password validation service in sync-server/src/services/password.ts
+- [X] T046 [US1] Implement Argon2id password hashing in sync-server/src/services/password.ts
+- [X] T047 [P] [US1] Create verification email template in sync-server/src/emails/verification.tsx
+- [X] T047a [P] [US1] Implement forgot-password endpoint in sync-server/src/routes/auth.ts
+- [X] T047b [P] [US1] Implement reset-password endpoint in sync-server/src/routes/auth.ts
+- [X] T047c [US1] Implement change-password endpoint (authenticated) in sync-server/src/routes/auth.ts
+- [X] T047d [P] [US1] Implement resend-verification endpoint in sync-server/src/routes/auth.ts
+- [X] T047e [P] [US1] Create password reset email template in sync-server/src/emails/password-reset.tsx
+- [X] T048 [US1] Implement OAuth initiation endpoint for Google/Apple/GitHub in sync-server/src/routes/auth.ts
+- [X] T049 [US1] Implement OAuth callback handler in sync-server/src/routes/auth.ts
+- [X] T050 [US1] Implement device registration endpoint in sync-server/src/routes/auth.ts
+- [X] T051 [US1] Implement first device setup endpoint (stores kdf_salt, key_verifier) in sync-server/src/routes/auth.ts
+- [X] T052 [US1] Implement JWT token issuance service in sync-server/src/services/auth.ts
+- [X] T053 [US1] Implement user service (create, get, update) in sync-server/src/services/user.ts
 
 ### Client Implementation for US1
 
-- [ ] T054 [US1] Implement IPC handler for email signup in src/main/ipc/sync-handlers.ts
-- [ ] T055 [US1] Implement IPC handler for email verification in src/main/ipc/sync-handlers.ts
-- [ ] T056 [US1] Implement IPC handler for email login in src/main/ipc/sync-handlers.ts
-- [ ] T056a [US1] Implement IPC handler for forgot-password in src/main/ipc/sync-handlers.ts
-- [ ] T056b [US1] Implement IPC handler for reset-password in src/main/ipc/sync-handlers.ts
-- [ ] T056c [US1] Implement IPC handler for change-password in src/main/ipc/sync-handlers.ts
-- [ ] T056d [US1] Implement IPC handler for resend-verification in src/main/ipc/sync-handlers.ts
-- [ ] T056e [US1] Implement password validation logic (12+ chars, uppercase, lowercase, number, special) in src/main/ipc/sync-handlers.ts
-- [ ] T057 [US1] Implement IPC handler for OAuth first device setup in src/main/ipc/sync-handlers.ts
-- [ ] T058 [US1] Implement master key derivation from recovery phrase and key verifier generation in src/main/crypto/keys.ts
-- [ ] T059 [US1] Implement vault key derivation via HKDF in src/main/crypto/keys.ts
-- [ ] T060 [US1] Implement signing/verify key derivation via HKDF in src/main/crypto/keys.ts
-- [ ] T061 [US1] Store master key in OS keychain in src/main/crypto/keychain.ts
-- [ ] T062 [US1] Implement recovery phrase confirmation IPC handler in src/main/ipc/sync-handlers.ts
+- [X] T054 [US1] Implement IPC handler for email signup in src/main/ipc/sync-handlers.ts
+- [X] T055 [US1] Implement IPC handler for email verification in src/main/ipc/sync-handlers.ts
+- [X] T056 [US1] Implement IPC handler for email login in src/main/ipc/sync-handlers.ts
+- [X] T056a [US1] Implement IPC handler for forgot-password in src/main/ipc/sync-handlers.ts
+- [X] T056b [US1] Implement IPC handler for reset-password in src/main/ipc/sync-handlers.ts
+- [X] T056c [US1] Implement IPC handler for change-password in src/main/ipc/sync-handlers.ts
+- [X] T056d [US1] Implement IPC handler for resend-verification in src/main/ipc/sync-handlers.ts
+- [X] T056e [US1] Implement password validation logic (12+ chars, uppercase, lowercase, number, special) in src/main/ipc/sync-handlers.ts
+- [X] T057 [US1] Implement IPC handler for OAuth first device setup in src/main/ipc/sync-handlers.ts
+- [X] T058 [US1] Implement master key derivation from recovery phrase and key verifier generation in src/main/crypto/keys.ts
+- [X] T059 [US1] Implement vault key derivation via HKDF in src/main/crypto/keys.ts
+- [X] T060 [US1] Implement signing/verify key derivation via HKDF in src/main/crypto/keys.ts
+- [X] T061 [US1] Store master key in OS keychain in src/main/crypto/keychain.ts
+- [X] T062 [US1] Implement recovery phrase confirmation IPC handler in src/main/ipc/sync-handlers.ts
 
 ### UI Components for US1
 

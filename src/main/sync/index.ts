@@ -36,3 +36,18 @@ export {
   copyClock,
   removeDevice,
 } from './vector-clock'
+
+// =============================================================================
+// API Client
+// =============================================================================
+
+export { SyncApiClient, SyncApiError, syncApi } from './api-client'
+export type {
+  ApiError,
+  AuthResult,
+  DevicePublic,
+  RecoveryData,
+  SignupResponse,
+  MessageResponse,
+  RefreshResponse,
+} from './api-client'

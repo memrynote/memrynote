@@ -10,6 +10,8 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
+import { SyncServerError } from './lib/errors'
+import auth from './routes/auth'
 
 // Type definitions for Cloudflare bindings
 export interface Env {
@@ -63,10 +65,12 @@ app.get('/', (c) => {
 const api = new Hono<{ Bindings: Env }>()
 
 // Mount API routes
-// Routes will be added in Phase 2
 api.get('/status', (c) => {
   return c.json({ status: 'ok' })
 })
+
+// Auth routes (signup, login, OAuth, device registration)
+api.route('/auth', auth)
 
 // Mount API under /api/v1
 app.route('/api/v1', api)
@@ -78,11 +82,18 @@ app.notFound((c) => {
 
 // Error handler
 app.onError((err, c) => {
+  // Handle known errors
+  if (err instanceof SyncServerError) {
+    return c.json(err.toJSON(), err.statusCode)
+  }
+
+  // Log unknown errors
   console.error('Server error:', err)
+
   return c.json(
     {
-      error: 'Internal server error',
-      message: c.env.ENVIRONMENT === 'development' ? err.message : undefined,
+      error: 'INTERNAL_ERROR',
+      message: c.env.ENVIRONMENT === 'development' ? err.message : 'Internal server error',
     },
     500
   )
