@@ -16,7 +16,9 @@ import {
   InboxChannels,
   ReminderChannels,
   FolderViewChannels,
-  PropertiesChannels
+  PropertiesChannels,
+  SyncChannels,
+  CryptoChannels
 } from '@shared/ipc-channels'
 
 // Custom APIs for renderer
@@ -1300,6 +1302,169 @@ const api = {
       ipcRenderer.invoke(FolderViewChannels.invoke.FOLDER_EXISTS, folderPath)
   },
 
+  // ==========================================================================
+  // Sync API (E2EE Sync)
+  // ==========================================================================
+  sync: {
+    // Setup
+    /** Get current setup status */
+    getSetupStatus: () => ipcRenderer.invoke(SyncChannels.invoke.GET_SETUP_STATUS),
+    /** Setup first device (initial key generation) */
+    setupFirstDevice: (input: { kdfSalt: string; keyVerifier: string }) =>
+      ipcRenderer.invoke(SyncChannels.invoke.SETUP_FIRST_DEVICE, input),
+
+    // Auth (Email)
+    /** Email signup (creates account + first device) */
+    emailSignup: (input: { email: string; password: string; deviceName: string }) =>
+      ipcRenderer.invoke(SyncChannels.invoke.EMAIL_SIGNUP, input),
+    /** Email login */
+    emailLogin: (input: { email: string; password: string; deviceName: string }) =>
+      ipcRenderer.invoke(SyncChannels.invoke.EMAIL_LOGIN, input),
+    /** Verify email address */
+    emailVerify: (token: string) =>
+      ipcRenderer.invoke(SyncChannels.invoke.EMAIL_VERIFY, { token }),
+    /** Resend verification email */
+    resendVerification: () => ipcRenderer.invoke(SyncChannels.invoke.RESEND_VERIFICATION),
+    /** Request password reset */
+    forgotPassword: (email: string) =>
+      ipcRenderer.invoke(SyncChannels.invoke.FORGOT_PASSWORD, { email }),
+    /** Complete password reset */
+    resetPassword: (input: { token: string; newPassword: string }) =>
+      ipcRenderer.invoke(SyncChannels.invoke.RESET_PASSWORD, input),
+    /** Change password (authenticated) */
+    changePassword: (input: { currentPassword: string; newPassword: string }) =>
+      ipcRenderer.invoke(SyncChannels.invoke.CHANGE_PASSWORD, input),
+    /** Logout from current device */
+    logout: () => ipcRenderer.invoke(SyncChannels.invoke.LOGOUT),
+
+    // Auth (OAuth)
+    /** Start OAuth flow */
+    oauthStart: (input: { provider: 'google' | 'apple' | 'github'; deviceName: string }) =>
+      ipcRenderer.invoke(SyncChannels.invoke.OAUTH_START, input),
+    /** Handle OAuth callback */
+    oauthCallback: (input: { code: string; state: string }) =>
+      ipcRenderer.invoke(SyncChannels.invoke.OAUTH_CALLBACK, input),
+
+    // Sync Status
+    /** Get current sync status */
+    getStatus: () => ipcRenderer.invoke(SyncChannels.invoke.GET_STATUS),
+    /** Trigger a sync manually */
+    triggerSync: (options?: { force?: boolean }) =>
+      ipcRenderer.invoke(SyncChannels.invoke.TRIGGER_SYNC, options ?? {}),
+    /** Pause sync operations */
+    pauseSync: () => ipcRenderer.invoke(SyncChannels.invoke.PAUSE_SYNC),
+    /** Resume sync operations */
+    resumeSync: () => ipcRenderer.invoke(SyncChannels.invoke.RESUME_SYNC),
+    /** Get number of items in sync queue */
+    getQueueSize: () => ipcRenderer.invoke(SyncChannels.invoke.GET_QUEUE_SIZE),
+
+    // Sync History
+    /** Get sync history entries */
+    getHistory: (options?: { limit?: number; offset?: number; type?: 'push' | 'pull' | 'error' }) =>
+      ipcRenderer.invoke(SyncChannels.invoke.GET_HISTORY, options ?? {}),
+    /** Clear sync history */
+    clearHistory: () => ipcRenderer.invoke(SyncChannels.invoke.CLEAR_HISTORY),
+
+    // Devices
+    /** Get list of linked devices */
+    getDevices: () => ipcRenderer.invoke(SyncChannels.invoke.GET_DEVICES),
+    /** Remove a device */
+    removeDevice: (deviceId: string) =>
+      ipcRenderer.invoke(SyncChannels.invoke.REMOVE_DEVICE, { deviceId }),
+    /** Rename a device */
+    renameDevice: (deviceId: string, name: string) =>
+      ipcRenderer.invoke(SyncChannels.invoke.RENAME_DEVICE, { deviceId, name }),
+
+    // Device Linking (QR)
+    /** Generate QR code for device linking */
+    generateLinkingQR: () => ipcRenderer.invoke(SyncChannels.invoke.GENERATE_LINKING_QR),
+    /** Link new device via QR scan */
+    linkViaQR: (input: { qrData: string; deviceName: string }) =>
+      ipcRenderer.invoke(SyncChannels.invoke.LINK_VIA_QR, input),
+    /** Approve device linking request */
+    approveLinking: (sessionId: string, approve: boolean) =>
+      ipcRenderer.invoke(SyncChannels.invoke.APPROVE_LINKING, { sessionId, approve }),
+    /** Cancel device linking */
+    cancelLinking: () => ipcRenderer.invoke(SyncChannels.invoke.CANCEL_LINKING),
+    /** Get current linking session status */
+    getLinkingStatus: () => ipcRenderer.invoke(SyncChannels.invoke.GET_LINKING_STATUS),
+
+    // Device Linking (Recovery Phrase)
+    /** Link new device via recovery phrase */
+    linkViaRecovery: (input: { recoveryPhrase: string; email: string; deviceName: string }) =>
+      ipcRenderer.invoke(SyncChannels.invoke.LINK_VIA_RECOVERY, input),
+
+    // Settings
+    /** Get synced settings */
+    getSyncedSettings: () => ipcRenderer.invoke(SyncChannels.invoke.GET_SYNCED_SETTINGS),
+    /** Update synced settings */
+    updateSyncedSettings: (settings: Record<string, unknown>) =>
+      ipcRenderer.invoke(SyncChannels.invoke.UPDATE_SYNCED_SETTINGS, { settings })
+  },
+
+  // ==========================================================================
+  // Crypto API (E2EE Operations)
+  // ==========================================================================
+  crypto: {
+    // Recovery Phrase
+    /** Generate a new recovery phrase */
+    generateRecoveryPhrase: () => ipcRenderer.invoke(CryptoChannels.invoke.GENERATE_RECOVERY_PHRASE),
+    /** Validate a recovery phrase */
+    validateRecoveryPhrase: (phrase: string) =>
+      ipcRenderer.invoke(CryptoChannels.invoke.VALIDATE_RECOVERY_PHRASE, { phrase }),
+    /** Confirm recovery phrase (user entered confirmation words) */
+    confirmRecoveryPhrase: (input: {
+      phrase: string
+      confirmationWords: Array<{ index: number; word: string }>
+    }) => ipcRenderer.invoke(CryptoChannels.invoke.CONFIRM_RECOVERY_PHRASE, input),
+
+    // Key Operations
+    /** Derive all keys from master key */
+    deriveKeys: () => ipcRenderer.invoke(CryptoChannels.invoke.DERIVE_KEYS),
+    /** Get public signing key */
+    getPublicKey: () => ipcRenderer.invoke(CryptoChannels.invoke.GET_PUBLIC_KEY),
+
+    // Encryption/Decryption
+    /** Encrypt an item (note, task, etc.) */
+    encryptItem: (input: { data: string; type: 'note' | 'task' | 'project' | 'settings' }) =>
+      ipcRenderer.invoke(CryptoChannels.invoke.ENCRYPT_ITEM, input),
+    /** Decrypt an item */
+    decryptItem: (input: {
+      encryptedData: string
+      nonce: string
+      encryptedKey: string
+      keyNonce: string
+      signature: string
+    }) => ipcRenderer.invoke(CryptoChannels.invoke.DECRYPT_ITEM, input),
+    /** Encrypt a blob (attachment) */
+    encryptBlob: (input: { data: ArrayBuffer; filename: string }) =>
+      ipcRenderer.invoke(CryptoChannels.invoke.ENCRYPT_BLOB, input),
+    /** Decrypt a blob */
+    decryptBlob: (input: { encryptedData: ArrayBuffer; nonce: string; key: string }) =>
+      ipcRenderer.invoke(CryptoChannels.invoke.DECRYPT_BLOB, input),
+
+    // Signatures
+    /** Sign data */
+    signData: (data: string) => ipcRenderer.invoke(CryptoChannels.invoke.SIGN_DATA, { data }),
+    /** Verify signature */
+    verifySignature: (input: { data: string; signature: string; publicKey?: string }) =>
+      ipcRenderer.invoke(CryptoChannels.invoke.VERIFY_SIGNATURE, input),
+
+    // Key Rotation
+    /** Start key rotation process */
+    startKeyRotation: () => ipcRenderer.invoke(CryptoChannels.invoke.START_KEY_ROTATION),
+    /** Get key rotation progress */
+    getRotationProgress: () => ipcRenderer.invoke(CryptoChannels.invoke.GET_ROTATION_PROGRESS),
+    /** Cancel key rotation */
+    cancelKeyRotation: () => ipcRenderer.invoke(CryptoChannels.invoke.CANCEL_KEY_ROTATION),
+
+    // Keychain
+    /** Check if master key exists in keychain */
+    hasMasterKey: () => ipcRenderer.invoke(CryptoChannels.invoke.HAS_MASTER_KEY),
+    /** Clear all keychain entries */
+    clearKeychain: () => ipcRenderer.invoke(CryptoChannels.invoke.CLEAR_KEYCHAIN)
+  },
+
   // Folder View event subscription helpers
   onFolderViewConfigUpdated: (
     callback: (event: { path: string; source: 'internal' | 'external' }) => void
@@ -1310,6 +1475,154 @@ const api = {
     ): void => callback(data)
     ipcRenderer.on(FolderViewChannels.events.CONFIG_UPDATED, handler)
     return () => ipcRenderer.removeListener(FolderViewChannels.events.CONFIG_UPDATED, handler)
+  },
+
+  // ==========================================================================
+  // Sync event subscription helpers
+  // ==========================================================================
+
+  /** Subscribe to sync status changes */
+  onSyncStatusChanged: (
+    callback: (event: { status: unknown }) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { status: unknown }
+    ): void => callback(data)
+    ipcRenderer.on(SyncChannels.events.STATUS_CHANGED, handler)
+    return () => ipcRenderer.removeListener(SyncChannels.events.STATUS_CHANGED, handler)
+  },
+
+  /** Subscribe to item synced events */
+  onSyncItemSynced: (
+    callback: (event: {
+      itemId: string
+      type: 'note' | 'task' | 'project' | 'settings' | 'attachment'
+      operation: 'create' | 'update' | 'delete'
+    }) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: {
+        itemId: string
+        type: 'note' | 'task' | 'project' | 'settings' | 'attachment'
+        operation: 'create' | 'update' | 'delete'
+      }
+    ): void => callback(data)
+    ipcRenderer.on(SyncChannels.events.ITEM_SYNCED, handler)
+    return () => ipcRenderer.removeListener(SyncChannels.events.ITEM_SYNCED, handler)
+  },
+
+  /** Subscribe to sync errors */
+  onSyncError: (
+    callback: (event: { error: string; itemId?: string; recoverable: boolean }) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { error: string; itemId?: string; recoverable: boolean }
+    ): void => callback(data)
+    ipcRenderer.on(SyncChannels.events.SYNC_ERROR, handler)
+    return () => ipcRenderer.removeListener(SyncChannels.events.SYNC_ERROR, handler)
+  },
+
+  /** Subscribe to device linking requests */
+  onSyncLinkingRequest: (
+    callback: (event: { sessionId: string; deviceName: string; devicePlatform: string }) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { sessionId: string; deviceName: string; devicePlatform: string }
+    ): void => callback(data)
+    ipcRenderer.on(SyncChannels.events.LINKING_REQUEST, handler)
+    return () => ipcRenderer.removeListener(SyncChannels.events.LINKING_REQUEST, handler)
+  },
+
+  /** Subscribe to device linking approved events */
+  onSyncLinkingApproved: (
+    callback: (event: { sessionId: string; deviceId: string }) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { sessionId: string; deviceId: string }
+    ): void => callback(data)
+    ipcRenderer.on(SyncChannels.events.LINKING_APPROVED, handler)
+    return () => ipcRenderer.removeListener(SyncChannels.events.LINKING_APPROVED, handler)
+  },
+
+  /** Subscribe to device linking rejected events */
+  onSyncLinkingRejected: (
+    callback: (event: { sessionId: string; reason: string }) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { sessionId: string; reason: string }
+    ): void => callback(data)
+    ipcRenderer.on(SyncChannels.events.LINKING_REJECTED, handler)
+    return () => ipcRenderer.removeListener(SyncChannels.events.LINKING_REJECTED, handler)
+  },
+
+  /** Subscribe to session expired events */
+  onSyncSessionExpired: (
+    callback: (event: { reason: 'token_expired' | 'device_removed' | 'key_rotated' }) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { reason: 'token_expired' | 'device_removed' | 'key_rotated' }
+    ): void => callback(data)
+    ipcRenderer.on(SyncChannels.events.SESSION_EXPIRED, handler)
+    return () => ipcRenderer.removeListener(SyncChannels.events.SESSION_EXPIRED, handler)
+  },
+
+  /** Subscribe to initial sync progress events */
+  onSyncInitialProgress: (
+    callback: (event: {
+      phase: 'downloading' | 'decrypting' | 'applying'
+      current: number
+      total: number
+      currentItem?: string
+    }) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: {
+        phase: 'downloading' | 'decrypting' | 'applying'
+        current: number
+        total: number
+        currentItem?: string
+      }
+    ): void => callback(data)
+    ipcRenderer.on(SyncChannels.events.INITIAL_SYNC_PROGRESS, handler)
+    return () => ipcRenderer.removeListener(SyncChannels.events.INITIAL_SYNC_PROGRESS, handler)
+  },
+
+  // ==========================================================================
+  // Crypto event subscription helpers
+  // ==========================================================================
+
+  /** Subscribe to key rotation progress events */
+  onCryptoRotationProgress: (
+    callback: (event: {
+      state: string
+      phase: string
+      itemsProcessed: number
+      itemsTotal: number
+      currentItem?: string
+      error?: string
+    }) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: {
+        state: string
+        phase: string
+        itemsProcessed: number
+        itemsTotal: number
+        currentItem?: string
+        error?: string
+      }
+    ): void => callback(data)
+    ipcRenderer.on(CryptoChannels.events.ROTATION_PROGRESS, handler)
+    return () => ipcRenderer.removeListener(CryptoChannels.events.ROTATION_PROGRESS, handler)
   }
 }
 

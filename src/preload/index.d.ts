@@ -1989,6 +1989,264 @@ export interface TabSettings {
   tabCloseButton: 'always' | 'hover' | 'active'
 }
 
+// =============================================================================
+// Sync Types (E2EE Sync)
+// =============================================================================
+
+export type SyncState = 'idle' | 'syncing' | 'paused' | 'offline' | 'error'
+
+export interface SyncStatus {
+  state: SyncState
+  lastSyncAt: string | null
+  pendingCount: number
+  errorCount: number
+  currentOperation: string | null
+}
+
+export interface SetupStatus {
+  isSetup: boolean
+  hasUser: boolean
+  hasDevice: boolean
+  hasMasterKey: boolean
+}
+
+export interface SyncDevice {
+  id: string
+  name: string
+  platform: string
+  osVersion?: string
+  appVersion: string
+  createdAt: string
+  lastSyncAt: string | null
+  isCurrentDevice: boolean
+}
+
+export interface SyncHistoryEntry {
+  id: string
+  type: 'push' | 'pull' | 'error'
+  itemId: string
+  itemType: string
+  operation: string
+  timestamp: string
+  error?: string
+}
+
+export interface LinkingQRData {
+  sessionId: string
+  userId: string
+  ephemeralPublicKey: string
+  expiresAt: number
+}
+
+export interface RecoveryPhraseValidation {
+  isValid: boolean
+  wordCount: number
+  invalidWords: Array<{ index: number; word: string }>
+  error?: string
+}
+
+export interface EncryptItemResult {
+  encryptedData: string
+  nonce: string
+  encryptedKey: string
+  keyNonce: string
+  signature: string
+}
+
+export interface DecryptItemResult {
+  data: string
+  verified: boolean
+}
+
+export interface KeyRotationProgress {
+  state: 'idle' | 'preparing' | 'encrypting' | 'uploading' | 'completing' | 'failed'
+  phase: string
+  itemsProcessed: number
+  itemsTotal: number
+  currentItem?: string
+  error?: string
+}
+
+// Sync event types
+export interface SyncStatusChangedEvent {
+  status: SyncStatus
+}
+
+export interface SyncItemSyncedEvent {
+  itemId: string
+  type: 'note' | 'task' | 'project' | 'settings' | 'attachment'
+  operation: 'create' | 'update' | 'delete'
+}
+
+export interface SyncErrorEvent {
+  error: string
+  itemId?: string
+  recoverable: boolean
+}
+
+export interface SyncLinkingRequestEvent {
+  sessionId: string
+  deviceName: string
+  devicePlatform: string
+}
+
+export interface SyncLinkingApprovedEvent {
+  sessionId: string
+  deviceId: string
+}
+
+export interface SyncLinkingRejectedEvent {
+  sessionId: string
+  reason: string
+}
+
+export interface SyncSessionExpiredEvent {
+  reason: 'token_expired' | 'device_removed' | 'key_rotated'
+}
+
+export interface SyncInitialProgressEvent {
+  phase: 'downloading' | 'decrypting' | 'applying'
+  current: number
+  total: number
+  currentItem?: string
+}
+
+// Sync client API interface
+export interface SyncClientAPI {
+  // Setup
+  getSetupStatus(): Promise<SetupStatus>
+  setupFirstDevice(input: { kdfSalt: string; keyVerifier: string }): Promise<{ success: boolean }>
+
+  // Auth (Email)
+  emailSignup(input: {
+    email: string
+    password: string
+    deviceName: string
+  }): Promise<{ success: boolean; error?: string }>
+  emailLogin(input: {
+    email: string
+    password: string
+    deviceName: string
+  }): Promise<{ success: boolean; error?: string }>
+  emailVerify(token: string): Promise<{ success: boolean; error?: string }>
+  resendVerification(): Promise<{ success: boolean; error?: string }>
+  forgotPassword(email: string): Promise<{ success: boolean; error?: string }>
+  resetPassword(input: {
+    token: string
+    newPassword: string
+  }): Promise<{ success: boolean; error?: string }>
+  changePassword(input: {
+    currentPassword: string
+    newPassword: string
+  }): Promise<{ success: boolean; error?: string }>
+  logout(): Promise<{ success: boolean }>
+
+  // Auth (OAuth)
+  oauthStart(input: {
+    provider: 'google' | 'apple' | 'github'
+    deviceName: string
+  }): Promise<{ authUrl: string }>
+  oauthCallback(input: {
+    code: string
+    state: string
+  }): Promise<{ success: boolean; error?: string }>
+
+  // Sync Status
+  getStatus(): Promise<SyncStatus>
+  triggerSync(options?: { force?: boolean }): Promise<{ success: boolean; message?: string }>
+  pauseSync(): Promise<{ success: boolean }>
+  resumeSync(): Promise<{ success: boolean }>
+  getQueueSize(): Promise<{ size: number }>
+
+  // Sync History
+  getHistory(options?: {
+    limit?: number
+    offset?: number
+    type?: 'push' | 'pull' | 'error'
+  }): Promise<{ entries: SyncHistoryEntry[]; total: number; hasMore: boolean }>
+  clearHistory(): Promise<{ success: boolean }>
+
+  // Devices
+  getDevices(): Promise<{ devices: SyncDevice[] }>
+  removeDevice(deviceId: string): Promise<{ success: boolean; error?: string }>
+  renameDevice(deviceId: string, name: string): Promise<{ success: boolean; error?: string }>
+
+  // Device Linking (QR)
+  generateLinkingQR(): Promise<{ qrData: string; expiresAt: number }>
+  linkViaQR(input: {
+    qrData: string
+    deviceName: string
+  }): Promise<{ success: boolean; error?: string }>
+  approveLinking(sessionId: string, approve: boolean): Promise<{ success: boolean; error?: string }>
+  cancelLinking(): Promise<{ success: boolean }>
+  getLinkingStatus(): Promise<{ status: string; session: unknown | null }>
+
+  // Device Linking (Recovery Phrase)
+  linkViaRecovery(input: {
+    recoveryPhrase: string
+    email: string
+    deviceName: string
+  }): Promise<{ success: boolean; error?: string }>
+
+  // Settings
+  getSyncedSettings(): Promise<{ settings: Record<string, unknown> }>
+  updateSyncedSettings(settings: Record<string, unknown>): Promise<{ success: boolean }>
+}
+
+// Crypto client API interface
+export interface CryptoClientAPI {
+  // Recovery Phrase
+  generateRecoveryPhrase(): Promise<{ phrase: string; wordCount: number }>
+  validateRecoveryPhrase(phrase: string): Promise<RecoveryPhraseValidation>
+  confirmRecoveryPhrase(input: {
+    phrase: string
+    confirmationWords: Array<{ index: number; word: string }>
+  }): Promise<{ success: boolean; error?: string }>
+
+  // Key Operations
+  deriveKeys(): Promise<{ success: boolean; error?: string }>
+  getPublicKey(): Promise<{ publicKey: string }>
+
+  // Encryption/Decryption
+  encryptItem(input: {
+    data: string
+    type: 'note' | 'task' | 'project' | 'settings'
+  }): Promise<EncryptItemResult>
+  decryptItem(input: {
+    encryptedData: string
+    nonce: string
+    encryptedKey: string
+    keyNonce: string
+    signature: string
+  }): Promise<DecryptItemResult>
+  encryptBlob(input: {
+    data: ArrayBuffer
+    filename: string
+  }): Promise<{ encryptedData: ArrayBuffer; nonce: string; key: string }>
+  decryptBlob(input: {
+    encryptedData: ArrayBuffer
+    nonce: string
+    key: string
+  }): Promise<ArrayBuffer>
+
+  // Signatures
+  signData(data: string): Promise<{ signature: string }>
+  verifySignature(input: {
+    data: string
+    signature: string
+    publicKey?: string
+  }): Promise<{ valid: boolean; error?: string }>
+
+  // Key Rotation
+  startKeyRotation(): Promise<{ success: boolean; error?: string }>
+  getRotationProgress(): Promise<KeyRotationProgress | null>
+  cancelKeyRotation(): Promise<{ success: boolean }>
+
+  // Keychain
+  hasMasterKey(): Promise<{ hasMasterKey: boolean }>
+  clearKeychain(): Promise<{ success: boolean }>
+}
+
 // Note Editor Settings types
 export interface NoteEditorSettings {
   /** Toolbar display mode: floating (on selection) or sticky (always visible) */
@@ -2048,6 +2306,8 @@ interface API extends WindowAPI {
   reminders: RemindersClientAPI
   quickCapture: QuickCaptureClientAPI
   folderView: FolderViewClientAPI
+  sync: SyncClientAPI
+  crypto: CryptoClientAPI
   /** Show a native OS context menu and return the selected item id, or null if dismissed */
   showContextMenu: (items: ContextMenuItem[]) => Promise<string | null>
   // Vault event subscriptions
@@ -2134,6 +2394,19 @@ interface API extends WindowAPI {
   onReminderClicked: (callback: (event: ReminderClickedEvent) => void) => () => void
   // Folder View event subscriptions
   onFolderViewConfigUpdated: (callback: (event: FolderViewConfigUpdatedEvent) => void) => () => void
+
+  // Sync event subscriptions
+  onSyncStatusChanged: (callback: (event: SyncStatusChangedEvent) => void) => () => void
+  onSyncItemSynced: (callback: (event: SyncItemSyncedEvent) => void) => () => void
+  onSyncError: (callback: (event: SyncErrorEvent) => void) => () => void
+  onSyncLinkingRequest: (callback: (event: SyncLinkingRequestEvent) => void) => () => void
+  onSyncLinkingApproved: (callback: (event: SyncLinkingApprovedEvent) => void) => () => void
+  onSyncLinkingRejected: (callback: (event: SyncLinkingRejectedEvent) => void) => () => void
+  onSyncSessionExpired: (callback: (event: SyncSessionExpiredEvent) => void) => () => void
+  onSyncInitialProgress: (callback: (event: SyncInitialProgressEvent) => void) => () => void
+
+  // Crypto event subscriptions
+  onCryptoRotationProgress: (callback: (event: KeyRotationProgress) => void) => () => void
 }
 
 declare global {
