@@ -106,6 +106,7 @@
     "@tiptap/starter-kit": "^3.14.0",
     "@tiptap/suggestion": "^3.14.0",
     "bip39": "^3.1.0",
+    "cborg": "^4.3.2",
     "chokidar": "^5.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
