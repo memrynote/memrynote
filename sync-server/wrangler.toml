@@ -1,0 +1,48 @@
+name = "memry-sync"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Development environment
+[env.development]
+vars = { ENVIRONMENT = "development" }
+
+# Production environment
+[env.production]
+vars = { ENVIRONMENT = "production" }
+
+# D1 Database binding
+# Run: wrangler d1 create memry-sync
+# Then update the database_id below
+[[d1_databases]]
+binding = "DB"
+database_name = "memry-sync"
+database_id = "placeholder-update-after-creation"
+
+# R2 Bucket binding
+# Run: wrangler r2 bucket create memry-blobs
+[[r2_buckets]]
+binding = "BLOB_BUCKET"
+bucket_name = "memry-blobs"
+
+# Durable Objects
+[[durable_objects.bindings]]
+name = "USER_STATE"
+class_name = "UserSyncState"
+
+[[durable_objects.bindings]]
+name = "LINKING_SESSION"
+class_name = "LinkingSession"
+
+# Migrations for Durable Objects
+[[migrations]]
+tag = "v1"
+new_classes = ["UserSyncState", "LinkingSession"]
+
+# Secrets (set via: wrangler secret put <SECRET_NAME>)
+# Required secrets:
+# - JWT_SECRET
+# - OAUTH_GOOGLE_CLIENT_SECRET
+# - OAUTH_APPLE_CLIENT_SECRET
+# - OAUTH_GITHUB_CLIENT_SECRET
+# - RESEND_API_KEY
