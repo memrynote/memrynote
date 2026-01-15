@@ -7,7 +7,7 @@
  * @module services/password
  */
 
-import { argon2id, argon2Verify } from 'argon2-wasm-edge'
+import { argon2id } from 'argon2-wasm-edge'
 import { ValidationError } from '../lib/errors'
 
 // =============================================================================
@@ -38,8 +38,8 @@ const PASSWORD_REQUIREMENTS = {
  * - Output length: 32 bytes
  */
 const ARGON2_PARAMS = {
-  memoryCost: 65536, // 64 MiB in KiB
-  timeCost: 3,
+  memorySize: 65536, // 64 MiB in KiB
+  iterations: 3,
   parallelism: 4,
   hashLength: 32,
 }
@@ -161,10 +161,11 @@ export async function hashPassword(
   const hashBytes = await argon2id({
     password: passwordBytes,
     salt: saltBytes,
-    memoryCost: ARGON2_PARAMS.memoryCost,
-    timeCost: ARGON2_PARAMS.timeCost,
+    memorySize: ARGON2_PARAMS.memorySize,
+    iterations: ARGON2_PARAMS.iterations,
     parallelism: ARGON2_PARAMS.parallelism,
     hashLength: ARGON2_PARAMS.hashLength,
+    outputType: 'binary',
   })
 
   // Convert hash to Base64
