@@ -18,6 +18,7 @@ import {
   OAuthDivider,
   RecoveryPhraseDisplay,
   RecoveryPhraseConfirm,
+  RecoveryPhraseInput,
   VerificationPending,
   ForgotPasswordForm
 } from '@/components/sync'
@@ -34,6 +35,7 @@ type WizardStep =
   | 'forgot-password'
   | 'verification'
   | 'recovery-phrase'
+  | 'enter-phrase'
   | 'confirm-phrase'
   | 'complete'
 
@@ -183,6 +185,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
     generateRecoveryPhrase,
     confirmRecoveryPhrase,
     setupFirstDevice,
+    linkViaRecovery,
     isSigningUp,
     isLoggingIn,
     isVerifying,
@@ -190,12 +193,14 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
     isForgotPassword,
     isStartingOAuth,
     isConfirmingPhrase,
-    isSettingUpDevice
+    isSettingUpDevice,
+    isLinkingViaRecovery
   } = useAuth()
 
   const [step, setStep] = useState<WizardStep>('welcome')
   const [authMode, setAuthMode] = useState<AuthMode>('signup')
   const [email, setEmail] = useState('')
+  const [deviceName, setDeviceName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [oauthProvider, setOauthProvider] = useState<'google' | 'apple' | 'github' | null>(null)
 
@@ -208,8 +213,14 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
     return 'My Device'
   }, [])
 
-  // Step numbers for indicator
-  const stepNames = ['Account', 'Verify', 'Phrase', 'Confirm']
+  // Step numbers for indicator - different for signup vs login flow
+  const stepNames = useMemo(() => {
+    if (authMode === 'login') {
+      return ['Account', 'Recovery', 'Complete']
+    }
+    return ['Account', 'Verify', 'Phrase', 'Confirm']
+  }, [authMode])
+
   const currentStepIndex = useMemo(() => {
     switch (step) {
       case 'welcome':
@@ -221,21 +232,23 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
         return 1
       case 'recovery-phrase':
         return 2
+      case 'enter-phrase':
+        return 1 // Login flow: Account -> Recovery (enter) -> Complete
       case 'confirm-phrase':
         return 3
       case 'complete':
-        return 4
+        return authMode === 'login' ? 2 : 4
       default:
         return 0
     }
-  }, [step])
+  }, [step, authMode])
 
-  // Generate recovery phrase when entering that step
+  // Generate recovery phrase when entering that step (only for signup flow)
   useEffect(() => {
-    if (step === 'recovery-phrase' && !recoveryPhrase) {
+    if (step === 'recovery-phrase' && !recoveryPhrase && authMode === 'signup') {
       generateRecoveryPhrase()
     }
-  }, [step, recoveryPhrase, generateRecoveryPhrase])
+  }, [step, recoveryPhrase, generateRecoveryPhrase, authMode])
 
   // Handle signup
   const handleSignup = useCallback(
@@ -261,11 +274,25 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
     async (data: { email: string; password: string; deviceName: string }) => {
       setError(null)
       try {
-        const result = await login(data)
+        const result = await login(data) as {
+          success: boolean
+          error?: string
+          needsRecoveryPhrase?: boolean
+        }
+
         if (result.success) {
           setEmail(data.email)
-          // After login, go to recovery phrase or complete
-          setStep('recovery-phrase')
+          setDeviceName(data.deviceName)
+
+          // Check if this device needs recovery phrase (new device setup)
+          if (result.needsRecoveryPhrase) {
+            // User needs to enter their existing recovery phrase
+            setStep('enter-phrase')
+          } else {
+            // Device already set up or no recovery phrase needed
+            setStep('complete')
+            onComplete?.()
+          }
         } else {
           setError(result.error || 'Login failed')
         }
@@ -273,7 +300,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
         setError(err instanceof Error ? err.message : 'Login failed')
       }
     },
-    [login]
+    [login, onComplete]
   )
 
   // Handle OAuth
@@ -373,6 +400,30 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
     [recoveryPhrase, confirmRecoveryPhrase, setupFirstDevice, onComplete]
   )
 
+  // Handle entering existing recovery phrase (login on new device)
+  const handleEnterPhrase = useCallback(
+    async (enteredPhrase: string) => {
+      setError(null)
+      try {
+        const result = await linkViaRecovery({
+          recoveryPhrase: enteredPhrase,
+          email,
+          deviceName: deviceName || defaultDeviceName
+        })
+
+        if (result.success) {
+          setStep('complete')
+          onComplete?.()
+        } else {
+          setError(result.error || 'Failed to verify recovery phrase')
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to verify recovery phrase')
+      }
+    },
+    [linkViaRecovery, email, deviceName, defaultDeviceName, onComplete]
+  )
+
   // Navigation helpers
   const goToSignup = useCallback(() => {
     setAuthMode('signup')
@@ -406,6 +457,9 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
         break
       case 'recovery-phrase':
         setStep('verification')
+        break
+      case 'enter-phrase':
+        setStep('login')
         break
       case 'confirm-phrase':
         setStep('recovery-phrase')
@@ -515,6 +569,15 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
           />
         )
 
+      case 'enter-phrase':
+        return (
+          <RecoveryPhraseInput
+            onSubmit={handleEnterPhrase}
+            isLoading={isLinkingViaRecovery}
+            error={error}
+          />
+        )
+
       case 'recovery-phrase':
         if (isGeneratingPhrase || !recoveryPhrase) {
           return (
@@ -577,7 +640,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
   }
 
   const showBackButton = step !== 'welcome' && step !== 'complete'
-  const showStepIndicator = step !== 'welcome' && step !== 'complete' && step !== 'forgot-password'
+  const showStepIndicator = step !== 'welcome' && step !== 'complete' && step !== 'forgot-password' && step !== 'enter-phrase'
 
   return (
     <div className={cn('mx-auto max-w-md space-y-6 p-6', className)}>

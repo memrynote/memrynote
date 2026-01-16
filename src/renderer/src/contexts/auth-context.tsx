@@ -30,6 +30,7 @@ import {
   useOAuthCallback,
   useGenerateRecoveryPhrase,
   useConfirmRecoveryPhrase,
+  useLinkViaRecovery,
   useSetupFirstDevice,
   useLogout,
   useSessionExpired,
@@ -41,7 +42,8 @@ import type {
   ResetPasswordInput,
   ChangePasswordInput,
   OAuthStartInput,
-  ConfirmRecoveryPhraseInput
+  ConfirmRecoveryPhraseInput,
+  LinkViaRecoveryInput
 } from '@/services/auth-service'
 
 // =============================================================================
@@ -83,6 +85,10 @@ export interface AuthContextValue {
   // First device setup (after recovery phrase confirmation)
   setupFirstDevice: () => Promise<{ success: boolean; error?: string }>
   isSettingUpDevice: boolean
+
+  // Device linking (for new device using recovery phrase)
+  linkViaRecovery: (input: LinkViaRecoveryInput) => Promise<{ success: boolean; deviceId?: string; error?: string }>
+  isLinkingViaRecovery: boolean
 
   // Session
   logout: () => Promise<{ success: boolean }>
@@ -162,6 +168,7 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
   const oauthStartMutation = useOAuthStart()
   const oauthCallbackMutation = useOAuthCallback()
   const confirmPhraseMutation = useConfirmRecoveryPhrase()
+  const linkViaRecoveryMutation = useLinkViaRecovery()
   const setupDeviceMutation = useSetupFirstDevice()
   const logoutMutation = useLogout()
 
@@ -272,6 +279,21 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
     }
   }, [setupDeviceMutation])
 
+  const linkViaRecovery = useCallback(
+    async (input: LinkViaRecoveryInput) => {
+      try {
+        const result = await linkViaRecoveryMutation.mutateAsync(input)
+        return result
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Device linking failed'
+        }
+      }
+    },
+    [linkViaRecoveryMutation]
+  )
+
   const logout = useCallback(async () => {
     return logoutMutation.mutateAsync()
   }, [logoutMutation])
@@ -319,6 +341,10 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
       setupFirstDevice,
       isSettingUpDevice: setupDeviceMutation.isPending,
 
+      // Device linking (new device using recovery phrase)
+      linkViaRecovery,
+      isLinkingViaRecovery: linkViaRecoveryMutation.isPending,
+
       // Session
       logout,
 
@@ -359,6 +385,7 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
       completeOAuth,
       confirmRecoveryPhrase,
       setupFirstDevice,
+      linkViaRecovery,
       logout,
       refreshStatus,
       signupMutation.isPending,
@@ -371,6 +398,7 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
       oauthStartMutation.isPending,
       oauthCallbackMutation.isPending,
       confirmPhraseMutation.isPending,
+      linkViaRecoveryMutation.isPending,
       setupDeviceMutation.isPending,
       logoutMutation.isPending
     ]

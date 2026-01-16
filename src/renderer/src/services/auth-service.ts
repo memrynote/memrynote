@@ -58,6 +58,12 @@ export interface SetupFirstDeviceInput {
   keyVerifier: string
 }
 
+export interface LinkViaRecoveryInput {
+  recoveryPhrase: string
+  email: string
+  deviceName: string
+}
+
 // =============================================================================
 // Password validation types
 // =============================================================================
@@ -118,10 +124,11 @@ export const authService = {
   /**
    * Log in with email and password.
    * @param input - Email, password, and device name
+   * @returns Success status and whether recovery phrase entry is needed (new device)
    */
   emailLogin: (
     input: EmailLoginInput
-  ): Promise<{ success: boolean; error?: string }> => {
+  ): Promise<{ success: boolean; error?: string; needsRecoveryPhrase?: boolean }> => {
     return window.api.sync.emailLogin(input)
   },
 
@@ -295,6 +302,21 @@ export const authService = {
    */
   deriveKeys: (): Promise<{ success: boolean; error?: string }> => {
     return window.api.crypto.deriveKeys()
+  },
+
+  // ===========================================================================
+  // Device Linking
+  // ===========================================================================
+
+  /**
+   * Link a new device using recovery phrase.
+   * Verifies the phrase against stored key verifier and sets up the device.
+   * @param input - Recovery phrase, email, and device name
+   */
+  linkViaRecovery: (
+    input: LinkViaRecoveryInput
+  ): Promise<{ success: boolean; deviceId?: string; error?: string }> => {
+    return window.api.sync.linkViaRecovery(input)
   }
 }
 
