@@ -492,10 +492,24 @@ export function registerSyncHandlers(): void {
         // Login to server
         const result = await syncApi.instance.emailLogin(email, password)
 
-        // Check if this is a new device (needs recovery phrase)
-        if (result.needsDeviceSetup) {
+        // Check if we have master key locally
+        // Even if server says device exists, if we cleared keychain locally,
+        // we need the recovery phrase to derive the master key again
+        const localHasMasterKey = await hasMasterKey()
+
+        // Need recovery phrase if:
+        // 1. Server says we need device setup (new device), OR
+        // 2. We don't have master key locally (keychain was cleared)
+        const needsRecoveryPhrase = result.needsDeviceSetup || !localHasMasterKey
+
+        if (needsRecoveryPhrase) {
           // Get recovery data from server
           const recoveryData = await syncApi.instance.getRecoveryData(result.user.id)
+
+          // Save tokens and userId to keychain so LINK_VIA_RECOVERY can use them
+          await saveTokens(result.tokens.accessToken, result.tokens.refreshToken)
+          const keychain = await import('../crypto/keychain')
+          await keychain.saveUserId(result.user.id)
 
           return {
             success: true,
@@ -508,8 +522,7 @@ export function registerSyncHandlers(): void {
           }
         }
 
-        // For returning device (already has session)
-        // This shouldn't normally happen as we'd have existing keys
+        // For returning device with existing master key
         return {
           success: true,
           user: result.user,
@@ -921,7 +934,7 @@ export function registerSyncHandlers(): void {
   ipcMain.handle(
     SYNC_CHANNELS.LINK_VIA_RECOVERY,
     createValidatedHandler(LinkViaRecoveryInputSchema, async (input) => {
-      const { recoveryPhrase, email, deviceName: _deviceName } = input
+      const { recoveryPhrase, email, deviceName } = input
 
       // Validate recovery phrase
       const validation = validateRecoveryPhrase(recoveryPhrase)
@@ -930,10 +943,7 @@ export function registerSyncHandlers(): void {
       }
 
       try {
-        // Login to get tokens
-        // Note: For recovery-based linking, we need a different endpoint
-        // For now, we'll get the recovery data and verify the phrase
-        // deviceName will be used when we implement device registration
+        // Get recovery data (kdf_salt and key_verifier) using email
         const recoveryData = await syncApi.instance.getRecoveryData(email)
 
         // Derive seed from recovery phrase
@@ -949,9 +959,40 @@ export function registerSyncHandlers(): void {
           throw new Error('Recovery phrase does not match. Please check and try again.')
         }
 
-        // TODO: Register device with server (needs auth endpoint for recovery-based login)
-        // For now, throw not implemented
-        throw new Error('Recovery phrase linking not fully implemented yet')
+        // Get tokens from keychain (set during login)
+        const tokens = await getTokens()
+        if (!tokens) {
+          throw new Error('No authentication tokens found. Please try logging in again.')
+        }
+
+        // Get user ID from keychain
+        const userId = await getUserId()
+        if (!userId) {
+          throw new Error('User ID not found. Please try logging in again.')
+        }
+
+        // Register device with server
+        const device = await syncApi.instance.registerDevice(
+          deviceName,
+          getDevicePlatform(),
+          app.getVersion(),
+          tokens.accessToken,
+          os.release()
+        )
+
+        // Save complete session to keychain (including master key)
+        await saveSyncSession({
+          userId,
+          deviceId: device.id,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          masterKey,
+        })
+
+        return {
+          success: true,
+          deviceId: device.id,
+        }
       } catch (error) {
         if (error instanceof SyncApiError) {
           throw new Error(error.message)

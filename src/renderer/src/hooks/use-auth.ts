@@ -28,6 +28,7 @@ import {
   type OAuthStartInput,
   type OAuthCallbackInput,
   type ConfirmRecoveryPhraseInput,
+  type LinkViaRecoveryInput,
   type PasswordValidationResult
 } from '@/services/auth-service'
 
@@ -315,6 +316,28 @@ export function useConfirmRecoveryPhrase(): UseMutationResult<
 
   return useMutation({
     mutationFn: authService.confirmRecoveryPhrase,
+    onSuccess: (data) => {
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: authKeys.setupStatus() })
+        queryClient.invalidateQueries({ queryKey: authKeys.hasMasterKey() })
+      }
+    }
+  })
+}
+
+/**
+ * Hook for linking a new device via recovery phrase.
+ * Used when logging in on a new device.
+ */
+export function useLinkViaRecovery(): UseMutationResult<
+  { success: boolean; deviceId?: string; error?: string },
+  Error,
+  LinkViaRecoveryInput
+> {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: authService.linkViaRecovery,
     onSuccess: (data) => {
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: authKeys.setupStatus() })

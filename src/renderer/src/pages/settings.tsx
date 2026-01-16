@@ -1358,8 +1358,9 @@ interface AccountOverviewProps {
 }
 
 function AccountOverview({ setupStatus }: AccountOverviewProps) {
-  const { logout } = useAuth()
+  const { logout, refreshStatus } = useAuth()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isClearingKeychain, setIsClearingKeychain] = useState(false)
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
@@ -1370,6 +1371,20 @@ function AccountOverview({ setupStatus }: AccountOverviewProps) {
       toast.error('Failed to logout')
     } finally {
       setIsLoggingOut(false)
+    }
+  }
+
+  // Dev-only: Clear keychain to simulate new device
+  const handleClearKeychain = async () => {
+    setIsClearingKeychain(true)
+    try {
+      await window.api.crypto.clearKeychain()
+      toast.success('Keychain cleared - you can now test login flow')
+      refreshStatus()
+    } catch (error) {
+      toast.error('Failed to clear keychain')
+    } finally {
+      setIsClearingKeychain(false)
     }
   }
 
@@ -1472,6 +1487,45 @@ function AccountOverview({ setupStatus }: AccountOverviewProps) {
           </Button>
         </div>
       </div>
+      {/* Dev Tools - Only in development */}
+      {import.meta.env.DEV && (
+        <>
+          <Separator />
+          <div className="space-y-4">
+            <div>
+              <h4 className="text-sm font-medium text-amber-600 uppercase tracking-wider">
+                Dev Tools
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                Development-only tools for testing
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/50 p-4 space-y-3">
+              <div className="flex items-start gap-2 text-sm text-amber-800 dark:text-amber-200">
+                <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <p>
+                  Clear keychain to simulate logging in on a new device. This will require you to
+                  enter your recovery phrase on next login.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={handleClearKeychain}
+                disabled={isClearingKeychain}
+                className="border-amber-300 hover:bg-amber-100 dark:border-amber-800 dark:hover:bg-amber-900"
+              >
+                {isClearingKeychain ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4 mr-2" />
+                )}
+                Clear Keychain (Simulate New Device)
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

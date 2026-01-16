@@ -21,6 +21,7 @@ export { PasswordStrength, PasswordStrengthCompact, validatePassword } from './p
 // Recovery Phrase
 export { RecoveryPhraseDisplay, RecoveryPhraseCompact } from './recovery-phrase-display'
 export { RecoveryPhraseConfirm } from './recovery-phrase-confirm'
+export { RecoveryPhraseInput } from './recovery-phrase-input'
 
 // Verification
 export { VerificationPending, VerificationPendingCompact } from './verification-pending'
