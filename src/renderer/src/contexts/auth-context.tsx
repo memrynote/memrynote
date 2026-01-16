@@ -7,13 +7,8 @@
  * @module contexts/auth-context
  */
 
-import {
-  createContext,
-  useContext,
-  useCallback,
-  useMemo,
-  type ReactNode
-} from 'react'
+import { createContext, useContext, useCallback, useMemo, useState, type ReactNode } from 'react'
+
 import { useQueryClient } from '@tanstack/react-query'
 import type { SetupStatus } from '../../../preload/index.d'
 import {
@@ -65,9 +60,15 @@ export interface AuthContextValue {
   generateRecoveryPhrase: () => void
 
   // Email auth
-  signup: (input: EmailSignupInput) => Promise<{ success: boolean; error?: string }>
-  login: (input: EmailLoginInput) => Promise<{ success: boolean; error?: string }>
-  verifyEmail: (token: string) => Promise<{ success: boolean; error?: string }>
+  signup: (
+    input: EmailSignupInput
+  ) => Promise<{ success: boolean; recoveryPhrase?: string | null; error?: string }>
+  login: (
+    input: EmailLoginInput
+  ) => Promise<{ success: boolean; needsRecoveryPhrase?: boolean; error?: string }>
+  verifyEmail: (
+    token: string
+  ) => Promise<{ success: boolean; recoveryPhrase?: string | null; error?: string }>
   resendVerification: () => Promise<{ success: boolean; error?: string }>
 
   // Password
@@ -77,17 +78,24 @@ export interface AuthContextValue {
 
   // OAuth
   startOAuth: (input: OAuthStartInput) => Promise<{ authUrl: string }>
-  completeOAuth: (input: { code: string; state: string }) => Promise<{ success: boolean; error?: string }>
+  completeOAuth: (input: {
+    code: string
+    state: string
+  }) => Promise<{ success: boolean; error?: string }>
 
   // Recovery phrase confirmation
-  confirmRecoveryPhrase: (input: ConfirmRecoveryPhraseInput) => Promise<{ success: boolean; error?: string }>
+  confirmRecoveryPhrase: (
+    input: ConfirmRecoveryPhraseInput
+  ) => Promise<{ success: boolean; error?: string }>
 
   // First device setup (after recovery phrase confirmation)
   setupFirstDevice: () => Promise<{ success: boolean; error?: string }>
   isSettingUpDevice: boolean
 
   // Device linking (for new device using recovery phrase)
-  linkViaRecovery: (input: LinkViaRecoveryInput) => Promise<{ success: boolean; deviceId?: string; error?: string }>
+  linkViaRecovery: (
+    input: LinkViaRecoveryInput
+  ) => Promise<{ success: boolean; deviceId?: string; error?: string }>
   isLinkingViaRecovery: boolean
 
   // Session
@@ -156,6 +164,7 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
   const setupStatusQuery = useSetupStatus()
   const masterKeyQuery = useHasMasterKey()
   const recoveryPhraseQuery = useGenerateRecoveryPhrase(false)
+  const [signupRecoveryPhrase, setSignupRecoveryPhrase] = useState<string | null>(null)
 
   // Mutations
   const signupMutation = useEmailSignup()
@@ -190,10 +199,10 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
   const setupStatus = setupStatusQuery.data ?? null
   const hasMasterKey = masterKeyQuery.data?.hasMasterKey ?? false
 
-  const isAuthenticated = setupStatus?.hasUser && setupStatus?.hasDevice
+  const isAuthenticated = setupStatus?.hasUser && setupStatus?.hasDevice && setupStatus?.hasTokens
   const needsSetup = !setupStatus?.isSetup
   const isFullySetup =
-    setupStatus?.isSetup && setupStatus?.hasMasterKey && hasMasterKey
+    setupStatus?.isSetup && setupStatus?.hasMasterKey && setupStatus?.hasTokens && hasMasterKey
 
   // Methods
   const generateRecoveryPhrase = useCallback(() => {
@@ -202,7 +211,11 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
 
   const signup = useCallback(
     async (input: EmailSignupInput) => {
-      return signupMutation.mutateAsync(input)
+      const result = await signupMutation.mutateAsync(input)
+      if (result.success) {
+        setSignupRecoveryPhrase(result.recoveryPhrase ?? null)
+      }
+      return result
     },
     [signupMutation]
   )
@@ -216,9 +229,13 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
 
   const verifyEmail = useCallback(
     async (token: string) => {
-      return verifyMutation.mutateAsync(token)
+      const result = await verifyMutation.mutateAsync(token)
+      if (result.success) {
+        setSignupRecoveryPhrase(result.recoveryPhrase ?? signupRecoveryPhrase)
+      }
+      return result
     },
-    [verifyMutation]
+    [verifyMutation, signupRecoveryPhrase]
   )
 
   const resendVerification = useCallback(async () => {
@@ -315,7 +332,7 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
       setupStatus,
 
       // Recovery phrase
-      recoveryPhrase: recoveryPhraseQuery.data?.phrase ?? null,
+      recoveryPhrase: signupRecoveryPhrase ?? recoveryPhraseQuery.data?.phrase ?? null,
       isGeneratingPhrase: recoveryPhraseQuery.isFetching,
       generateRecoveryPhrase,
 
@@ -371,6 +388,7 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
       isFullySetup,
       hasMasterKey,
       setupStatus,
+      signupRecoveryPhrase,
       recoveryPhraseQuery.data?.phrase,
       recoveryPhraseQuery.isFetching,
       generateRecoveryPhrase,

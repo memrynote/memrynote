@@ -110,8 +110,7 @@ function WelcomeStep({ onSignup, onLogin }: WelcomeStepProps) {
       <div className="space-y-2 text-center">
         <h1 className="text-2xl font-bold">Set Up Sync</h1>
         <p className="text-muted-foreground">
-          Sync your notes, tasks, and settings across all your devices with end-to-end
-          encryption.
+          Sync your notes, tasks, and settings across all your devices with end-to-end encryption.
         </p>
       </div>
 
@@ -182,7 +181,6 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
     startOAuth,
     recoveryPhrase,
     isGeneratingPhrase,
-    generateRecoveryPhrase,
     confirmRecoveryPhrase,
     setupFirstDevice,
     linkViaRecovery,
@@ -243,12 +241,12 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
     }
   }, [step, authMode])
 
-  // Generate recovery phrase when entering that step (only for signup flow)
+  // Recovery phrase is generated during signup in the main process
   useEffect(() => {
     if (step === 'recovery-phrase' && !recoveryPhrase && authMode === 'signup') {
-      generateRecoveryPhrase()
+      setError('Missing recovery phrase. Please restart signup.')
     }
-  }, [step, recoveryPhrase, generateRecoveryPhrase, authMode])
+  }, [step, recoveryPhrase, authMode])
 
   // Handle signup
   const handleSignup = useCallback(
@@ -274,7 +272,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
     async (data: { email: string; password: string; deviceName: string }) => {
       setError(null)
       try {
-        const result = await login(data) as {
+        const result = (await login(data)) as {
           success: boolean
           error?: string
           needsRecoveryPhrase?: boolean
@@ -352,20 +350,23 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
   }, [resendVerification])
 
   // Handle manual token verification
-  const handleVerifyToken = useCallback(async (token: string) => {
-    setError(null)
-    try {
-      const result = await verifyEmail(token)
-      if (result.success) {
-        // Move to recovery phrase step after verification
-        setStep('recovery-phrase')
-      } else {
-        setError(result.error || 'Verification failed')
+  const handleVerifyToken = useCallback(
+    async (token: string) => {
+      setError(null)
+      try {
+        const result = await verifyEmail(token)
+        if (result.success) {
+          // Move to recovery phrase step after verification
+          setStep('recovery-phrase')
+        } else {
+          setError(result.error || 'Verification failed')
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Verification failed')
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Verification failed')
-    }
-  }, [verifyEmail])
+    },
+    [verifyEmail]
+  )
 
   // Handle recovery phrase confirmation
   const handleConfirmPhrase = useCallback(
@@ -515,9 +516,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
           <div className="space-y-6">
             <div className="space-y-2 text-center">
               <h2 className="text-xl font-semibold">Welcome back</h2>
-              <p className="text-sm text-muted-foreground">
-                Sign in to your account
-              </p>
+              <p className="text-sm text-muted-foreground">Sign in to your account</p>
             </div>
 
             <OAuthButtons
@@ -583,9 +582,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
           return (
             <div className="flex flex-col items-center justify-center space-y-4 py-12">
               <Loader2 className="size-8 animate-spin text-primary" aria-hidden="true" />
-              <p className="text-sm text-muted-foreground">
-                Generating your recovery phrase...
-              </p>
+              <p className="text-sm text-muted-foreground">Generating your recovery phrase...</p>
             </div>
           )
         }
@@ -622,8 +619,8 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
             <div className="space-y-2">
               <h2 className="text-xl font-semibold">Setup Complete!</h2>
               <p className="text-muted-foreground">
-                Your account is now set up with end-to-end encryption.
-                Your data will sync securely across all your devices.
+                Your account is now set up with end-to-end encryption. Your data will sync securely
+                across all your devices.
               </p>
             </div>
             {onComplete && (
@@ -640,7 +637,11 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
   }
 
   const showBackButton = step !== 'welcome' && step !== 'complete'
-  const showStepIndicator = step !== 'welcome' && step !== 'complete' && step !== 'forgot-password' && step !== 'enter-phrase'
+  const showStepIndicator =
+    step !== 'welcome' &&
+    step !== 'complete' &&
+    step !== 'forgot-password' &&
+    step !== 'enter-phrase'
 
   return (
     <div className={cn('mx-auto max-w-md space-y-6 p-6', className)}>
@@ -654,11 +655,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
 
       {/* Step Indicator */}
       {showStepIndicator && (
-        <StepIndicator
-          steps={stepNames}
-          currentStep={currentStepIndex}
-          className="mb-6"
-        />
+        <StepIndicator steps={stepNames} currentStep={currentStepIndex} className="mb-6" />
       )}
 
       {/* Step Content */}

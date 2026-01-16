@@ -7,10 +7,7 @@
  * @module services/auth-service
  */
 
-import type {
-  SetupStatus,
-  RecoveryPhraseValidation
-} from '../../../preload/index.d'
+import type { SetupStatus, RecoveryPhraseValidation } from '../../../preload/index.d'
 
 // =============================================================================
 // Types for service input
@@ -117,7 +114,7 @@ export const authService = {
    */
   emailSignup: (
     input: EmailSignupInput
-  ): Promise<{ success: boolean; error?: string }> => {
+  ): Promise<{ success: boolean; recoveryPhrase?: string | null; error?: string }> => {
     return window.api.sync.emailSignup(input)
   },
 
@@ -128,7 +125,7 @@ export const authService = {
    */
   emailLogin: (
     input: EmailLoginInput
-  ): Promise<{ success: boolean; error?: string; needsRecoveryPhrase?: boolean }> => {
+  ): Promise<{ success: boolean; needsRecoveryPhrase?: boolean; error?: string }> => {
     return window.api.sync.emailLogin(input)
   },
 
@@ -136,7 +133,9 @@ export const authService = {
    * Verify email with token from verification email.
    * @param token - Verification token
    */
-  emailVerify: (token: string): Promise<{ success: boolean; error?: string }> => {
+  emailVerify: (
+    token: string
+  ): Promise<{ success: boolean; recoveryPhrase?: string | null; error?: string }> => {
     return window.api.sync.emailVerify(token)
   },
 
@@ -155,9 +154,7 @@ export const authService = {
    * Request password reset email.
    * @param email - User's email address
    */
-  forgotPassword: (
-    email: string
-  ): Promise<{ success: boolean; error?: string }> => {
+  forgotPassword: (email: string): Promise<{ success: boolean; error?: string }> => {
     return window.api.sync.forgotPassword(email)
   },
 
@@ -165,9 +162,7 @@ export const authService = {
    * Reset password with token from reset email.
    * @param input - Reset token and new password
    */
-  resetPassword: (
-    input: ResetPasswordInput
-  ): Promise<{ success: boolean; error?: string }> => {
+  resetPassword: (input: ResetPasswordInput): Promise<{ success: boolean; error?: string }> => {
     return window.api.sync.resetPassword(input)
   },
 
@@ -175,9 +170,7 @@ export const authService = {
    * Change password (authenticated).
    * @param input - Current and new password
    */
-  changePassword: (
-    input: ChangePasswordInput
-  ): Promise<{ success: boolean; error?: string }> => {
+  changePassword: (input: ChangePasswordInput): Promise<{ success: boolean; error?: string }> => {
     return window.api.sync.changePassword(input)
   },
 
@@ -232,9 +225,7 @@ export const authService = {
    * Complete OAuth callback.
    * @param input - OAuth code and state
    */
-  oauthCallback: (
-    input: OAuthCallbackInput
-  ): Promise<{ success: boolean; error?: string }> => {
+  oauthCallback: (input: OAuthCallbackInput): Promise<{ success: boolean; error?: string }> => {
     return window.api.sync.oauthCallback(input)
   },
 
