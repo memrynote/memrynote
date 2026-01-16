@@ -30,6 +30,7 @@ import {
   useOAuthCallback,
   useGenerateRecoveryPhrase,
   useConfirmRecoveryPhrase,
+  useSetupFirstDevice,
   useLogout,
   useSessionExpired,
   authKeys
@@ -78,6 +79,10 @@ export interface AuthContextValue {
 
   // Recovery phrase confirmation
   confirmRecoveryPhrase: (input: ConfirmRecoveryPhraseInput) => Promise<{ success: boolean; error?: string }>
+
+  // First device setup (after recovery phrase confirmation)
+  setupFirstDevice: () => Promise<{ success: boolean; error?: string }>
+  isSettingUpDevice: boolean
 
   // Session
   logout: () => Promise<{ success: boolean }>
@@ -157,6 +162,7 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
   const oauthStartMutation = useOAuthStart()
   const oauthCallbackMutation = useOAuthCallback()
   const confirmPhraseMutation = useConfirmRecoveryPhrase()
+  const setupDeviceMutation = useSetupFirstDevice()
   const logoutMutation = useLogout()
 
   // Session expired handler
@@ -254,6 +260,18 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
     [confirmPhraseMutation]
   )
 
+  const setupFirstDevice = useCallback(async () => {
+    try {
+      const result = await setupDeviceMutation.mutateAsync()
+      return { success: result.success }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Device setup failed'
+      }
+    }
+  }, [setupDeviceMutation])
+
   const logout = useCallback(async () => {
     return logoutMutation.mutateAsync()
   }, [logoutMutation])
@@ -297,6 +315,10 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
       // Recovery phrase confirmation
       confirmRecoveryPhrase,
 
+      // First device setup
+      setupFirstDevice,
+      isSettingUpDevice: setupDeviceMutation.isPending,
+
       // Session
       logout,
 
@@ -336,6 +358,7 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
       startOAuth,
       completeOAuth,
       confirmRecoveryPhrase,
+      setupFirstDevice,
       logout,
       refreshStatus,
       signupMutation.isPending,
@@ -348,6 +371,7 @@ export function AuthProvider({ children, onSessionExpired }: AuthProviderProps) 
       oauthStartMutation.isPending,
       oauthCallbackMutation.isPending,
       confirmPhraseMutation.isPending,
+      setupDeviceMutation.isPending,
       logoutMutation.isPending
     ]
   )

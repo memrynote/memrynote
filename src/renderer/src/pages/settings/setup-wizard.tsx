@@ -182,13 +182,15 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
     isGeneratingPhrase,
     generateRecoveryPhrase,
     confirmRecoveryPhrase,
+    setupFirstDevice,
     isSigningUp,
     isLoggingIn,
     isVerifying,
     isResending,
     isForgotPassword,
     isStartingOAuth,
-    isConfirmingPhrase
+    isConfirmingPhrase,
+    isSettingUpDevice
   } = useAuth()
 
   const [step, setStep] = useState<WizardStep>('welcome')
@@ -344,21 +346,31 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
       if (!recoveryPhrase) return
       setError(null)
       try {
-        const result = await confirmRecoveryPhrase({
+        // Step 1: Confirm recovery phrase words
+        const confirmResult = await confirmRecoveryPhrase({
           phrase: recoveryPhrase,
           confirmationWords
         })
-        if (result.success) {
-          setStep('complete')
-          onComplete?.()
-        } else {
-          setError(result.error || 'Failed to confirm recovery phrase')
+        if (!confirmResult.success) {
+          setError(confirmResult.error || 'Failed to confirm recovery phrase')
+          return
         }
+
+        // Step 2: Complete device setup (derive keys, register device, save to keychain)
+        const setupResult = await setupFirstDevice()
+        if (!setupResult.success) {
+          setError(setupResult.error || 'Failed to complete device setup')
+          return
+        }
+
+        // Success - move to complete step
+        setStep('complete')
+        onComplete?.()
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Confirmation failed')
+        setError(err instanceof Error ? err.message : 'Setup failed')
       }
     },
-    [recoveryPhrase, confirmRecoveryPhrase, onComplete]
+    [recoveryPhrase, confirmRecoveryPhrase, setupFirstDevice, onComplete]
   )
 
   // Navigation helpers
@@ -531,7 +543,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
             phrase={recoveryPhrase}
             onConfirm={handleConfirmPhrase}
             onBack={goBack}
-            isLoading={isConfirmingPhrase}
+            isLoading={isConfirmingPhrase || isSettingUpDevice}
             error={error}
           />
         )

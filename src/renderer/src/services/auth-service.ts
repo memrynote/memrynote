@@ -93,13 +93,11 @@ export const authService = {
   },
 
   /**
-   * Complete first device setup by storing KDF salt and key verifier.
-   * @param input - KDF salt and key verifier
+   * Complete first device setup after recovery phrase confirmation.
+   * Derives master key from pending signup, registers device, saves to keychain.
    */
-  setupFirstDevice: (
-    input: SetupFirstDeviceInput
-  ): Promise<{ success: boolean }> => {
-    return window.api.sync.setupFirstDevice(input)
+  setupFirstDevice: (): Promise<{ success: boolean; deviceId?: string; userId?: string }> => {
+    return window.api.sync.setupFirstDevice()
   },
 
   // ===========================================================================

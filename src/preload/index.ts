@@ -1309,9 +1309,9 @@ const api = {
     // Setup
     /** Get current setup status */
     getSetupStatus: () => ipcRenderer.invoke(SyncChannels.invoke.GET_SETUP_STATUS),
-    /** Setup first device (initial key generation) */
-    setupFirstDevice: (input: { kdfSalt: string; keyVerifier: string }) =>
-      ipcRenderer.invoke(SyncChannels.invoke.SETUP_FIRST_DEVICE, input),
+    /** Setup first device (completes signup after recovery phrase confirmation) */
+    setupFirstDevice: () =>
+      ipcRenderer.invoke(SyncChannels.invoke.SETUP_FIRST_DEVICE),
 
     // Auth (Email)
     /** Email signup (creates account + first device) */
