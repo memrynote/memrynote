@@ -11,6 +11,10 @@
 // Configuration
 // =============================================================================
 
+import { BrowserWindow } from 'electron'
+import { SYNC_EVENTS } from '@shared/contracts/ipc-sync'
+import { getTokens, saveTokens } from '../crypto/keychain'
+
 /**
  * Get sync server URL at runtime (lazy evaluation)
  *
@@ -121,6 +125,7 @@ export class SyncApiClient {
       body?: Record<string, unknown>
       token?: string
       query?: Record<string, string>
+      skipRefresh?: boolean
     } = {}
   ): Promise<T> {
     const url = new URL(`${API_PREFIX}${endpoint}`, this.baseUrl)
@@ -133,7 +138,7 @@ export class SyncApiClient {
     }
 
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json'
     }
 
     // Add authorization header if token provided
@@ -144,14 +149,43 @@ export class SyncApiClient {
     const response = await fetch(url.toString(), {
       method,
       headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
+      body: options.body ? JSON.stringify(options.body) : undefined
     })
 
     const data = await response.json()
 
     if (!response.ok) {
       const error = data as ApiError
-      throw new SyncApiError(error.error || 'UNKNOWN_ERROR', error.message || 'Unknown error', response.status)
+      const syncError = new SyncApiError(
+        error.error || 'UNKNOWN_ERROR',
+        error.message || 'Unknown error',
+        response.status
+      )
+
+      if (!options.skipRefresh && options.token && syncError.isAuthError()) {
+        const tokens = await getTokens()
+        if (tokens?.refreshToken) {
+          try {
+            const refresh = await this.refreshToken(tokens.refreshToken)
+            await saveTokens(refresh.access_token, tokens.refreshToken)
+            return this.request<T>(method, endpoint, {
+              ...options,
+              token: refresh.access_token,
+              skipRefresh: true
+            })
+          } catch {
+            BrowserWindow.getAllWindows().forEach((win) => {
+              win.webContents.send(SYNC_EVENTS.SESSION_EXPIRED, { reason: 'token_expired' })
+            })
+          }
+        } else {
+          BrowserWindow.getAllWindows().forEach((win) => {
+            win.webContents.send(SYNC_EVENTS.SESSION_EXPIRED, { reason: 'token_expired' })
+          })
+        }
+      }
+
+      throw syncError
     }
 
     return data as T
@@ -170,7 +204,7 @@ export class SyncApiClient {
    */
   async emailSignup(email: string, password: string): Promise<SignupResponse> {
     return this.request<SignupResponse>('POST', '/auth/email/signup', {
-      body: { email, password },
+      body: { email, password }
     })
   }
 
@@ -182,7 +216,7 @@ export class SyncApiClient {
    */
   async emailVerify(token: string): Promise<AuthResult> {
     return this.request<AuthResult>('POST', '/auth/email/verify', {
-      body: { token },
+      body: { token }
     })
   }
 
@@ -195,7 +229,7 @@ export class SyncApiClient {
    */
   async emailLogin(email: string, password: string): Promise<AuthResult> {
     return this.request<AuthResult>('POST', '/auth/email/login', {
-      body: { email, password },
+      body: { email, password }
     })
   }
 
@@ -207,7 +241,7 @@ export class SyncApiClient {
    */
   async forgotPassword(email: string): Promise<MessageResponse> {
     return this.request<MessageResponse>('POST', '/auth/email/forgot-password', {
-      body: { email },
+      body: { email }
     })
   }
 
@@ -220,7 +254,7 @@ export class SyncApiClient {
    */
   async resetPassword(token: string, newPassword: string): Promise<MessageResponse> {
     return this.request<MessageResponse>('POST', '/auth/email/reset-password', {
-      body: { token, new_password: newPassword },
+      body: { token, new_password: newPassword }
     })
   }
 
@@ -232,10 +266,14 @@ export class SyncApiClient {
    * @param accessToken - JWT access token
    * @returns Success message
    */
-  async changePassword(currentPassword: string, newPassword: string, accessToken: string): Promise<MessageResponse> {
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+    accessToken: string
+  ): Promise<MessageResponse> {
     return this.request<MessageResponse>('POST', '/auth/email/change-password', {
       body: { current_password: currentPassword, new_password: newPassword },
-      token: accessToken,
+      token: accessToken
     })
   }
 
@@ -247,7 +285,7 @@ export class SyncApiClient {
    */
   async resendVerification(email: string): Promise<MessageResponse> {
     return this.request<MessageResponse>('POST', '/auth/email/resend-verification', {
-      body: { email },
+      body: { email }
     })
   }
 
@@ -263,7 +301,7 @@ export class SyncApiClient {
    */
   async refreshToken(refreshToken: string): Promise<RefreshResponse> {
     return this.request<RefreshResponse>('POST', '/auth/refresh', {
-      body: { refresh_token: refreshToken },
+      body: { refresh_token: refreshToken }
     })
   }
 
@@ -290,7 +328,7 @@ export class SyncApiClient {
       redirect_uri: redirectUri,
       state,
       code_challenge: codeChallenge,
-      code_challenge_method: 'S256',
+      code_challenge_method: 'S256'
     })
 
     return `${this.baseUrl}${API_PREFIX}/auth/oauth/${provider}?${params.toString()}`
@@ -312,7 +350,7 @@ export class SyncApiClient {
     codeVerifier: string
   ): Promise<AuthResult> {
     return this.request<AuthResult>('POST', `/auth/oauth/${provider}/callback`, {
-      body: { code, state, code_verifier: codeVerifier },
+      body: { code, state, code_verifier: codeVerifier }
     })
   }
 
@@ -345,9 +383,9 @@ export class SyncApiClient {
         platform,
         app_version: appVersion,
         os_version: osVersion,
-        auth_public_key: authPublicKey,
+        auth_public_key: authPublicKey
       },
-      token: accessToken,
+      token: accessToken
     })
   }
 
@@ -359,10 +397,14 @@ export class SyncApiClient {
    * @param accessToken - JWT access token
    * @returns Success message
    */
-  async setupDevice(kdfSalt: string, keyVerifier: string, accessToken: string): Promise<MessageResponse> {
+  async setupDevice(
+    kdfSalt: string,
+    keyVerifier: string,
+    accessToken: string
+  ): Promise<MessageResponse> {
     return this.request<MessageResponse>('POST', '/auth/device/setup', {
       body: { kdf_salt: kdfSalt, key_verifier: keyVerifier },
-      token: accessToken,
+      token: accessToken
     })
   }
 
@@ -378,7 +420,7 @@ export class SyncApiClient {
    */
   async getRecoveryData(userId: string): Promise<RecoveryData> {
     return this.request<RecoveryData>('GET', '/auth/recovery', {
-      query: { user_id: userId },
+      query: { user_id: userId }
     })
   }
 }

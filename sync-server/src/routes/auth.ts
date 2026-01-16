@@ -19,12 +19,13 @@ import { authMiddleware, type AuthContext } from '../middleware/auth'
 import {
   createUser,
   getUserByEmail,
+  getUserById,
   getUserByVerificationToken,
   getUserByResetToken,
   getUserByOAuthProvider,
   updateUser,
   setKdfSaltAndVerifier,
-  type User,
+  type User
 } from '../services/user'
 import {
   validatePasswordStrength,
@@ -32,17 +33,12 @@ import {
   hashPassword,
   verifyPassword,
   generateSecureToken,
-  TOKEN_EXPIRY,
+  TOKEN_EXPIRY
 } from '../services/password'
 import { createAuthResult, refreshAccessToken } from '../services/auth'
 import { registerDevice, toPublicDevice } from '../services/device'
 import { sendVerificationEmail, sendPasswordResetEmail } from '../services/email'
-import {
-  ValidationError,
-  AuthenticationError,
-  ConflictError,
-  NotFoundError,
-} from '../lib/errors'
+import { ValidationError, AuthenticationError, ConflictError, NotFoundError } from '../lib/errors'
 
 // =============================================================================
 // Zod Schemas
@@ -54,38 +50,38 @@ const passwordSchema = z.string().min(12).max(128)
 
 const emailSignupSchema = z.object({
   email: emailSchema,
-  password: passwordSchema,
+  password: passwordSchema
 })
 
 const emailVerifySchema = z.object({
-  token: z.string().min(1),
+  token: z.string().min(1)
 })
 
 const emailLoginSchema = z.object({
   email: emailSchema,
-  password: z.string().min(1),
+  password: z.string().min(1)
 })
 
 const forgotPasswordSchema = z.object({
-  email: emailSchema,
+  email: emailSchema
 })
 
 const resetPasswordSchema = z.object({
   token: z.string().min(1),
-  new_password: passwordSchema,
+  new_password: passwordSchema
 })
 
 const changePasswordSchema = z.object({
   current_password: z.string().min(1),
-  new_password: passwordSchema,
+  new_password: passwordSchema
 })
 
 const resendVerificationSchema = z.object({
-  email: emailSchema,
+  email: emailSchema
 })
 
 const refreshTokenSchema = z.object({
-  refresh_token: z.string().min(1),
+  refresh_token: z.string().min(1)
 })
 
 const deviceRegistrationSchema = z.object({
@@ -93,18 +89,18 @@ const deviceRegistrationSchema = z.object({
   platform: z.enum(['macos', 'windows', 'linux', 'ios', 'android']),
   os_version: z.string().optional(),
   app_version: z.string().min(1),
-  auth_public_key: z.string().optional(),
+  auth_public_key: z.string().optional()
 })
 
 const deviceSetupSchema = z.object({
   kdf_salt: z.string().min(1),
-  key_verifier: z.string().min(1),
+  key_verifier: z.string().min(1)
 })
 
 const oauthCallbackSchema = z.object({
   code: z.string().min(1),
   state: z.string().min(1),
-  code_verifier: z.string().min(1),
+  code_verifier: z.string().min(1)
 })
 
 // =============================================================================
@@ -143,7 +139,7 @@ auth.post('/email/signup', zValidator('json', emailSignupSchema), async (c) => {
     passwordHash: hash,
     passwordSalt: salt,
     emailVerificationToken: verificationToken,
-    emailVerificationExpires: verificationExpires,
+    emailVerificationExpires: verificationExpires
   })
 
   // Send verification email
@@ -154,7 +150,7 @@ auth.post('/email/signup', zValidator('json', emailSignupSchema), async (c) => {
   return c.json(
     {
       message: 'Verification email sent',
-      user_id: user.id,
+      user_id: user.id
     },
     201
   )
@@ -182,7 +178,7 @@ auth.post('/email/verify', zValidator('json', emailVerifySchema), async (c) => {
   await updateUser(c.env.DB, user.id, {
     emailVerified: true,
     emailVerificationToken: null,
-    emailVerificationExpires: null,
+    emailVerificationExpires: null
   })
 
   // Register a temporary device for the auth result
@@ -256,7 +252,7 @@ auth.post('/email/forgot-password', zValidator('json', forgotPasswordSchema), as
     // Update user with reset token
     await updateUser(c.env.DB, user.id, {
       passwordResetToken: resetToken,
-      passwordResetExpires: resetExpires,
+      passwordResetExpires: resetExpires
     })
 
     // Send password reset email
@@ -267,7 +263,7 @@ auth.post('/email/forgot-password', zValidator('json', forgotPasswordSchema), as
 
   // Always return success to prevent email enumeration
   return c.json({
-    message: 'If an account exists with this email, a password reset link has been sent',
+    message: 'If an account exists with this email, a password reset link has been sent'
   })
 })
 
@@ -300,7 +296,7 @@ auth.post('/email/reset-password', zValidator('json', resetPasswordSchema), asyn
     passwordHash: hash,
     passwordSalt: salt,
     passwordResetToken: null,
-    passwordResetExpires: null,
+    passwordResetExpires: null
   })
 
   return c.json({ message: 'Password has been reset successfully' })
@@ -339,7 +335,7 @@ auth.post(
     // Update password
     await updateUser(c.env.DB, user.id, {
       passwordHash: hash,
-      passwordSalt: salt,
+      passwordSalt: salt
     })
 
     return c.json({ message: 'Password changed successfully' })
@@ -365,7 +361,7 @@ auth.post('/email/resend-verification', zValidator('json', resendVerificationSch
     // Update user with new token
     await updateUser(c.env.DB, user.id, {
       emailVerificationToken: verificationToken,
-      emailVerificationExpires: verificationExpires,
+      emailVerificationExpires: verificationExpires
     })
 
     // Send verification email
@@ -376,7 +372,7 @@ auth.post('/email/resend-verification', zValidator('json', resendVerificationSch
 
   // Always return success to prevent email enumeration
   return c.json({
-    message: 'If an unverified account exists with this email, a verification link has been sent',
+    message: 'If an unverified account exists with this email, a verification link has been sent'
   })
 })
 
@@ -392,7 +388,7 @@ auth.post('/refresh', zValidator('json', refreshTokenSchema), async (c) => {
 
     return c.json({
       access_token: accessToken,
-      expires_in: expiresIn,
+      expires_in: expiresIn
     })
   } catch {
     throw new AuthenticationError('Invalid or expired refresh token')
@@ -487,7 +483,7 @@ auth.post('/oauth/:provider/callback', zValidator('json', oauthCallbackSchema), 
       email: userProfile.email,
       authMethod: 'oauth',
       authProvider: provider as 'google' | 'apple' | 'github',
-      authProviderId: userProfile.providerId,
+      authProviderId: userProfile.providerId
     })
     isNewUser = true
   }
@@ -505,22 +501,27 @@ auth.post('/oauth/:provider/callback', zValidator('json', oauthCallbackSchema), 
 // Device Registration (T050) - Authenticated
 // -----------------------------------------------------------------------------
 
-auth.post('/device/register', authMiddleware, zValidator('json', deviceRegistrationSchema), async (c) => {
-  const input = c.req.valid('json')
-  const authUser = c.get('user')
+auth.post(
+  '/device/register',
+  authMiddleware,
+  zValidator('json', deviceRegistrationSchema),
+  async (c) => {
+    const input = c.req.valid('json')
+    const authUser = c.get('user')
 
-  // Register device
-  const device = await registerDevice(c.env.DB, {
-    userId: authUser.userId,
-    name: input.name,
-    platform: input.platform,
-    osVersion: input.os_version,
-    appVersion: input.app_version,
-    authPublicKey: input.auth_public_key,
-  })
+    // Register device
+    const device = await registerDevice(c.env.DB, {
+      userId: authUser.userId,
+      name: input.name,
+      platform: input.platform,
+      osVersion: input.os_version,
+      appVersion: input.app_version,
+      authPublicKey: input.auth_public_key
+    })
 
-  return c.json(toPublicDevice(device), 201)
-})
+    return c.json(toPublicDevice(device), 201)
+  }
+)
 
 // -----------------------------------------------------------------------------
 // First Device Setup (T051) - Authenticated
@@ -547,15 +548,15 @@ auth.get('/recovery', async (c) => {
     throw new ValidationError('user_id is required')
   }
 
-  // Get user from database
-  const user = await getUserByEmail(c.env.DB, userId) // Can use either ID or email
+  // Get user from database (try ID, then email)
+  const user = (await getUserById(c.env.DB, userId)) ?? (await getUserByEmail(c.env.DB, userId))
   if (!user) {
     throw new NotFoundError('User')
   }
 
   return c.json({
     kdf_salt: user.kdf_salt,
-    key_verifier: user.key_verifier,
+    key_verifier: user.key_verifier
   })
 })
 
@@ -571,7 +572,7 @@ function buildGoogleAuthUrl(redirectUri: string, state: string, codeChallenge: s
     scope: 'openid email profile',
     state,
     code_challenge: codeChallenge,
-    code_challenge_method: 'S256',
+    code_challenge_method: 'S256'
   })
 
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
@@ -586,7 +587,7 @@ function buildAppleAuthUrl(redirectUri: string, state: string, codeChallenge: st
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
-    response_mode: 'form_post',
+    response_mode: 'form_post'
   })
 
   return `https://appleid.apple.com/auth/authorize?${params.toString()}`
@@ -597,7 +598,7 @@ function buildGitHubAuthUrl(redirectUri: string, state: string): string {
     client_id: process.env.OAUTH_GITHUB_CLIENT_ID || '',
     redirect_uri: redirectUri,
     scope: 'read:user user:email',
-    state,
+    state
   })
 
   return `https://github.com/login/oauth/authorize?${params.toString()}`
@@ -618,8 +619,8 @@ async function exchangeGoogleCode(
       client_secret: env.OAUTH_GOOGLE_CLIENT_SECRET || '',
       code_verifier: codeVerifier,
       grant_type: 'authorization_code',
-      redirect_uri: 'memry://oauth/callback',
-    }).toString(),
+      redirect_uri: 'memry://oauth/callback'
+    }).toString()
   })
 
   if (!tokenResponse.ok) {
@@ -630,7 +631,7 @@ async function exchangeGoogleCode(
 
   // Get user info
   const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-    headers: { Authorization: `Bearer ${tokens.access_token}` },
+    headers: { Authorization: `Bearer ${tokens.access_token}` }
   })
 
   if (!userResponse.ok) {
@@ -641,7 +642,7 @@ async function exchangeGoogleCode(
 
   return {
     email: userInfo.email,
-    providerId: userInfo.id,
+    providerId: userInfo.id
   }
 }
 
@@ -659,8 +660,8 @@ async function exchangeAppleCode(
       client_id: process.env.OAUTH_APPLE_CLIENT_ID || '',
       client_secret: env.OAUTH_APPLE_CLIENT_SECRET || '',
       code_verifier: codeVerifier,
-      grant_type: 'authorization_code',
-    }).toString(),
+      grant_type: 'authorization_code'
+    }).toString()
   })
 
   if (!tokenResponse.ok) {
@@ -681,23 +682,26 @@ async function exchangeAppleCode(
 
   return {
     email: payload.email,
-    providerId: payload.sub,
+    providerId: payload.sub
   }
 }
 
-async function exchangeGitHubCode(code: string, env: Env): Promise<{ email: string; providerId: string }> {
+async function exchangeGitHubCode(
+  code: string,
+  env: Env
+): Promise<{ email: string; providerId: string }> {
   // Exchange code for tokens
   const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Accept: 'application/json',
+      Accept: 'application/json'
     },
     body: JSON.stringify({
       client_id: process.env.OAUTH_GITHUB_CLIENT_ID || '',
       client_secret: env.OAUTH_GITHUB_CLIENT_SECRET || '',
-      code,
-    }),
+      code
+    })
   })
 
   if (!tokenResponse.ok) {
@@ -710,8 +714,8 @@ async function exchangeGitHubCode(code: string, env: Env): Promise<{ email: stri
   const userResponse = await fetch('https://api.github.com/user', {
     headers: {
       Authorization: `Bearer ${tokens.access_token}`,
-      Accept: 'application/json',
-    },
+      Accept: 'application/json'
+    }
   })
 
   if (!userResponse.ok) {
@@ -726,8 +730,8 @@ async function exchangeGitHubCode(code: string, env: Env): Promise<{ email: stri
     const emailsResponse = await fetch('https://api.github.com/user/emails', {
       headers: {
         Authorization: `Bearer ${tokens.access_token}`,
-        Accept: 'application/json',
-      },
+        Accept: 'application/json'
+      }
     })
 
     if (emailsResponse.ok) {
@@ -747,7 +751,7 @@ async function exchangeGitHubCode(code: string, env: Env): Promise<{ email: stri
 
   return {
     email,
-    providerId: userInfo.id.toString(),
+    providerId: userInfo.id.toString()
   }
 }
 

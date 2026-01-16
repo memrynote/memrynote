@@ -2008,6 +2008,7 @@ export interface SetupStatus {
   hasUser: boolean
   hasDevice: boolean
   hasMasterKey: boolean
+  hasTokens: boolean
 }
 
 export interface SyncDevice {
@@ -2122,13 +2123,15 @@ export interface SyncClientAPI {
     email: string
     password: string
     deviceName: string
-  }): Promise<{ success: boolean; error?: string }>
+  }): Promise<{ success: boolean; recoveryPhrase?: string | null; error?: string }>
   emailLogin(input: {
     email: string
     password: string
     deviceName: string
-  }): Promise<{ success: boolean; error?: string }>
-  emailVerify(token: string): Promise<{ success: boolean; error?: string }>
+  }): Promise<{ success: boolean; needsRecoveryPhrase?: boolean; error?: string }>
+  emailVerify(
+    token: string
+  ): Promise<{ success: boolean; recoveryPhrase?: string | null; error?: string }>
   resendVerification(): Promise<{ success: boolean; error?: string }>
   forgotPassword(email: string): Promise<{ success: boolean; error?: string }>
   resetPassword(input: {

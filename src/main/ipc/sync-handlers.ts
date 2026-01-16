@@ -36,13 +36,18 @@ import {
   type ResetPasswordInput,
   type ChangePasswordInput,
   type OAuthStartInput,
-  type OAuthCallbackInput,
+  type OAuthCallbackInput
 } from '@shared/contracts/ipc-sync'
 import type { SyncStatus } from '@shared/contracts/sync-api'
 import { createValidatedHandler, createHandler } from './validate'
 import { syncApi, SyncApiError } from '../sync/api-client'
 import { generateRecoveryPhrase, validateRecoveryPhrase, mnemonicToSeed } from '../crypto/recovery'
-import { deriveMasterKey, generateKdfSalt, computeKeyVerifier, verifyKeyVerifier } from '../crypto/keys'
+import {
+  deriveMasterKey,
+  generateKdfSalt,
+  computeKeyVerifier,
+  verifyKeyVerifier
+} from '../crypto/keys'
 import {
   saveSyncSession,
   getSyncSession,
@@ -54,7 +59,7 @@ import {
   getDeviceId,
   savePendingSignup,
   getPendingSignup,
-  deletePendingSignup,
+  deletePendingSignup
 } from '../crypto/keychain'
 import { app } from 'electron'
 import os from 'os'
@@ -157,7 +162,7 @@ export function validatePassword(password: string): PasswordValidation {
   return {
     valid: errors.length === 0,
     errors,
-    strength,
+    strength
   }
 }
 
@@ -217,13 +222,19 @@ function generatePKCE(): { codeVerifier: string; codeChallenge: string } {
  * Get current setup status
  */
 const getSetupStatus = async (): Promise<SetupStatus> => {
-  const [userId, deviceId, masterKeyExists] = await Promise.all([getUserId(), getDeviceId(), hasMasterKey()])
+  const [userId, deviceId, masterKeyExists, tokens] = await Promise.all([
+    getUserId(),
+    getDeviceId(),
+    hasMasterKey(),
+    getTokens()
+  ])
 
   return {
-    isSetup: !!(userId && deviceId && masterKeyExists),
+    isSetup: !!(userId && deviceId && masterKeyExists && tokens),
     hasUser: !!userId,
     hasDevice: !!deviceId,
     hasMasterKey: masterKeyExists,
+    hasTokens: !!tokens
   }
 }
 
@@ -238,7 +249,7 @@ const getSyncStatus = async (): Promise<SyncStatus> => {
     state: session ? 'idle' : 'offline',
     pendingCount: 0,
     retryCount: 0,
-    isOnline: !!session,
+    isOnline: !!session
   }
 }
 
@@ -274,7 +285,7 @@ export function registerSyncHandlers(): void {
             password: keychainData.password,
             deviceName: keychainData.deviceName,
             recoveryPhrase: keychainData.recoveryPhrase,
-            userId: keychainData.userId,
+            userId: keychainData.userId
           }
         }
       }
@@ -330,7 +341,7 @@ export function registerSyncHandlers(): void {
           deviceId: device.id,
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
-          masterKey,
+          masterKey
         })
 
         // Clear pending signup state
@@ -339,12 +350,12 @@ export function registerSyncHandlers(): void {
         return {
           success: true,
           deviceId: device.id,
-          userId,
+          userId
         }
       } catch (error) {
         // Don't clear signup state on error so user can retry
         if (error instanceof SyncApiError) {
-          throw new Error(`Setup failed: ${error.message}`)
+          throw new Error(error.message)
         }
         throw error
       }
@@ -386,7 +397,7 @@ export function registerSyncHandlers(): void {
           password,
           deviceName,
           recoveryPhrase,
-          userId: result.user_id,
+          userId: result.user_id
         }
 
         // Persist to keychain so it survives app restart
@@ -396,7 +407,7 @@ export function registerSyncHandlers(): void {
           deviceName,
           recoveryPhrase,
           userId: result.user_id,
-          createdAt: Date.now(),
+          createdAt: Date.now()
         })
 
         // Clear any existing timeout (don't clear keychain data)
@@ -410,7 +421,7 @@ export function registerSyncHandlers(): void {
           success: true,
           userId: result.user_id,
           recoveryPhrase,
-          message: 'Verification email sent. Please check your inbox.',
+          message: 'Verification email sent. Please check your inbox.'
         }
       } catch (error) {
         if (error instanceof SyncApiError) {
@@ -444,7 +455,7 @@ export function registerSyncHandlers(): void {
             password: keychainData.password,
             deviceName: keychainData.deviceName,
             recoveryPhrase: keychainData.recoveryPhrase,
-            userId: keychainData.userId,
+            userId: keychainData.userId
           }
         }
       }
@@ -466,7 +477,7 @@ export function registerSyncHandlers(): void {
           success: true,
           user: result.user,
           needsSetup: result.needsDeviceSetup,
-          hasRecoveryPhrase: !!pendingSignup?.recoveryPhrase,
+          recoveryPhrase: pendingSignup?.recoveryPhrase ?? null
         }
       } catch (error) {
         if (error instanceof SyncApiError) {
@@ -518,16 +529,20 @@ export function registerSyncHandlers(): void {
             kdfSalt: recoveryData.kdf_salt,
             keyVerifier: recoveryData.key_verifier,
             tokens: result.tokens,
-            deviceName,
+            deviceName
           }
         }
 
         // For returning device with existing master key
+        await saveTokens(result.tokens.accessToken, result.tokens.refreshToken)
+        const keychain = await import('../crypto/keychain')
+        await keychain.saveUserId(result.user.id)
+
         return {
           success: true,
           user: result.user,
           needsRecoveryPhrase: false,
-          tokens: result.tokens,
+          tokens: result.tokens
         }
       } catch (error) {
         if (error instanceof SyncApiError) {
@@ -556,7 +571,7 @@ export function registerSyncHandlers(): void {
             password: keychainData.password,
             deviceName: keychainData.deviceName,
             recoveryPhrase: keychainData.recoveryPhrase,
-            userId: keychainData.userId,
+            userId: keychainData.userId
           }
         }
       }
@@ -588,13 +603,13 @@ export function registerSyncHandlers(): void {
         await syncApi.instance.forgotPassword(input.email)
         return {
           success: true,
-          message: 'If an account exists with this email, a password reset link has been sent',
+          message: 'If an account exists with this email, a password reset link has been sent'
         }
       } catch (error) {
         // Always return success to prevent email enumeration
         return {
           success: true,
-          message: 'If an account exists with this email, a password reset link has been sent',
+          message: 'If an account exists with this email, a password reset link has been sent'
         }
       }
     })
@@ -699,7 +714,7 @@ export function registerSyncHandlers(): void {
         provider,
         deviceName,
         state,
-        codeVerifier,
+        codeVerifier
       }
 
       // Get OAuth URL
@@ -712,7 +727,7 @@ export function registerSyncHandlers(): void {
       return {
         success: true,
         state,
-        message: 'Opening authorization page in browser',
+        message: 'Opening authorization page in browser'
       }
     })
   )
@@ -757,7 +772,7 @@ export function registerSyncHandlers(): void {
             password: '', // OAuth users don't have password
             deviceName,
             recoveryPhrase,
-            userId: result.user.id,
+            userId: result.user.id
           }
 
           return {
@@ -765,7 +780,7 @@ export function registerSyncHandlers(): void {
             isNewUser: true,
             user: result.user,
             recoveryPhrase,
-            needsSetup: true,
+            needsSetup: true
           }
         }
 
@@ -779,7 +794,7 @@ export function registerSyncHandlers(): void {
           needsRecoveryPhrase: true,
           kdfSalt: recoveryData.kdf_salt,
           keyVerifier: recoveryData.key_verifier,
-          deviceName,
+          deviceName
         }
       } catch (error) {
         pendingOAuth = null
@@ -986,12 +1001,12 @@ export function registerSyncHandlers(): void {
           deviceId: device.id,
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
-          masterKey,
+          masterKey
         })
 
         return {
           success: true,
-          deviceId: device.id,
+          deviceId: device.id
         }
       } catch (error) {
         if (error instanceof SyncApiError) {

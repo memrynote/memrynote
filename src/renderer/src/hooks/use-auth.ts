@@ -14,10 +14,7 @@ import {
   type UseQueryResult,
   type UseMutationResult
 } from '@tanstack/react-query'
-import type {
-  SetupStatus,
-  RecoveryPhraseValidation
-} from '../../../preload/index.d'
+import type { SetupStatus, RecoveryPhraseValidation } from '../../../preload/index.d'
 import {
   authService,
   onSessionExpired,
@@ -69,10 +66,7 @@ export function useSetupStatus(): UseQueryResult<SetupStatus, Error> {
 /**
  * Hook for checking if master key exists in keychain.
  */
-export function useHasMasterKey(): UseQueryResult<
-  { hasMasterKey: boolean },
-  Error
-> {
+export function useHasMasterKey(): UseQueryResult<{ hasMasterKey: boolean }, Error> {
   return useQuery({
     queryKey: authKeys.hasMasterKey(),
     queryFn: authService.hasMasterKey,
@@ -111,7 +105,7 @@ export function useSetupFirstDevice(): UseMutationResult<
  * Invalidates setup status on success.
  */
 export function useEmailSignup(): UseMutationResult<
-  { success: boolean; error?: string },
+  { success: boolean; recoveryPhrase?: string | null; error?: string },
   Error,
   EmailSignupInput
 > {
@@ -132,7 +126,7 @@ export function useEmailSignup(): UseMutationResult<
  * Invalidates setup status on success.
  */
 export function useEmailLogin(): UseMutationResult<
-  { success: boolean; error?: string },
+  { success: boolean; needsRecoveryPhrase?: boolean; error?: string },
   Error,
   EmailLoginInput
 > {
@@ -153,7 +147,7 @@ export function useEmailLogin(): UseMutationResult<
  * Hook for email verification.
  */
 export function useEmailVerify(): UseMutationResult<
-  { success: boolean; error?: string },
+  { success: boolean; recoveryPhrase?: string | null; error?: string },
   Error,
   string
 > {
@@ -239,11 +233,7 @@ export const validatePassword = authService.validatePassword
 /**
  * Hook for starting OAuth flow.
  */
-export function useOAuthStart(): UseMutationResult<
-  { authUrl: string },
-  Error,
-  OAuthStartInput
-> {
+export function useOAuthStart(): UseMutationResult<{ authUrl: string }, Error, OAuthStartInput> {
   return useMutation({
     mutationFn: authService.oauthStart
   })
@@ -354,11 +344,7 @@ export function useLinkViaRecovery(): UseMutationResult<
 /**
  * Hook for logout.
  */
-export function useLogout(): UseMutationResult<
-  { success: boolean },
-  Error,
-  void
-> {
+export function useLogout(): UseMutationResult<{ success: boolean }, Error, void> {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -373,11 +359,7 @@ export function useLogout(): UseMutationResult<
 /**
  * Hook for clearing keychain.
  */
-export function useClearKeychain(): UseMutationResult<
-  { success: boolean },
-  Error,
-  void
-> {
+export function useClearKeychain(): UseMutationResult<{ success: boolean }, Error, void> {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -426,11 +408,11 @@ export function useAuthState() {
   const hasMasterKey = masterKeyQuery.data?.hasMasterKey ?? false
 
   // Determine auth state
-  const isAuthenticated = setupStatus?.hasUser && setupStatus?.hasDevice
+  const isAuthenticated = setupStatus?.hasUser && setupStatus?.hasDevice && setupStatus?.hasTokens
   const needsSetup = !setupStatus?.isSetup
   const needsEmailVerification = setupStatus?.hasUser && !setupStatus?.isSetup
   const isFullySetup =
-    setupStatus?.isSetup && setupStatus?.hasMasterKey && hasMasterKey
+    setupStatus?.isSetup && setupStatus?.hasMasterKey && setupStatus?.hasTokens && hasMasterKey
 
   return {
     // Query states
