@@ -79,6 +79,28 @@ export function useHasMasterKey(): UseQueryResult<
   })
 }
 
+/**
+ * Hook for completing first device setup after recovery phrase confirmation.
+ * Derives master key, registers device, saves to keychain.
+ */
+export function useSetupFirstDevice(): UseMutationResult<
+  { success: boolean; deviceId?: string; userId?: string },
+  Error,
+  void
+> {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: authService.setupFirstDevice,
+    onSuccess: (data) => {
+      if (data.success) {
+        // Invalidate setup status and master key queries
+        queryClient.invalidateQueries({ queryKey: authKeys.setupStatus() })
+        queryClient.invalidateQueries({ queryKey: authKeys.hasMasterKey() })
+      }
+    }
+  })
+}
+
 // =============================================================================
 // Email Authentication Hooks
 // =============================================================================

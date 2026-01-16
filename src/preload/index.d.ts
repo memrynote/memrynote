@@ -2115,7 +2115,7 @@ export interface SyncInitialProgressEvent {
 export interface SyncClientAPI {
   // Setup
   getSetupStatus(): Promise<SetupStatus>
-  setupFirstDevice(input: { kdfSalt: string; keyVerifier: string }): Promise<{ success: boolean }>
+  setupFirstDevice(): Promise<{ success: boolean; deviceId?: string; userId?: string }>
 
   // Auth (Email)
   emailSignup(input: {
