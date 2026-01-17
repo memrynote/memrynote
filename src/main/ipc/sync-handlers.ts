@@ -8,7 +8,7 @@
  * @module main/ipc/sync-handlers
  */
 
-import { ipcMain, shell } from 'electron'
+import { ipcMain, shell, BrowserWindow } from 'electron'
 import { randomBytes } from 'crypto'
 import {
   SYNC_CHANNELS,
@@ -41,7 +41,8 @@ import {
 } from '@shared/contracts/ipc-sync'
 import type { SyncStatus } from '@shared/contracts/sync-api'
 import { createValidatedHandler, createHandler } from './validate'
-import { syncApi, SyncApiError } from '../sync/api-client'
+import { syncApi, SyncApiError, type LinkingStatusResponse } from '../sync/api-client'
+import { LinkingPoller } from '../sync/linking-poller'
 import { startOAuthServer, getOAuthCallbackUrl, isLoopbackOAuth } from '../sync/oauth-server'
 import { generateRecoveryPhrase, validateRecoveryPhrase, mnemonicToSeed } from '../crypto/recovery'
 import {
@@ -119,6 +120,7 @@ interface ActiveLinkingSession {
   deviceName?: string
   devicePlatform?: 'macos' | 'windows' | 'linux' | 'ios' | 'android'
   linkingKeys?: { encKey: Buffer; macKey: Buffer }
+  poller?: LinkingPoller
 }
 
 /** Pending linking request state (new device) */
@@ -131,6 +133,7 @@ interface PendingLinkingRequest {
   deviceName: string
   devicePlatform: 'macos' | 'windows' | 'linux' | 'ios' | 'android'
   expiresAt: number
+  poller?: LinkingPoller
 }
 
 // =============================================================================
@@ -259,6 +262,103 @@ function generatePKCE(): { codeVerifier: string; codeChallenge: string } {
   const codeChallenge = hash.toString('base64url')
 
   return { codeVerifier, codeChallenge }
+}
+
+/**
+ * Handle the completion of device linking (shared logic for IPC handler and polling callback)
+ *
+ * @param sessionId - The linking session ID
+ * @returns Result with deviceId on success
+ * @throws Error if linking fails
+ */
+async function handleCompleteLinking(
+  sessionId: string
+): Promise<{ success: boolean; deviceId: string; message: string }> {
+  // Verify we have a pending request
+  if (!pendingLinkingRequest || pendingLinkingRequest.sessionId !== sessionId) {
+    throw new Error('No pending linking request found')
+  }
+
+  // Check expiry
+  if (Date.now() > pendingLinkingRequest.expiresAt) {
+    // Clean up
+    pendingLinkingRequest.poller?.stop()
+    pendingLinkingRequest.myKeyPair.secretKey.fill(0)
+    pendingLinkingRequest.linkingKeys.encKey.fill(0)
+    pendingLinkingRequest.linkingKeys.macKey.fill(0)
+    pendingLinkingRequest = null
+    throw new Error('Linking request has expired')
+  }
+
+  try {
+    const myPublicKeyBase64 = pendingLinkingRequest.myKeyPair.publicKey.toString('base64')
+
+    // Call server to complete linking
+    const response = await syncApi.instance.completeLinking(sessionId, myPublicKeyBase64)
+
+    // Verify key_confirm HMAC (T110a)
+    const expectedHmac = Buffer.from(response.key_confirm, 'base64')
+    const isValid = verifyKeyConfirm(
+      pendingLinkingRequest.linkingKeys.macKey,
+      expectedHmac,
+      sessionId,
+      response.encrypted_master_key,
+      response.nonce
+    )
+
+    if (!isValid) {
+      throw new Error('Invalid key confirmation - linking verification failed')
+    }
+
+    // Decrypt master key (T111)
+    const encryptedMasterKey = Buffer.from(response.encrypted_master_key, 'base64')
+    const nonce = Buffer.from(response.nonce, 'base64')
+    const masterKey = decryptMasterKeyForLinking(
+      encryptedMasterKey,
+      nonce,
+      pendingLinkingRequest.linkingKeys.encKey
+    )
+
+    // Save session to keychain
+    const keychain = await import('../crypto/keychain')
+
+    // Get user ID from device info
+    const userId = await keychain.getUserId()
+
+    await keychain.saveSyncSession({
+      userId: userId || response.device.id, // Fallback to device ID if user ID not set
+      deviceId: response.device.id,
+      accessToken: response.tokens.accessToken,
+      refreshToken: response.tokens.refreshToken,
+      masterKey
+    })
+
+    // Clean up key material
+    pendingLinkingRequest.poller?.stop()
+    pendingLinkingRequest.myKeyPair.secretKey.fill(0)
+    pendingLinkingRequest.linkingKeys.encKey.fill(0)
+    pendingLinkingRequest.linkingKeys.macKey.fill(0)
+    pendingLinkingRequest = null
+
+    return {
+      success: true,
+      deviceId: response.device.id,
+      message: 'Device linked successfully'
+    }
+  } catch (error) {
+    // Clean up on error
+    if (pendingLinkingRequest) {
+      pendingLinkingRequest.poller?.stop()
+      pendingLinkingRequest.myKeyPair.secretKey.fill(0)
+      pendingLinkingRequest.linkingKeys.encKey.fill(0)
+      pendingLinkingRequest.linkingKeys.macKey.fill(0)
+      pendingLinkingRequest = null
+    }
+    if (error instanceof SyncApiError) {
+      throw new Error(error.message)
+    }
+    throw error
+  }
 }
 
 // =============================================================================
@@ -1211,9 +1311,71 @@ export function registerSyncHandlers(): void {
           status: 'pending'
         }
 
+        // Start polling for status changes (existing device watches for 'scanned')
+        const poller = new LinkingPoller({
+          sessionId: response.session_id,
+          role: 'existing',
+          expiresAt,
+          accessToken: tokens.accessToken,
+          onStatusChange: (status: LinkingStatusResponse) => {
+            if (status.status === 'scanned' && activeLinkingSession) {
+              // Store proof data for approval
+              if (status.new_device_public_key) {
+                activeLinkingSession.newDevicePublicKey = Buffer.from(
+                  status.new_device_public_key,
+                  'base64'
+                )
+              }
+              if (status.new_device_confirm) {
+                activeLinkingSession.newDeviceConfirm = Buffer.from(
+                  status.new_device_confirm,
+                  'base64'
+                )
+              }
+              activeLinkingSession.deviceName = status.device_name
+              activeLinkingSession.devicePlatform = status.device_platform as
+                | 'macos'
+                | 'windows'
+                | 'linux'
+                | 'ios'
+                | 'android'
+                | undefined
+              activeLinkingSession.status = 'scanned'
+
+              // Emit LINKING_REQUEST to all windows
+              BrowserWindow.getAllWindows().forEach((win) => {
+                win.webContents.send(SYNC_EVENTS.LINKING_REQUEST, {
+                  sessionId: response.session_id,
+                  deviceName: status.device_name || 'Unknown Device',
+                  devicePlatform: status.device_platform || 'unknown',
+                  newDevicePublicKey: status.new_device_public_key,
+                  newDeviceConfirm: status.new_device_confirm
+                })
+              })
+            }
+          },
+          onError: (error: Error) => {
+            console.error('[LinkingPoller] Existing device polling error:', error.message)
+          },
+          onExpired: () => {
+            // Emit expired event
+            BrowserWindow.getAllWindows().forEach((win) => {
+              win.webContents.send(SYNC_EVENTS.LINKING_EXPIRED, {
+                sessionId: response.session_id
+              })
+            })
+            // Cleanup will be handled by the timeout
+          }
+        })
+
+        poller.start()
+        activeLinkingSession.poller = poller
+
         // Set timeout to clean up expired sessions (5 minutes + buffer)
         setTimeout(() => {
           if (activeLinkingSession?.sessionId === response.session_id) {
+            // Stop poller
+            activeLinkingSession.poller?.stop()
             // Zero out secret key before clearing
             activeLinkingSession.ephemeralKeyPair.secretKey.fill(0)
             if (activeLinkingSession.linkingKeys) {
@@ -1308,6 +1470,8 @@ export function registerSyncHandlers(): void {
           devicePlatform
         )
 
+        const pendingExpiresAt = Date.now() + 5 * 60 * 1000 // 5 minutes
+
         // Store pending request for when approval comes
         pendingLinkingRequest = {
           sessionId,
@@ -1317,12 +1481,78 @@ export function registerSyncHandlers(): void {
           linkingKeys,
           deviceName,
           devicePlatform,
-          expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
+          expiresAt: pendingExpiresAt
         }
+
+        // Start polling for status changes (new device watches for 'approved' or 'rejected')
+        const poller = new LinkingPoller({
+          sessionId,
+          role: 'new',
+          expiresAt: pendingExpiresAt,
+          onStatusChange: async (status: LinkingStatusResponse) => {
+            if (status.status === 'approved' && pendingLinkingRequest) {
+              try {
+                // Auto-complete the linking
+                const completeResult = await handleCompleteLinking(sessionId)
+
+                // Emit LINKING_APPROVED to all windows
+                BrowserWindow.getAllWindows().forEach((win) => {
+                  win.webContents.send(SYNC_EVENTS.LINKING_APPROVED, {
+                    sessionId,
+                    deviceId: completeResult.deviceId
+                  })
+                })
+              } catch (error) {
+                console.error('[LinkingPoller] Failed to complete linking:', error)
+                // Emit rejection on completion failure
+                BrowserWindow.getAllWindows().forEach((win) => {
+                  win.webContents.send(SYNC_EVENTS.LINKING_REJECTED, {
+                    sessionId,
+                    reason: error instanceof Error ? error.message : 'Failed to complete linking'
+                  })
+                })
+              }
+            } else if (status.status === 'rejected') {
+              // Emit LINKING_REJECTED to all windows
+              BrowserWindow.getAllWindows().forEach((win) => {
+                win.webContents.send(SYNC_EVENTS.LINKING_REJECTED, {
+                  sessionId,
+                  reason: 'Request was rejected by the existing device'
+                })
+              })
+
+              // Cleanup pending request
+              if (pendingLinkingRequest?.sessionId === sessionId) {
+                pendingLinkingRequest.poller?.stop()
+                pendingLinkingRequest.myKeyPair.secretKey.fill(0)
+                pendingLinkingRequest.linkingKeys.encKey.fill(0)
+                pendingLinkingRequest.linkingKeys.macKey.fill(0)
+                pendingLinkingRequest = null
+              }
+            }
+          },
+          onError: (error: Error) => {
+            console.error('[LinkingPoller] New device polling error:', error.message)
+          },
+          onExpired: () => {
+            // Emit expired event
+            BrowserWindow.getAllWindows().forEach((win) => {
+              win.webContents.send(SYNC_EVENTS.LINKING_EXPIRED, {
+                sessionId
+              })
+            })
+            // Cleanup will be handled by the timeout
+          }
+        })
+
+        poller.start()
+        pendingLinkingRequest.poller = poller
 
         // Set timeout to clean up
         setTimeout(() => {
           if (pendingLinkingRequest?.sessionId === sessionId) {
+            // Stop poller
+            pendingLinkingRequest.poller?.stop()
             // Zero out key material
             pendingLinkingRequest.myKeyPair.secretKey.fill(0)
             pendingLinkingRequest.linkingKeys.encKey.fill(0)
@@ -1375,6 +1605,7 @@ export function registerSyncHandlers(): void {
       // Check expiry
       if (Date.now() > activeLinkingSession.expiresAt) {
         // Clean up
+        activeLinkingSession.poller?.stop()
         activeLinkingSession.ephemeralKeyPair.secretKey.fill(0)
         activeLinkingSession = null
         throw new Error('Linking session has expired')
@@ -1458,12 +1689,14 @@ export function registerSyncHandlers(): void {
           tokens.accessToken
         )
 
-        // Update session status
+        // Update session status and stop polling (existing device's job is done)
         activeLinkingSession.status = 'approved'
+        activeLinkingSession.poller?.stop()
 
         // Clean up after a delay
         setTimeout(() => {
           if (activeLinkingSession?.sessionId === sessionId) {
+            activeLinkingSession.poller?.stop()
             activeLinkingSession.ephemeralKeyPair.secretKey.fill(0)
             if (activeLinkingSession.linkingKeys) {
               activeLinkingSession.linkingKeys.encKey.fill(0)
@@ -1490,6 +1723,8 @@ export function registerSyncHandlers(): void {
    * Complete Linking (New Device)
    *
    * Called by new device after approval to complete the linking process.
+   * Note: With polling, this is typically auto-triggered when 'approved' status is detected.
+   * This handler remains for manual completion if needed.
    *
    * Flow:
    * 1. Verify we have a pending request
@@ -1501,90 +1736,7 @@ export function registerSyncHandlers(): void {
   ipcMain.handle(
     SYNC_CHANNELS.COMPLETE_LINKING,
     createValidatedHandler(CompleteLinkingInputSchema, async (input) => {
-      const { sessionId } = input
-
-      // Verify we have a pending request
-      if (!pendingLinkingRequest || pendingLinkingRequest.sessionId !== sessionId) {
-        throw new Error('No pending linking request found')
-      }
-
-      // Check expiry
-      if (Date.now() > pendingLinkingRequest.expiresAt) {
-        // Clean up
-        pendingLinkingRequest.myKeyPair.secretKey.fill(0)
-        pendingLinkingRequest.linkingKeys.encKey.fill(0)
-        pendingLinkingRequest.linkingKeys.macKey.fill(0)
-        pendingLinkingRequest = null
-        throw new Error('Linking request has expired')
-      }
-
-      try {
-        const myPublicKeyBase64 = pendingLinkingRequest.myKeyPair.publicKey.toString('base64')
-
-        // Call server to complete linking
-        const response = await syncApi.instance.completeLinking(sessionId, myPublicKeyBase64)
-
-        // Verify key_confirm HMAC (T110a)
-        const expectedHmac = Buffer.from(response.key_confirm, 'base64')
-        const isValid = verifyKeyConfirm(
-          pendingLinkingRequest.linkingKeys.macKey,
-          expectedHmac,
-          sessionId,
-          response.encrypted_master_key,
-          response.nonce
-        )
-
-        if (!isValid) {
-          throw new Error('Invalid key confirmation - linking verification failed')
-        }
-
-        // Decrypt master key (T111)
-        const encryptedMasterKey = Buffer.from(response.encrypted_master_key, 'base64')
-        const nonce = Buffer.from(response.nonce, 'base64')
-        const masterKey = decryptMasterKeyForLinking(
-          encryptedMasterKey,
-          nonce,
-          pendingLinkingRequest.linkingKeys.encKey
-        )
-
-        // Save session to keychain
-        const keychain = await import('../crypto/keychain')
-
-        // Get user ID from device info
-        const userId = await keychain.getUserId()
-
-        await keychain.saveSyncSession({
-          userId: userId || response.device.id, // Fallback to device ID if user ID not set
-          deviceId: response.device.id,
-          accessToken: response.tokens.accessToken,
-          refreshToken: response.tokens.refreshToken,
-          masterKey
-        })
-
-        // Clean up key material
-        pendingLinkingRequest.myKeyPair.secretKey.fill(0)
-        pendingLinkingRequest.linkingKeys.encKey.fill(0)
-        pendingLinkingRequest.linkingKeys.macKey.fill(0)
-        pendingLinkingRequest = null
-
-        return {
-          success: true,
-          deviceId: response.device.id,
-          message: 'Device linked successfully'
-        }
-      } catch (error) {
-        // Clean up on error
-        if (pendingLinkingRequest) {
-          pendingLinkingRequest.myKeyPair.secretKey.fill(0)
-          pendingLinkingRequest.linkingKeys.encKey.fill(0)
-          pendingLinkingRequest.linkingKeys.macKey.fill(0)
-          pendingLinkingRequest = null
-        }
-        if (error instanceof SyncApiError) {
-          throw new Error(error.message)
-        }
-        throw error
-      }
+      return handleCompleteLinking(input.sessionId)
     })
   )
 
@@ -1599,6 +1751,9 @@ export function registerSyncHandlers(): void {
       // Clean up existing device session
       if (activeLinkingSession) {
         const sessionId = activeLinkingSession.sessionId
+
+        // Stop polling
+        activeLinkingSession.poller?.stop()
 
         // Try to reject on server if we have tokens
         const tokens = await getTokens()
@@ -1621,6 +1776,9 @@ export function registerSyncHandlers(): void {
 
       // Clean up new device pending request
       if (pendingLinkingRequest) {
+        // Stop polling
+        pendingLinkingRequest.poller?.stop()
+
         pendingLinkingRequest.myKeyPair.secretKey.fill(0)
         pendingLinkingRequest.linkingKeys.encKey.fill(0)
         pendingLinkingRequest.linkingKeys.macKey.fill(0)
@@ -1644,7 +1802,8 @@ export function registerSyncHandlers(): void {
         const isExpired = Date.now() > activeLinkingSession.expiresAt
 
         if (isExpired) {
-          // Clean up expired session
+          // Stop polling and clean up expired session
+          activeLinkingSession.poller?.stop()
           activeLinkingSession.ephemeralKeyPair.secretKey.fill(0)
           if (activeLinkingSession.linkingKeys) {
             activeLinkingSession.linkingKeys.encKey.fill(0)
@@ -1671,7 +1830,8 @@ export function registerSyncHandlers(): void {
         const isExpired = Date.now() > pendingLinkingRequest.expiresAt
 
         if (isExpired) {
-          // Clean up expired request
+          // Stop polling and clean up expired request
+          pendingLinkingRequest.poller?.stop()
           pendingLinkingRequest.myKeyPair.secretKey.fill(0)
           pendingLinkingRequest.linkingKeys.encKey.fill(0)
           pendingLinkingRequest.linkingKeys.macKey.fill(0)
@@ -1811,6 +1971,8 @@ export function unregisterSyncHandlers(): void {
 
   // Clean up linking state
   if (activeLinkingSession) {
+    // Stop polling
+    activeLinkingSession.poller?.stop()
     activeLinkingSession.ephemeralKeyPair.secretKey.fill(0)
     if (activeLinkingSession.linkingKeys) {
       activeLinkingSession.linkingKeys.encKey.fill(0)
@@ -1820,6 +1982,8 @@ export function unregisterSyncHandlers(): void {
   }
 
   if (pendingLinkingRequest) {
+    // Stop polling
+    pendingLinkingRequest.poller?.stop()
     pendingLinkingRequest.myKeyPair.secretKey.fill(0)
     pendingLinkingRequest.linkingKeys.encKey.fill(0)
     pendingLinkingRequest.linkingKeys.macKey.fill(0)

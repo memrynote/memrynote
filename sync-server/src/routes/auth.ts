@@ -690,7 +690,8 @@ auth.post(
   zValidator('json', linkingScanSchema),
   async (c) => {
     const sessionId = c.req.param('session_id')
-    const { new_device_public_key, token, new_device_confirm } = c.req.valid('json')
+    const { new_device_public_key, token, new_device_confirm, device_name, device_platform } =
+      c.req.valid('json')
 
     // Find session in D1
     const session = await c.env.DB.prepare(
@@ -741,10 +742,16 @@ auth.post(
     // Update session with new device info
     await c.env.DB.prepare(
       `UPDATE linking_sessions
-       SET new_device_public_key = ?, new_device_confirm = ?, status = 'scanned'
+       SET new_device_public_key = ?, new_device_confirm = ?, device_name = ?, device_platform = ?, status = 'scanned'
        WHERE id = ?`
     )
-      .bind(new_device_public_key, new_device_confirm, sessionId)
+      .bind(
+        new_device_public_key,
+        new_device_confirm,
+        device_name || null,
+        device_platform || null,
+        sessionId
+      )
       .run()
 
     // Notify existing device via Durable Object WebSocket (reuse existing DO reference)
@@ -930,6 +937,142 @@ auth.post(
         expires_in: tokens.expiresIn
       }
     })
+  }
+)
+
+// -----------------------------------------------------------------------------
+// T108: Linking Status Endpoint (Polling)
+// GET /auth/linking/:session_id/status
+// -----------------------------------------------------------------------------
+
+auth.get(
+  '/linking/:session_id/status',
+  rateLimit({
+    ...RATE_LIMITS.DEVICE_LINKING,
+    keyGenerator: (c) => {
+      const ip =
+        c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
+      return `linking_status:${ip}`
+    }
+  }),
+  async (c) => {
+    const sessionId = c.req.param('session_id')
+
+    // Find session in D1
+    const session = await c.env.DB.prepare(
+      `SELECT id, user_id, status, expires_at,
+              new_device_public_key, new_device_confirm,
+              device_name, device_platform
+       FROM linking_sessions WHERE id = ?`
+    )
+      .bind(sessionId)
+      .first<{
+        id: string
+        user_id: string
+        status: string
+        expires_at: number
+        new_device_public_key: string | null
+        new_device_confirm: string | null
+        device_name: string | null
+        device_platform: string | null
+      }>()
+
+    if (!session) {
+      throw new NotFoundError('Linking session')
+    }
+
+    // Check if expired
+    const now = Date.now()
+    if (session.expires_at < now && session.status !== 'completed') {
+      return c.json({
+        status: 'expired',
+        expires_at: new Date(session.expires_at).toISOString(),
+        server_timestamp: now
+      })
+    }
+
+    // Build response - include proof data when status is 'scanned'
+    const response: {
+      status: string
+      new_device_public_key?: string
+      new_device_confirm?: string
+      device_name?: string
+      device_platform?: string
+      expires_at: string
+      server_timestamp: number
+    } = {
+      status: session.status,
+      expires_at: new Date(session.expires_at).toISOString(),
+      server_timestamp: now
+    }
+
+    // Include proof data for 'scanned' status (existing device needs this to approve)
+    if (session.status === 'scanned') {
+      if (session.new_device_public_key) {
+        response.new_device_public_key = session.new_device_public_key
+      }
+      if (session.new_device_confirm) {
+        response.new_device_confirm = session.new_device_confirm
+      }
+      if (session.device_name) {
+        response.device_name = session.device_name
+      }
+      if (session.device_platform) {
+        response.device_platform = session.device_platform
+      }
+    }
+
+    return c.json(response)
+  }
+)
+
+// -----------------------------------------------------------------------------
+// T109: Linking Rejection Endpoint
+// POST /auth/linking/:session_id/reject
+// -----------------------------------------------------------------------------
+
+auth.post(
+  '/linking/:session_id/reject',
+  authMiddleware,
+  rateLimit(RATE_LIMITS.DEVICE_LINKING),
+  async (c) => {
+    const sessionId = c.req.param('session_id')
+    const authUser = c.get('user')
+
+    // Find session in D1
+    const session = await c.env.DB.prepare(
+      `SELECT id, user_id, status FROM linking_sessions WHERE id = ?`
+    )
+      .bind(sessionId)
+      .first<{
+        id: string
+        user_id: string
+        status: string
+      }>()
+
+    if (!session) {
+      throw new NotFoundError('Linking session')
+    }
+
+    // Verify ownership - only the initiating user can reject
+    if (session.user_id !== authUser.userId) {
+      throw new AuthenticationError('Not authorized to reject this session')
+    }
+
+    // Can only reject pending or scanned sessions
+    if (!['pending', 'scanned'].includes(session.status)) {
+      throw new LinkingSessionError(
+        'Cannot reject session in current state',
+        'SESSION_INVALID'
+      )
+    }
+
+    // Update status to rejected
+    await c.env.DB.prepare(`UPDATE linking_sessions SET status = 'rejected' WHERE id = ?`)
+      .bind(sessionId)
+      .run()
+
+    return c.json({ status: 'rejected' })
   }
 )
 

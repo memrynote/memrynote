@@ -87,10 +87,12 @@ CREATE TABLE IF NOT EXISTS linking_sessions (
   ephemeral_public_key TEXT NOT NULL,           -- X25519 public key from existing device (Base64)
   new_device_public_key TEXT,                   -- X25519 public key from new device (Base64)
   new_device_confirm TEXT,                      -- HMAC proof from new device (Base64)
+  device_name TEXT,                             -- New device name (for approval UI)
+  device_platform TEXT,                         -- New device platform: 'macos'|'windows'|'linux'|'ios'|'android'
   encrypted_master_key TEXT,                    -- Master key encrypted with shared secret (Base64)
   encrypted_key_nonce TEXT,                     -- Nonce for encrypted key (Base64)
   key_confirm TEXT,                             -- HMAC confirmation for encrypted key (Base64)
-  status TEXT NOT NULL DEFAULT 'pending',       -- 'pending' | 'scanned' | 'approved' | 'completed' | 'expired'
+  status TEXT NOT NULL DEFAULT 'pending',       -- 'pending' | 'scanned' | 'approved' | 'completed' | 'rejected' | 'expired'
   created_at INTEGER NOT NULL,                  -- Unix timestamp (ms)
   expires_at INTEGER NOT NULL,                  -- Expiry timestamp (5 min from creation)
   completed_at INTEGER,                         -- Completion timestamp (ms)
