@@ -131,6 +131,8 @@ export interface LinkingStatusResponse {
   new_device_confirm?: string
   device_name?: string
   device_platform?: string
+  expires_at: string
+  server_timestamp: number
 }
 
 // =============================================================================
