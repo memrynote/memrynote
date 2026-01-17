@@ -265,6 +265,7 @@ export class SyncQueueManager {
    * Mark an item as failed.
    *
    * If max retries exceeded, the item remains failed permanently.
+   * Note: attempts is already incremented by markInProgress, so we use the existing value.
    *
    * @param id - Queue item ID
    * @param error - Error message
@@ -277,16 +278,17 @@ export class SyncQueueManager {
     const item = await this.getItem(id)
     if (!item) return undefined
 
-    const attempts = (item.attempts ?? 0) + 1
+    // Use existing attempts value (already incremented by markInProgress)
+    const attempts = item.attempts ?? 0
     const isPermanentFailure = attempts >= MAX_RETRY_ATTEMPTS
 
     const [updated] = await db
       .update(syncQueue)
       .set({
-        status: syncQueueStatus.FAILED,
-        errorMessage: isPermanentFailure ? `Permanent failure after ${attempts} attempts: ${error}` : error,
+        status: isPermanentFailure ? syncQueueStatus.FAILED : syncQueueStatus.PENDING,
+        errorMessage: isPermanentFailure ? `Permanently failed after ${attempts} attempts: ${error}` : error,
         lastAttempt: new Date().toISOString(),
-        attempts,
+        // Don't update attempts - already incremented by markInProgress
       })
       .where(eq(syncQueue.id, id))
       .returning()
