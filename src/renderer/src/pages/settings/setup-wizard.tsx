@@ -20,8 +20,11 @@ import {
   RecoveryPhraseConfirm,
   RecoveryPhraseInput,
   VerificationPending,
-  ForgotPasswordForm
+  ForgotPasswordForm,
+  QRScanner,
+  LinkingPending
 } from '@/components/sync'
+import { useLinkingEvents, useLinkViaQR } from '@/hooks/use-device-linking'
 import { useAuth } from '@/contexts/auth-context'
 import { authKeys } from '@/hooks/use-auth'
 import { useQueryClient } from '@tanstack/react-query'
@@ -40,6 +43,8 @@ type WizardStep =
   | 'recovery-phrase'
   | 'enter-phrase'
   | 'confirm-phrase'
+  | 'link-device'
+  | 'link-pending'
   | 'complete'
 
 type AuthMode = 'signup' | 'login'
@@ -97,9 +102,10 @@ function StepIndicator({ steps, currentStep, className }: StepIndicatorProps) {
 interface WelcomeStepProps {
   onSignup: () => void
   onLogin: () => void
+  onLinkDevice: () => void
 }
 
-function WelcomeStep({ onSignup, onLogin }: WelcomeStepProps) {
+function WelcomeStep({ onSignup, onLogin, onLinkDevice }: WelcomeStepProps) {
   return (
     <div className="space-y-8">
       {/* Logo/Icon */}
@@ -162,6 +168,17 @@ function WelcomeStep({ onSignup, onLogin }: WelcomeStepProps) {
         <Button onClick={onLogin} variant="outline" className="w-full" size="lg">
           Sign In
         </Button>
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">or</span>
+          </div>
+        </div>
+        <Button onClick={onLinkDevice} variant="ghost" className="w-full" size="lg">
+          Link to Existing Account
+        </Button>
       </div>
     </div>
   )
@@ -205,6 +222,10 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
   const [error, setError] = useState<string | null>(null)
   const [oauthProvider, setOauthProvider] = useState<'google' | null>(null)
   const [oauthResult, setOauthResult] = useState<OAuthSuccessEvent | null>(null)
+  const [linkingSessionId, setLinkingSessionId] = useState<string | null>(null)
+
+  // QR device linking hook
+  const linkViaQR = useLinkViaQR()
 
   // Get query client to invalidate auth queries on OAuth success
   const queryClient = useQueryClient()
@@ -471,6 +492,59 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
     [linkViaRecovery, email, deviceName, defaultDeviceName, onComplete]
   )
 
+  // QR Linking handlers
+  const handleLinkViaQR = useCallback(
+    async (data: { qrData: string; deviceName: string }) => {
+      setError(null)
+      setDeviceName(data.deviceName)
+      try {
+        const result = await linkViaQR.mutateAsync(data)
+        if (result.success && result.sessionId) {
+          setLinkingSessionId(result.sessionId)
+          setStep('link-pending')
+        } else {
+          setError(result.error || 'Failed to initiate device linking')
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to initiate device linking')
+      }
+    },
+    [linkViaQR]
+  )
+
+  // Listen for linking approval/rejection events
+  useLinkingEvents({
+    onLinkingApproved: useCallback(async () => {
+      if (!linkingSessionId) {
+        setError('No linking session found')
+        setStep('link-device')
+        return
+      }
+
+      try {
+        // Complete the linking process by fetching/decrypting the master key and storing tokens
+        const result = await window.api.sync.completeLinking(linkingSessionId)
+        if (result.success) {
+          setStep('complete')
+          onComplete?.()
+        } else {
+          setError(result.error || 'Failed to complete device linking')
+          setStep('link-device')
+          setLinkingSessionId(null)
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to complete device linking')
+        setStep('link-device')
+        setLinkingSessionId(null)
+      }
+    }, [linkingSessionId, onComplete]),
+    onLinkingRejected: useCallback((event) => {
+      setError(event.reason || 'Linking request was rejected')
+      setStep('link-device')
+      setLinkingSessionId(null)
+    }, [])
+  })
+
   // Navigation helpers
   const goToSignup = useCallback(() => {
     setAuthMode('signup')
@@ -489,11 +563,17 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
     setError(null)
   }, [])
 
+  const goToLinkDevice = useCallback(() => {
+    setStep('link-device')
+    setError(null)
+  }, [])
+
   const goBack = useCallback(() => {
     setError(null)
     switch (step) {
       case 'signup':
       case 'login':
+      case 'link-device':
         setStep('welcome')
         break
       case 'forgot-password':
@@ -511,6 +591,10 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
       case 'confirm-phrase':
         setStep('recovery-phrase')
         break
+      case 'link-pending':
+        setStep('link-device')
+        setLinkingSessionId(null)
+        break
       default:
         setStep('welcome')
     }
@@ -520,7 +604,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
   const renderStep = () => {
     switch (step) {
       case 'welcome':
-        return <WelcomeStep onSignup={goToSignup} onLogin={goToLogin} />
+        return <WelcomeStep onSignup={goToSignup} onLogin={goToLogin} onLinkDevice={goToLinkDevice} />
 
       case 'signup':
         return (
@@ -660,6 +744,33 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
         )
       }
 
+      case 'link-device':
+        return (
+          <QRScanner
+            onSubmit={handleLinkViaQR}
+            onCancel={goBack}
+            isLoading={linkViaQR.isPending}
+            error={error}
+          />
+        )
+
+      case 'link-pending':
+        return linkingSessionId ? (
+          <LinkingPending
+            sessionId={linkingSessionId}
+            onCancel={goBack}
+            onApproved={() => {
+              setStep('complete')
+              onComplete?.()
+            }}
+            onRejected={(reason) => {
+              setError(reason)
+              setStep('link-device')
+              setLinkingSessionId(null)
+            }}
+          />
+        ) : null
+
       case 'complete':
         return (
           <div className="space-y-6 text-center">
@@ -693,7 +804,9 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
     step !== 'welcome' &&
     step !== 'complete' &&
     step !== 'forgot-password' &&
-    step !== 'enter-phrase'
+    step !== 'enter-phrase' &&
+    step !== 'link-device' &&
+    step !== 'link-pending'
 
   return (
     <div className={cn('mx-auto max-w-md space-y-6 p-6', className)}>

@@ -184,7 +184,9 @@ export class SyncEngine extends EventEmitter {
         win.webContents.send(SYNC_EVENTS.LINKING_REQUEST, {
           sessionId: payload.sessionId,
           deviceName: payload.deviceName,
-          devicePlatform: payload.devicePlatform
+          devicePlatform: payload.devicePlatform,
+          newDevicePublicKey: payload.newDevicePublicKey,
+          newDeviceConfirm: payload.newDeviceConfirm
         })
       })
     })

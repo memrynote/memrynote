@@ -45,8 +45,16 @@ interface LinkingApprovalDialogProps {
   deviceName: string
   /** Platform of the requesting device */
   devicePlatform: DevicePlatform | string
-  /** Called when user approves the request */
-  onApprove: () => Promise<void>
+  /** New device's X25519 public key (Base64) */
+  newDevicePublicKey: string
+  /** New device's HMAC proof (Base64) */
+  newDeviceConfirm: string
+  /** Called when user approves the request with proof data */
+  onApprove: (input: {
+    sessionId: string
+    newDevicePublicKey: string
+    newDeviceConfirm: string
+  }) => Promise<void>
   /** Called when user rejects the request */
   onReject: () => void
   /** Whether approval is in progress */
@@ -82,9 +90,11 @@ const platformNames: Record<string, string> = {
 export function LinkingApprovalDialog({
   isOpen,
   onOpenChange,
-  sessionId: _sessionId,
+  sessionId,
   deviceName,
   devicePlatform,
+  newDevicePublicKey,
+  newDeviceConfirm,
   onApprove,
   onReject,
   isApproving = false,
@@ -98,11 +108,15 @@ export function LinkingApprovalDialog({
   const handleApprove = useCallback(async () => {
     setLocalError(null)
     try {
-      await onApprove()
+      await onApprove({
+        sessionId,
+        newDevicePublicKey,
+        newDeviceConfirm
+      })
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Failed to approve linking')
     }
-  }, [onApprove])
+  }, [onApprove, sessionId, newDevicePublicKey, newDeviceConfirm])
 
   const handleReject = useCallback(() => {
     onReject()

@@ -1379,13 +1379,23 @@ const api = {
     /** Generate QR code for device linking */
     generateLinkingQR: () => ipcRenderer.invoke(SyncChannels.invoke.GENERATE_LINKING_QR),
     /** Link new device via QR scan */
-    linkViaQR: (input: { qrData: string; deviceName: string }) =>
-      ipcRenderer.invoke(SyncChannels.invoke.LINK_VIA_QR, input),
+    linkViaQR: (input: {
+      sessionId: string
+      token: string
+      ephemeralPublicKey: string
+      deviceName: string
+    }) => ipcRenderer.invoke(SyncChannels.invoke.LINK_VIA_QR, input),
     /** Approve device linking request */
-    approveLinking: (sessionId: string, approve: boolean) =>
-      ipcRenderer.invoke(SyncChannels.invoke.APPROVE_LINKING, { sessionId, approve }),
+    approveLinking: (input: {
+      sessionId: string
+      newDevicePublicKey: string
+      newDeviceConfirm: string
+    }) => ipcRenderer.invoke(SyncChannels.invoke.APPROVE_LINKING, input),
     /** Cancel device linking */
     cancelLinking: () => ipcRenderer.invoke(SyncChannels.invoke.CANCEL_LINKING),
+    /** Complete device linking after approval (called by the new device) */
+    completeLinking: (sessionId: string) =>
+      ipcRenderer.invoke(SyncChannels.invoke.COMPLETE_LINKING, { sessionId }),
     /** Get current linking session status */
     getLinkingStatus: () => ipcRenderer.invoke(SyncChannels.invoke.GET_LINKING_STATUS),
 

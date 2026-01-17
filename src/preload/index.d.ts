@@ -2089,6 +2089,8 @@ export interface SyncLinkingRequestEvent {
   sessionId: string
   deviceName: string
   devicePlatform: string
+  newDevicePublicKey: string
+  newDeviceConfirm: string
 }
 
 export interface SyncLinkingApprovedEvent {
@@ -2195,11 +2197,23 @@ export interface SyncClientAPI {
   // Device Linking (QR)
   generateLinkingQR(): Promise<{ qrData: string; expiresAt: number }>
   linkViaQR(input: {
-    qrData: string
+    sessionId: string
+    token: string
+    ephemeralPublicKey: string
     deviceName: string
   }): Promise<{ success: boolean; error?: string }>
-  approveLinking(sessionId: string, approve: boolean): Promise<{ success: boolean; error?: string }>
+  approveLinking(input: {
+    sessionId: string
+    newDevicePublicKey: string
+    newDeviceConfirm: string
+  }): Promise<{ success: boolean; error?: string }>
   cancelLinking(): Promise<{ success: boolean }>
+  completeLinking(sessionId: string): Promise<{
+    success: boolean
+    deviceId?: string
+    message?: string
+    error?: string
+  }>
   getLinkingStatus(): Promise<{ status: string; session: unknown | null }>
 
   // Device Linking (Recovery Phrase)

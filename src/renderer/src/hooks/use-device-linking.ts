@@ -38,13 +38,26 @@ export function useGenerateLinkingQR() {
 
 /**
  * Link a new device via QR code data.
+ * Parses the QR JSON string and forwards structured fields to the API.
  */
 export function useLinkViaQR() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { qrData: string; deviceName: string }) => {
-      const result = await window.api.sync.linkViaQR(input)
-      return result as { success: boolean; error?: string }
+      // Parse the QR JSON string to extract individual fields
+      const parsed = JSON.parse(input.qrData) as {
+        sessionId: string
+        token: string
+        ephemeralPublicKey: string
+        expiresAt: number
+      }
+      const result = await window.api.sync.linkViaQR({
+        sessionId: parsed.sessionId,
+        token: parsed.token,
+        ephemeralPublicKey: parsed.ephemeralPublicKey,
+        deviceName: input.deviceName
+      })
+      return result as { success: boolean; error?: string; sessionId?: string }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: linkingKeys.status() })
@@ -55,12 +68,17 @@ export function useLinkViaQR() {
 
 /**
  * Approve a device linking request (on the existing device).
+ * Requires proof data from the linking request event.
  */
 export function useApproveLinking() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ sessionId }: { sessionId: string }) => {
-      const result = await window.api.sync.approveLinking(sessionId, true)
+    mutationFn: async (input: {
+      sessionId: string
+      newDevicePublicKey: string
+      newDeviceConfirm: string
+    }) => {
+      const result = await window.api.sync.approveLinking(input)
       return result as { success: boolean; error?: string }
     },
     onSuccess: () => {
@@ -71,11 +89,13 @@ export function useApproveLinking() {
 
 /**
  * Reject a device linking request.
+ * Uses cancelLinking since approveLinking now requires proof data.
  */
 export function useRejectLinking() {
   return useMutation({
-    mutationFn: async ({ sessionId }: { sessionId: string }) => {
-      const result = await window.api.sync.approveLinking(sessionId, false)
+    mutationFn: async (_input: { sessionId: string }) => {
+      // Note: rejecting uses cancel since approve requires proof data
+      const result = await window.api.sync.cancelLinking()
       return result as { success: boolean; error?: string }
     }
   })
@@ -114,6 +134,8 @@ interface LinkingEventCallbacks {
     sessionId: string
     deviceName: string
     devicePlatform: string
+    newDevicePublicKey: string
+    newDeviceConfirm: string
   }) => void
   onLinkingApproved?: (e: { sessionId: string; deviceId: string }) => void
   onLinkingRejected?: (e: { sessionId: string; reason: string }) => void
@@ -169,6 +191,8 @@ export function useExistingDeviceLinking(callbacks?: {
     sessionId: string
     deviceName: string
     devicePlatform: string
+    newDevicePublicKey: string
+    newDeviceConfirm: string
   }) => void
 }) {
   const generateQR = useGenerateLinkingQR()

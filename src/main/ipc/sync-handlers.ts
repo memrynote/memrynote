@@ -1223,15 +1223,16 @@ export function registerSyncHandlers(): void {
           }
         }, 6 * 60 * 1000) // 6 minutes
 
-        // Return QR data
+        // Return QR data - stringify the payload per GenerateLinkingQROutput contract
         return {
           success: true,
-          qrData: {
+          qrData: JSON.stringify({
             sessionId: response.session_id,
             token: response.token,
             ephemeralPublicKey: ephemeralPublicKeyBase64,
             expiresAt
-          }
+          }),
+          expiresAt
         }
       } catch (error) {
         // Zero out key material on error
