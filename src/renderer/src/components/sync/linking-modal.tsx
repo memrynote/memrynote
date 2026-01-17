@@ -2,12 +2,12 @@
  * Device Linking Modal
  *
  * Modal wrapper for the device linking flow on an existing device.
- * Shows QR code generation and handles approval dialog when a new device scans.
+ * Shows QR code generation. Approval handling is delegated to GlobalLinkingApproval in App.tsx.
  *
  * @module components/sync/linking-modal
  */
 
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -15,8 +15,6 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { QRLinking } from './qr-linking'
-import { LinkingApprovalDialog } from './linking-approval-dialog'
-import { useApproveLinking, useRejectLinking, useLinkingEvents } from '@/hooks/use-device-linking'
 
 // =============================================================================
 // Types
@@ -29,115 +27,33 @@ interface LinkingModalProps {
   onClose: () => void
 }
 
-interface LinkingRequestData {
-  sessionId: string
-  deviceName: string
-  devicePlatform: string
-  newDevicePublicKey: string
-  newDeviceConfirm: string
-}
-
 // =============================================================================
 // Component
 // =============================================================================
 
+/**
+ * Modal for initiating device linking from an existing device.
+ *
+ * This modal only displays the QR code for scanning by a new device.
+ * When a new device scans the QR and sends a linking request, the approval
+ * dialog is shown by GlobalLinkingApproval in App.tsx to avoid duplicate handlers.
+ */
 export function LinkingModal({ isOpen, onClose }: LinkingModalProps) {
-  const [linkingRequest, setLinkingRequest] = useState<LinkingRequestData | null>(null)
-  const [approvalError, setApprovalError] = useState<string | null>(null)
-
-  const approveLinking = useApproveLinking()
-  const rejectLinking = useRejectLinking()
-
-  // Subscribe to linking request events
-  useLinkingEvents({
-    onLinkingRequest: (event) => {
-      setLinkingRequest(event)
-    }
-  })
-
-  // Handle approve
-  const handleApprove = useCallback(async (input: {
-    sessionId: string
-    newDevicePublicKey: string
-    newDeviceConfirm: string
-  }) => {
-    setApprovalError(null)
-
-    try {
-      const result = await approveLinking.mutateAsync({
-        sessionId: input.sessionId,
-        newDevicePublicKey: input.newDevicePublicKey,
-        newDeviceConfirm: input.newDeviceConfirm
-      })
-
-      if (!result.success) {
-        setApprovalError(result.error || 'Failed to approve linking')
-        return
-      }
-
-      // Success - close everything
-      setLinkingRequest(null)
-      onClose()
-    } catch (err) {
-      setApprovalError(err instanceof Error ? err.message : 'Failed to approve linking')
-    }
-  }, [approveLinking, onClose])
-
-  // Handle reject
-  const handleReject = useCallback(async () => {
-    if (!linkingRequest) return
-
-    try {
-      await rejectLinking.mutateAsync({ sessionId: linkingRequest.sessionId })
-    } catch (err) {
-      // Ignore reject errors
-    }
-
-    setLinkingRequest(null)
-  }, [linkingRequest, rejectLinking])
-
   // Handle close - also resets state
   const handleClose = useCallback(() => {
-    setLinkingRequest(null)
-    setApprovalError(null)
     onClose()
   }, [onClose])
 
-  // Handle linking request callback from QRLinking
+  // Handle linking request callback from QRLinking (informational only)
   const handleLinkingRequest = useCallback((_event: {
     sessionId: string
     deviceName: string
     devicePlatform: string
   }) => {
-    // This is called when QRLinking receives the event
-    // The useLinkingEvents hook above will also receive it
-    // No need to duplicate - the hook handles it
+    // GlobalLinkingApproval in App.tsx handles the actual approval dialog.
+    // This callback is just for potential local UI updates if needed.
   }, [])
 
-  // If there's a pending linking request, show the approval dialog
-  if (linkingRequest) {
-    return (
-      <LinkingApprovalDialog
-        isOpen={true}
-        onOpenChange={(open) => {
-          if (!open) {
-            handleReject()
-          }
-        }}
-        sessionId={linkingRequest.sessionId}
-        deviceName={linkingRequest.deviceName}
-        devicePlatform={linkingRequest.devicePlatform}
-        newDevicePublicKey={linkingRequest.newDevicePublicKey}
-        newDeviceConfirm={linkingRequest.newDeviceConfirm}
-        onApprove={handleApprove}
-        onReject={handleReject}
-        isApproving={approveLinking.isPending}
-        error={approvalError}
-      />
-    )
-  }
-
-  // Otherwise show the QR code generation modal
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="max-w-md">
