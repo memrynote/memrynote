@@ -43,7 +43,7 @@ export interface AuthResult {
     email: string
     emailVerified: boolean
     authMethod: 'email' | 'oauth'
-    authProvider?: 'google' | 'apple' | 'github'
+    authProvider?: 'google'
     storageUsed: number
     storageLimit: number
     createdAt: string
@@ -166,7 +166,7 @@ export async function createAuthResult(
       email: user.email,
       emailVerified: user.email_verified === 1,
       authMethod: user.auth_method as 'email' | 'oauth',
-      authProvider: user.auth_provider as 'google' | 'apple' | 'github' | undefined,
+      authProvider: user.auth_provider as 'google' | undefined,
       storageUsed: user.storage_used,
       storageLimit: user.storage_limit,
       createdAt: new Date(user.created_at).toISOString(),

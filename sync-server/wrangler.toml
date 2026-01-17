@@ -47,6 +47,4 @@ new_classes = ["UserSyncState", "LinkingSession"]
 # Required secrets:
 # - JWT_SECRET
 # - OAUTH_GOOGLE_CLIENT_SECRET
-# - OAUTH_APPLE_CLIENT_SECRET
-# - OAUTH_GITHUB_CLIENT_SECRET
 # - RESEND_API_KEY

@@ -231,12 +231,12 @@ export const ChangePasswordInputSchema = z.object({
 // --- Auth (OAuth) ---
 
 export interface OAuthStartInput {
-  provider: 'google' | 'apple' | 'github'
+  provider: 'google'
   deviceName: string
 }
 
 export const OAuthStartInputSchema = z.object({
-  provider: z.enum(['google', 'apple', 'github']),
+  provider: z.literal('google'),
   deviceName: z.string().min(1).max(100)
 })
 
