@@ -421,13 +421,13 @@ auth.get('/oauth/:provider', async (c) => {
 
   switch (provider) {
     case 'google':
-      authUrl = buildGoogleAuthUrl(redirectUri, state, codeChallenge)
+      authUrl = buildGoogleAuthUrl(redirectUri, state, codeChallenge, c.env)
       break
     case 'apple':
-      authUrl = buildAppleAuthUrl(redirectUri, state, codeChallenge)
+      authUrl = buildAppleAuthUrl(redirectUri, state, codeChallenge, c.env)
       break
     case 'github':
-      authUrl = buildGitHubAuthUrl(redirectUri, state)
+      authUrl = buildGitHubAuthUrl(redirectUri, state, c.env)
       break
     default:
       throw new ValidationError(`Unsupported provider: ${provider}`)
@@ -564,9 +564,9 @@ auth.get('/recovery', async (c) => {
 // OAuth Helper Functions
 // =============================================================================
 
-function buildGoogleAuthUrl(redirectUri: string, state: string, codeChallenge: string): string {
+function buildGoogleAuthUrl(redirectUri: string, state: string, codeChallenge: string, env: Env): string {
   const params = new URLSearchParams({
-    client_id: process.env.OAUTH_GOOGLE_CLIENT_ID || '',
+    client_id: env.OAUTH_GOOGLE_CLIENT_ID || '',
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: 'openid email profile',
@@ -578,9 +578,9 @@ function buildGoogleAuthUrl(redirectUri: string, state: string, codeChallenge: s
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
 }
 
-function buildAppleAuthUrl(redirectUri: string, state: string, codeChallenge: string): string {
+function buildAppleAuthUrl(redirectUri: string, state: string, codeChallenge: string, env: Env): string {
   const params = new URLSearchParams({
-    client_id: process.env.OAUTH_APPLE_CLIENT_ID || '',
+    client_id: env.OAUTH_APPLE_CLIENT_ID || '',
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: 'email name',
@@ -593,9 +593,9 @@ function buildAppleAuthUrl(redirectUri: string, state: string, codeChallenge: st
   return `https://appleid.apple.com/auth/authorize?${params.toString()}`
 }
 
-function buildGitHubAuthUrl(redirectUri: string, state: string): string {
+function buildGitHubAuthUrl(redirectUri: string, state: string, env: Env): string {
   const params = new URLSearchParams({
-    client_id: process.env.OAUTH_GITHUB_CLIENT_ID || '',
+    client_id: env.OAUTH_GITHUB_CLIENT_ID || '',
     redirect_uri: redirectUri,
     scope: 'read:user user:email',
     state
@@ -615,7 +615,7 @@ async function exchangeGoogleCode(
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       code,
-      client_id: process.env.OAUTH_GOOGLE_CLIENT_ID || '',
+      client_id: env.OAUTH_GOOGLE_CLIENT_ID || '',
       client_secret: env.OAUTH_GOOGLE_CLIENT_SECRET || '',
       code_verifier: codeVerifier,
       grant_type: 'authorization_code',
@@ -657,7 +657,7 @@ async function exchangeAppleCode(
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       code,
-      client_id: process.env.OAUTH_APPLE_CLIENT_ID || '',
+      client_id: env.OAUTH_APPLE_CLIENT_ID || '',
       client_secret: env.OAUTH_APPLE_CLIENT_SECRET || '',
       code_verifier: codeVerifier,
       grant_type: 'authorization_code'
@@ -698,7 +698,7 @@ async function exchangeGitHubCode(
       Accept: 'application/json'
     },
     body: JSON.stringify({
-      client_id: process.env.OAUTH_GITHUB_CLIENT_ID || '',
+      client_id: env.OAUTH_GITHUB_CLIENT_ID || '',
       client_secret: env.OAUTH_GITHUB_CLIENT_SECRET || '',
       code
     })
