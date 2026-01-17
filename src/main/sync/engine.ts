@@ -337,6 +337,10 @@ export class SyncEngine extends EventEmitter {
         if (encrypted) {
           pushItems.push(encrypted)
           processedIds.push(item.id)
+        } else {
+          // Item was deleted or has no payload - mark as processed to clear queue
+          await queue.markProcessed(item.id)
+          console.log(`[Sync] Cleared queue item ${item.id} - no payload available`)
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
@@ -516,6 +520,14 @@ export class SyncEngine extends EventEmitter {
     return status
   }
 
+  /**
+   * Check if the sync engine is ready for operations.
+   * Engine is ready when it has valid device/user IDs and is not in error state.
+   */
+  isReady(): boolean {
+    return !!this._deviceId && !!this._userId && this._state !== 'error'
+  }
+
   // ---------------------------------------------------------------------------
   // Internal: Encryption
   // ---------------------------------------------------------------------------
@@ -533,7 +545,7 @@ export class SyncEngine extends EventEmitter {
     const vaultKey = deriveVaultKey(masterKey)
 
     // Fetch payload if empty (on-demand data fetching)
-    let payload = item.payload
+    let payload: string | null = item.payload
     if (!payload || payload === '') {
       payload = await this.fetchPayloadForItem(item.type as SyncItemType, item.itemId, item.operation as SyncOperation)
       if (!payload) {
@@ -542,9 +554,11 @@ export class SyncEngine extends EventEmitter {
         return null
       }
     }
+    // At this point, payload is guaranteed to be a non-empty string
+    const payloadStr: string = payload
 
     // Encrypt the payload
-    const encrypted = encryptItemToBase64(payload, vaultKey)
+    const encrypted = encryptItemToBase64(payloadStr, vaultKey)
 
     // Derive signing key and sign
     const signingKeySeed = deriveSigningKeySeed(masterKey)
@@ -598,9 +612,13 @@ export class SyncEngine extends EventEmitter {
     const signingKeySeed = deriveSigningKeySeed(masterKey)
     const { publicKey } = generateSigningKeyPair(signingKeySeed)
 
+    // Infer operation from deletedAt presence
+    const operation = item.deletedAt ? 'delete' : 'update'
+
     const signaturePayload = {
       id: item.id,
       type: item.type,
+      operation,
       cryptoVersion: encrypted.cryptoVersion,
       encryptedKey: encrypted.encryptedKey,
       keyNonce: encrypted.keyNonce,
@@ -660,7 +678,14 @@ export class SyncEngine extends EventEmitter {
     payload: unknown,
     deletedAt?: number
   ): Promise<void> {
-    // Broadcast to renderer that an item was synced
+    // Persist to local database based on type
+    if (deletedAt) {
+      await this.deleteLocalItem(type, id)
+    } else {
+      await this.upsertLocalItem(type, id, payload)
+    }
+
+    // Then broadcast to renderer
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send(SYNC_EVENTS.ITEM_SYNCED, {
         id,
@@ -669,9 +694,249 @@ export class SyncEngine extends EventEmitter {
         payload,
       })
     })
+  }
 
-    // The actual database update will be handled by the respective handlers
-    // listening to the ITEM_SYNCED event
+  /**
+   * Delete a local item by type and id.
+   */
+  private async deleteLocalItem(type: SyncItemType, id: string): Promise<void> {
+    const db = getDatabase()
+    const { tasks, projects, inboxItems, savedFilters, settings } = await import('@shared/db/schema')
+
+    switch (type) {
+      case 'task':
+        await db.delete(tasks).where(eq(tasks.id, id))
+        break
+      case 'project':
+        await db.delete(projects).where(eq(projects.id, id))
+        break
+      case 'inbox_item':
+        await db.delete(inboxItems).where(eq(inboxItems.id, id))
+        break
+      case 'saved_filter':
+        await db.delete(savedFilters).where(eq(savedFilters.id, id))
+        break
+      case 'settings':
+        await db.delete(settings).where(eq(settings.key, id))
+        break
+      case 'note':
+        // Notes are file-based, delete via vault
+        try {
+          const { deleteNote } = await import('../vault/notes')
+          await deleteNote(id)
+        } catch (error) {
+          console.warn(`[Sync] Failed to delete note ${id}:`, error)
+        }
+        break
+      case 'attachment':
+        // Attachments need special handling - file deletion
+        console.warn(`[Sync] Attachment deletion not yet implemented for ${id}`)
+        break
+      default:
+        console.warn(`[Sync] Unknown item type for deletion: ${type}`)
+    }
+  }
+
+  /**
+   * Upsert a local item by type and id.
+   */
+  private async upsertLocalItem(type: SyncItemType, _id: string, payload: unknown): Promise<void> {
+    const db = getDatabase()
+    const { tasks, projects, inboxItems, savedFilters, settings } = await import('@shared/db/schema')
+
+    // Cast payload for type safety
+    const data = payload as Record<string, unknown>
+    const now = new Date().toISOString()
+
+    switch (type) {
+      case 'task': {
+        await db
+          .insert(tasks)
+          .values({
+            id: data.id as string,
+            projectId: data.projectId as string,
+            statusId: data.statusId as string | null,
+            parentId: data.parentId as string | null,
+            title: data.title as string,
+            description: data.description as string | null,
+            priority: (data.priority as number) ?? 0,
+            position: (data.position as number) ?? 0,
+            dueDate: data.dueDate as string | null,
+            dueTime: data.dueTime as string | null,
+            startDate: data.startDate as string | null,
+            repeatConfig: data.repeatConfig as Record<string, unknown> | null,
+            repeatFrom: data.repeatFrom as string | null,
+            sourceNoteId: data.sourceNoteId as string | null,
+            completedAt: data.completedAt as string | null,
+            archivedAt: data.archivedAt as string | null,
+            createdAt: (data.createdAt as string) ?? now,
+            modifiedAt: (data.modifiedAt as string) ?? now,
+            clock: data.clock as Record<string, number> | null,
+          })
+          .onConflictDoUpdate({
+            target: tasks.id,
+            set: {
+              projectId: data.projectId as string,
+              statusId: data.statusId as string | null,
+              parentId: data.parentId as string | null,
+              title: data.title as string,
+              description: data.description as string | null,
+              priority: (data.priority as number) ?? 0,
+              position: (data.position as number) ?? 0,
+              dueDate: data.dueDate as string | null,
+              dueTime: data.dueTime as string | null,
+              startDate: data.startDate as string | null,
+              repeatConfig: data.repeatConfig as Record<string, unknown> | null,
+              repeatFrom: data.repeatFrom as string | null,
+              sourceNoteId: data.sourceNoteId as string | null,
+              completedAt: data.completedAt as string | null,
+              archivedAt: data.archivedAt as string | null,
+              modifiedAt: now,
+              clock: data.clock as Record<string, number> | null,
+            },
+          })
+        break
+      }
+      case 'project': {
+        await db
+          .insert(projects)
+          .values({
+            id: data.id as string,
+            name: data.name as string,
+            description: data.description as string | null,
+            color: (data.color as string) ?? '#6366f1',
+            icon: data.icon as string | null,
+            position: (data.position as number) ?? 0,
+            isInbox: (data.isInbox as boolean) ?? false,
+            createdAt: (data.createdAt as string) ?? now,
+            modifiedAt: (data.modifiedAt as string) ?? now,
+            archivedAt: data.archivedAt as string | null,
+          })
+          .onConflictDoUpdate({
+            target: projects.id,
+            set: {
+              name: data.name as string,
+              description: data.description as string | null,
+              color: (data.color as string) ?? '#6366f1',
+              icon: data.icon as string | null,
+              position: (data.position as number) ?? 0,
+              isInbox: (data.isInbox as boolean) ?? false,
+              modifiedAt: now,
+              archivedAt: data.archivedAt as string | null,
+            },
+          })
+        break
+      }
+      case 'inbox_item': {
+        await db
+          .insert(inboxItems)
+          .values({
+            id: data.id as string,
+            type: data.type as string,
+            title: data.title as string,
+            content: data.content as string | null,
+            createdAt: (data.createdAt as string) ?? now,
+            modifiedAt: (data.modifiedAt as string) ?? now,
+            filedAt: data.filedAt as string | null,
+            filedTo: data.filedTo as string | null,
+            filedAction: data.filedAction as string | null,
+            snoozedUntil: data.snoozedUntil as string | null,
+            snoozeReason: data.snoozeReason as string | null,
+            viewedAt: data.viewedAt as string | null,
+            processingStatus: data.processingStatus as string | null,
+            processingError: data.processingError as string | null,
+            metadata: data.metadata as Record<string, unknown> | null,
+            attachmentPath: data.attachmentPath as string | null,
+            thumbnailPath: data.thumbnailPath as string | null,
+            transcription: data.transcription as string | null,
+            transcriptionStatus: data.transcriptionStatus as string | null,
+            sourceUrl: data.sourceUrl as string | null,
+            sourceTitle: data.sourceTitle as string | null,
+            archivedAt: data.archivedAt as string | null,
+            clock: data.clock as Record<string, number> | null,
+          })
+          .onConflictDoUpdate({
+            target: inboxItems.id,
+            set: {
+              type: data.type as string,
+              title: data.title as string,
+              content: data.content as string | null,
+              modifiedAt: now,
+              filedAt: data.filedAt as string | null,
+              filedTo: data.filedTo as string | null,
+              filedAction: data.filedAction as string | null,
+              snoozedUntil: data.snoozedUntil as string | null,
+              snoozeReason: data.snoozeReason as string | null,
+              viewedAt: data.viewedAt as string | null,
+              processingStatus: data.processingStatus as string | null,
+              processingError: data.processingError as string | null,
+              metadata: data.metadata as Record<string, unknown> | null,
+              attachmentPath: data.attachmentPath as string | null,
+              thumbnailPath: data.thumbnailPath as string | null,
+              transcription: data.transcription as string | null,
+              transcriptionStatus: data.transcriptionStatus as string | null,
+              sourceUrl: data.sourceUrl as string | null,
+              sourceTitle: data.sourceTitle as string | null,
+              archivedAt: data.archivedAt as string | null,
+              clock: data.clock as Record<string, number> | null,
+            },
+          })
+        break
+      }
+      case 'saved_filter': {
+        await db
+          .insert(savedFilters)
+          .values({
+            id: data.id as string,
+            name: data.name as string,
+            config: data.config as Record<string, unknown>,
+            position: (data.position as number) ?? 0,
+            createdAt: (data.createdAt as string) ?? now,
+            clock: data.clock as Record<string, number> | null,
+          })
+          .onConflictDoUpdate({
+            target: savedFilters.id,
+            set: {
+              name: data.name as string,
+              config: data.config as Record<string, unknown>,
+              position: (data.position as number) ?? 0,
+              clock: data.clock as Record<string, number> | null,
+            },
+          })
+        break
+      }
+      case 'settings': {
+        await db
+          .insert(settings)
+          .values({
+            key: data.key as string,
+            value: data.value as string,
+            modifiedAt: (data.modifiedAt as string) ?? now,
+            clock: data.clock as Record<string, number> | null,
+          })
+          .onConflictDoUpdate({
+            target: settings.key,
+            set: {
+              value: data.value as string,
+              modifiedAt: now,
+              clock: data.clock as Record<string, number> | null,
+            },
+          })
+        break
+      }
+      case 'note': {
+        // Notes are file-based, update via vault
+        // This is handled differently - notes sync via file content
+        console.log(`[Sync] Note sync received for ${data.id}, file-based sync not yet implemented`)
+        break
+      }
+      case 'attachment':
+        // Attachments need special handling
+        console.warn(`[Sync] Attachment upsert not yet implemented for ${data.id}`)
+        break
+      default:
+        console.warn(`[Sync] Unknown item type for upsert: ${type}`)
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -693,7 +958,7 @@ export class SyncEngine extends EventEmitter {
     }
 
     const db = getDatabase()
-    const { tasks, projects, inboxItems, savedFilters, settings, noteCache } = await import('@shared/db/schema')
+    const { tasks, projects, inboxItems, savedFilters, settings } = await import('@shared/db/schema')
 
     switch (type) {
       case 'task': {
@@ -776,13 +1041,9 @@ export class SyncEngine extends EventEmitter {
    * Send pull request to server.
    */
   private async sendPullRequest(since: number | undefined, token: string): Promise<SyncPullResponse> {
-    const url = new URL(`${this.getServerUrl()}/api/v1/sync/pull`)
-    if (since) {
-      url.searchParams.set('since', String(since))
-    }
-    url.searchParams.set('limit', String(this._config.pullBatchSize))
+    const url = `${this.getServerUrl()}/api/v1/sync/pull`
 
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -790,6 +1051,8 @@ export class SyncEngine extends EventEmitter {
       },
       body: JSON.stringify({
         deviceClock: this._deviceClock,
+        since,
+        limit: this._config.pullBatchSize,
       }),
     })
 

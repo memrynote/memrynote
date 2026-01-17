@@ -968,6 +968,20 @@ export function registerSyncHandlers(): void {
       const { getSyncEngine } = await import('../sync/engine')
       const engine = getSyncEngine()
 
+      // Ensure engine is initialized
+      await engine.initialize()
+
+      // Check if initialization succeeded
+      if (!engine.isReady()) {
+        return {
+          success: false,
+          pushed: 0,
+          pulled: 0,
+          conflicts: 0,
+          errors: ['Sync engine not ready - missing device or user ID']
+        }
+      }
+
       try {
         const result = await engine.sync()
         return {
