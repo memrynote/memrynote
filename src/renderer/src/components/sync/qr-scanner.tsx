@@ -43,7 +43,7 @@ interface QRScannerProps {
 
 interface ParsedQRData {
   sessionId: string
-  userId: string
+  token: string
   ephemeralPublicKey: string
   expiresAt: number
 }
@@ -59,7 +59,7 @@ function parseQRData(data: string): ParsedQRData | null {
     // Validate required fields
     if (
       typeof parsed.sessionId !== 'string' ||
-      typeof parsed.userId !== 'string' ||
+      typeof parsed.token !== 'string' ||
       typeof parsed.ephemeralPublicKey !== 'string' ||
       typeof parsed.expiresAt !== 'number'
     ) {

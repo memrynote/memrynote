@@ -28,3 +28,10 @@ export { VerificationPending, VerificationPendingCompact } from './verification-
 
 // Dialogs
 export { ChangePasswordDialog } from './change-password-dialog'
+
+// Device Linking
+export { QRLinking } from './qr-linking'
+export { QRScanner } from './qr-scanner'
+export { LinkingApprovalDialog } from './linking-approval-dialog'
+export { LinkingPending } from './linking-pending'
+export { LinkingModal } from './linking-modal'

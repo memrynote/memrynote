@@ -60,6 +60,8 @@ export interface LinkingRequestPayload {
   sessionId: string
   deviceName: string
   devicePlatform: string
+  newDevicePublicKey: string
+  newDeviceConfirm: string
 }
 
 /** Device removed event payload */

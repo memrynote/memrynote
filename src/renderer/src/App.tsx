@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import type { DragEndEvent } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import { AppSidebar } from '@/components/app-sidebar'
@@ -40,6 +40,8 @@ import { useFolderViewEvents } from '@/hooks/use-folder-view-events'
 import { tasksService } from '@/services/tasks-service'
 import { notesService } from '@/services/notes-service'
 import { VaultOnboarding } from '@/components/vault-onboarding'
+import { LinkingApprovalDialog } from '@/components/sync'
+import { useApproveLinking, useRejectLinking } from '@/hooks/use-device-linking'
 
 // Base pages (non-task)
 export type BasePage = 'inbox' | 'home' | 'journal'
@@ -52,6 +54,99 @@ export type TaskSelectionType = 'view' | 'project'
 
 // Combined page type for routing
 export type AppPage = BasePage | 'tasks'
+
+// =============================================================================
+// GLOBAL LINKING APPROVAL (handles linking requests from any screen)
+// =============================================================================
+
+interface LinkingRequestData {
+  sessionId: string
+  deviceName: string
+  devicePlatform: string
+  newDevicePublicKey: string
+  newDeviceConfirm: string
+}
+
+/**
+ * Global component that listens for device linking requests.
+ * Shows approval dialog when a new device scans the QR code.
+ */
+function GlobalLinkingApproval(): React.JSX.Element | null {
+  const [linkingRequest, setLinkingRequest] = useState<LinkingRequestData | null>(null)
+  const [approvalError, setApprovalError] = useState<string | null>(null)
+
+  const approveLinking = useApproveLinking()
+  const rejectLinking = useRejectLinking()
+
+  // Subscribe to linking request events globally
+  useEffect(() => {
+    const unsubscribe = window.api.onSyncLinkingRequest((event) => {
+      setLinkingRequest(event)
+      setApprovalError(null)
+    })
+    return unsubscribe
+  }, [])
+
+  // Handle approve
+  const handleApprove = useCallback(async (input: {
+    sessionId: string
+    newDevicePublicKey: string
+    newDeviceConfirm: string
+  }) => {
+    setApprovalError(null)
+
+    try {
+      const result = await approveLinking.mutateAsync({
+        sessionId: input.sessionId,
+        newDevicePublicKey: input.newDevicePublicKey,
+        newDeviceConfirm: input.newDeviceConfirm
+      })
+
+      if (!result.success) {
+        setApprovalError(result.error || 'Failed to approve linking')
+        return
+      }
+
+      // Success - close dialog
+      setLinkingRequest(null)
+    } catch (err) {
+      setApprovalError(err instanceof Error ? err.message : 'Failed to approve linking')
+    }
+  }, [approveLinking])
+
+  // Handle reject
+  const handleReject = useCallback(async () => {
+    if (!linkingRequest) return
+
+    try {
+      await rejectLinking.mutateAsync({ sessionId: linkingRequest.sessionId })
+    } catch (err) {
+      // Ignore reject errors
+    }
+
+    setLinkingRequest(null)
+  }, [linkingRequest, rejectLinking])
+
+  if (!linkingRequest) return null
+
+  return (
+    <LinkingApprovalDialog
+      isOpen={true}
+      onOpenChange={(open) => {
+        if (!open) handleReject()
+      }}
+      sessionId={linkingRequest.sessionId}
+      deviceName={linkingRequest.deviceName}
+      devicePlatform={linkingRequest.devicePlatform}
+      newDevicePublicKey={linkingRequest.newDevicePublicKey}
+      newDeviceConfirm={linkingRequest.newDeviceConfirm}
+      onApprove={handleApprove}
+      onReject={handleReject}
+      isApproving={approveLinking.isPending}
+      error={approvalError}
+    />
+  )
+}
 
 // =============================================================================
 // TAB PERSISTENCE MANAGER (inside TabProvider)
@@ -571,6 +666,8 @@ function App(): React.JSX.Element {
             {mainContent}
           </DragProvider>
         </SidebarProvider>
+        {/* Global device linking approval dialog */}
+        <GlobalLinkingApproval />
       </AuthProvider>
       <Toaster />
     </ThemeProvider>

@@ -48,7 +48,8 @@ import {
   PenLine,
   Cloud,
   LogOut,
-  User
+  User,
+  Smartphone
 } from 'lucide-react'
 import {
   Select,
@@ -68,6 +69,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
 import { SetupWizard } from '@/pages/settings/setup-wizard'
+import { LinkingModal } from '@/components/sync'
 
 // ============================================================================
 // Types
@@ -1361,6 +1363,7 @@ function AccountOverview({ setupStatus }: AccountOverviewProps) {
   const { logout, refreshStatus } = useAuth()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isClearingKeychain, setIsClearingKeychain] = useState(false)
+  const [showLinkingModal, setShowLinkingModal] = useState(false)
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
@@ -1460,6 +1463,41 @@ function AccountOverview({ setupStatus }: AccountOverviewProps) {
           </p>
         </div>
       </div>
+
+      <Separator />
+
+      {/* Devices */}
+      <div className="space-y-4">
+        <div>
+          <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+            Devices
+          </h4>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowLinkingModal(true)}
+            className="justify-start"
+          >
+            <Smartphone className="w-4 h-4 mr-2" />
+            Link New Device
+          </Button>
+        </div>
+
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 text-sm">
+          <Info className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+          <p className="text-muted-foreground">
+            Link another device to sync your data securely. A QR code will be generated for the new device to scan.
+          </p>
+        </div>
+      </div>
+
+      {/* Linking Modal */}
+      <LinkingModal
+        isOpen={showLinkingModal}
+        onClose={() => setShowLinkingModal(false)}
+      />
 
       <Separator />
 

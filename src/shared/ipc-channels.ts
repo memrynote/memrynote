@@ -811,6 +811,8 @@ export const SyncChannels = {
     LINK_VIA_QR: 'sync:link-via-qr',
     /** Approve device linking request */
     APPROVE_LINKING: 'sync:approve-linking',
+    /** Complete device linking after approval (called by the new device) */
+    COMPLETE_LINKING: 'sync:complete-linking',
     /** Cancel device linking */
     CANCEL_LINKING: 'sync:cancel-linking',
     /** Get current linking session status */
