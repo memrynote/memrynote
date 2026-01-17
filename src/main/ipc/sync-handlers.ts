@@ -19,6 +19,7 @@ import {
   RenameDeviceInputSchema,
   LinkViaQRInputSchema,
   ApproveLinkingInputSchema,
+  CompleteLinkingInputSchema,
   LinkViaRecoveryInputSchema,
   EmailSignupInputSchema,
   EmailLoginInputSchema,
@@ -47,8 +48,19 @@ import {
   deriveMasterKey,
   generateKdfSalt,
   computeKeyVerifier,
-  verifyKeyVerifier
+  verifyKeyVerifier,
+  generateX25519KeyPair,
+  computeX25519SharedSecret,
+  deriveLinkingKeys,
+  computeNewDeviceConfirm,
+  verifyNewDeviceConfirm,
+  computeKeyConfirm,
+  verifyKeyConfirm
 } from '../crypto/keys'
+import {
+  encryptMasterKeyForLinking,
+  decryptMasterKeyForLinking
+} from '../crypto/encryption'
 import {
   saveSyncSession,
   getSyncSession,
@@ -95,6 +107,32 @@ interface OAuthState {
   closeServer?: () => void
 }
 
+/** Active linking session state (existing device) */
+interface ActiveLinkingSession {
+  sessionId: string
+  token: string
+  ephemeralKeyPair: { publicKey: Buffer; secretKey: Buffer }
+  expiresAt: number
+  status: 'pending' | 'scanned' | 'approved' | 'rejected'
+  newDevicePublicKey?: Buffer
+  newDeviceConfirm?: Buffer
+  deviceName?: string
+  devicePlatform?: 'macos' | 'windows' | 'linux' | 'ios' | 'android'
+  linkingKeys?: { encKey: Buffer; macKey: Buffer }
+}
+
+/** Pending linking request state (new device) */
+interface PendingLinkingRequest {
+  sessionId: string
+  token: string
+  existingDevicePublicKey: Buffer
+  myKeyPair: { publicKey: Buffer; secretKey: Buffer }
+  linkingKeys: { encKey: Buffer; macKey: Buffer }
+  deviceName: string
+  devicePlatform: 'macos' | 'windows' | 'linux' | 'ios' | 'android'
+  expiresAt: number
+}
+
 // =============================================================================
 // State (in-memory during signup flow)
 // =============================================================================
@@ -105,6 +143,12 @@ let signupTimeout: NodeJS.Timeout | null = null
 
 /** Temporary state during OAuth flow */
 let pendingOAuth: OAuthState | null = null
+
+/** Active linking session (existing device initiating link) */
+let activeLinkingSession: ActiveLinkingSession | null = null
+
+/** Pending linking request (new device waiting for approval) */
+let pendingLinkingRequest: PendingLinkingRequest | null = null
 
 // =============================================================================
 // Password Validation
@@ -1123,42 +1167,525 @@ export function registerSyncHandlers(): void {
   // Device Linking (QR)
   // ---------------------------------------------------------------------------
 
+  /**
+   * T112 - Generate Linking QR
+   *
+   * Generates a QR code for linking a new device.
+   * Existing device calls this to start the linking process.
+   *
+   * Flow:
+   * 1. Generate X25519 ephemeral key pair
+   * 2. Call POST /auth/linking/initiate with ephemeral public key
+   * 3. Store session state in memory
+   * 4. Return QR data for display
+   */
   ipcMain.handle(
     SYNC_CHANNELS.GENERATE_LINKING_QR,
     createHandler(async () => {
-      // TODO: Implement in Phase 3 (User Story 4)
-      throw new Error('Not implemented: GENERATE_LINKING_QR')
+      // Get tokens for authenticated request
+      const tokens = await getTokens()
+      if (!tokens) {
+        throw new Error('Not logged in. Please sign in first.')
+      }
+
+      // Generate X25519 ephemeral key pair (T109)
+      const ephemeralKeyPair = generateX25519KeyPair()
+      const ephemeralPublicKeyBase64 = ephemeralKeyPair.publicKey.toString('base64')
+
+      try {
+        // Initiate linking session with server
+        const response = await syncApi.instance.initiateLinking(
+          ephemeralPublicKeyBase64,
+          tokens.accessToken
+        )
+
+        const expiresAt = new Date(response.expires_at).getTime()
+
+        // Store session state in memory
+        activeLinkingSession = {
+          sessionId: response.session_id,
+          token: response.token,
+          ephemeralKeyPair,
+          expiresAt,
+          status: 'pending'
+        }
+
+        // Set timeout to clean up expired sessions (5 minutes + buffer)
+        setTimeout(() => {
+          if (activeLinkingSession?.sessionId === response.session_id) {
+            // Zero out secret key before clearing
+            activeLinkingSession.ephemeralKeyPair.secretKey.fill(0)
+            if (activeLinkingSession.linkingKeys) {
+              activeLinkingSession.linkingKeys.encKey.fill(0)
+              activeLinkingSession.linkingKeys.macKey.fill(0)
+            }
+            activeLinkingSession = null
+          }
+        }, 6 * 60 * 1000) // 6 minutes
+
+        // Return QR data
+        return {
+          success: true,
+          qrData: {
+            sessionId: response.session_id,
+            token: response.token,
+            ephemeralPublicKey: ephemeralPublicKeyBase64,
+            expiresAt
+          }
+        }
+      } catch (error) {
+        // Zero out key material on error
+        ephemeralKeyPair.secretKey.fill(0)
+        if (error instanceof SyncApiError) {
+          throw new Error(error.message)
+        }
+        throw error
+      }
     })
   )
 
+  /**
+   * T113 - Link via QR (New Device)
+   *
+   * Called by new device after scanning the QR code.
+   *
+   * Flow:
+   * 1. Parse QR data, validate expiry
+   * 2. Generate X25519 key pair
+   * 3. Compute shared secret with existing device's public key
+   * 4. Derive linking keys (encKey, macKey)
+   * 5. Compute new_device_confirm HMAC
+   * 6. Call POST /auth/linking/{sessionId}/scan
+   * 7. Store pending request, wait for approval
+   */
   ipcMain.handle(
     SYNC_CHANNELS.LINK_VIA_QR,
-    createValidatedHandler(LinkViaQRInputSchema, async (_input) => {
-      // TODO: Implement in Phase 3 (User Story 4)
-      throw new Error('Not implemented: LINK_VIA_QR')
+    createValidatedHandler(LinkViaQRInputSchema, async (input) => {
+      const { sessionId, token, ephemeralPublicKey, deviceName } = input
+
+      // Parse existing device's public key
+      const existingDevicePublicKey = Buffer.from(ephemeralPublicKey, 'base64')
+      if (existingDevicePublicKey.length !== 32) {
+        throw new Error('Invalid ephemeral public key')
+      }
+
+      // Generate our X25519 key pair (T109)
+      const myKeyPair = generateX25519KeyPair()
+
+      try {
+        // Compute shared secret (T110)
+        const sharedSecret = computeX25519SharedSecret(
+          myKeyPair.secretKey,
+          existingDevicePublicKey
+        )
+
+        // Derive linking keys (T110)
+        const linkingKeys = deriveLinkingKeys(sharedSecret)
+
+        // Zero out shared secret immediately
+        sharedSecret.fill(0)
+
+        // Compute new_device_confirm HMAC (T110a)
+        const myPublicKeyBase64 = myKeyPair.publicKey.toString('base64')
+        const newDeviceConfirm = computeNewDeviceConfirm(
+          linkingKeys.macKey,
+          sessionId,
+          token,
+          myPublicKeyBase64
+        )
+
+        const devicePlatform = getDevicePlatform()
+
+        // Call server to scan QR
+        await syncApi.instance.scanLinkingQR(
+          sessionId,
+          myPublicKeyBase64,
+          newDeviceConfirm.toString('base64'),
+          deviceName,
+          devicePlatform
+        )
+
+        // Store pending request for when approval comes
+        pendingLinkingRequest = {
+          sessionId,
+          token,
+          existingDevicePublicKey,
+          myKeyPair,
+          linkingKeys,
+          deviceName,
+          devicePlatform,
+          expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
+        }
+
+        // Set timeout to clean up
+        setTimeout(() => {
+          if (pendingLinkingRequest?.sessionId === sessionId) {
+            // Zero out key material
+            pendingLinkingRequest.myKeyPair.secretKey.fill(0)
+            pendingLinkingRequest.linkingKeys.encKey.fill(0)
+            pendingLinkingRequest.linkingKeys.macKey.fill(0)
+            pendingLinkingRequest = null
+          }
+        }, 6 * 60 * 1000)
+
+        return {
+          success: true,
+          message: 'Waiting for approval from existing device',
+          sessionId
+        }
+      } catch (error) {
+        // Zero out key material on error
+        myKeyPair.secretKey.fill(0)
+        if (error instanceof SyncApiError) {
+          throw new Error(error.message)
+        }
+        throw error
+      }
     })
   )
 
+  /**
+   * T114 - Approve Linking (Existing Device)
+   *
+   * Called by existing device to approve a linking request.
+   *
+   * Flow:
+   * 1. Verify we have an active session with scanned status
+   * 2. Compute shared secret with new device's public key
+   * 3. Derive linking keys
+   * 4. Verify new_device_confirm HMAC
+   * 5. Get master key from keychain
+   * 6. Encrypt master key with encKey
+   * 7. Compute key_confirm HMAC
+   * 8. Call POST /auth/linking/{sessionId}/approve
+   */
   ipcMain.handle(
     SYNC_CHANNELS.APPROVE_LINKING,
-    createValidatedHandler(ApproveLinkingInputSchema, async (_input) => {
-      // TODO: Implement in Phase 3 (User Story 4)
-      throw new Error('Not implemented: APPROVE_LINKING')
+    createValidatedHandler(ApproveLinkingInputSchema, async (input) => {
+      const { sessionId, newDevicePublicKey, newDeviceConfirm } = input
+
+      // Verify we have an active session
+      if (!activeLinkingSession || activeLinkingSession.sessionId !== sessionId) {
+        throw new Error('No active linking session found')
+      }
+
+      // Check expiry
+      if (Date.now() > activeLinkingSession.expiresAt) {
+        // Clean up
+        activeLinkingSession.ephemeralKeyPair.secretKey.fill(0)
+        activeLinkingSession = null
+        throw new Error('Linking session has expired')
+      }
+
+      // Get tokens for authenticated request
+      const tokens = await getTokens()
+      if (!tokens) {
+        throw new Error('Not logged in')
+      }
+
+      // Parse new device's public key
+      const newDevicePubKey = Buffer.from(newDevicePublicKey, 'base64')
+      if (newDevicePubKey.length !== 32) {
+        throw new Error('Invalid new device public key')
+      }
+
+      try {
+        // Compute shared secret (T110)
+        const sharedSecret = computeX25519SharedSecret(
+          activeLinkingSession.ephemeralKeyPair.secretKey,
+          newDevicePubKey
+        )
+
+        // Derive linking keys (T110)
+        const linkingKeys = deriveLinkingKeys(sharedSecret)
+
+        // Zero out shared secret
+        sharedSecret.fill(0)
+
+        // Verify new_device_confirm HMAC (T110a)
+        const expectedHmac = Buffer.from(newDeviceConfirm, 'base64')
+        const isValid = verifyNewDeviceConfirm(
+          linkingKeys.macKey,
+          expectedHmac,
+          sessionId,
+          activeLinkingSession.token,
+          newDevicePublicKey
+        )
+
+        if (!isValid) {
+          linkingKeys.encKey.fill(0)
+          linkingKeys.macKey.fill(0)
+          throw new Error('Invalid HMAC - linking verification failed')
+        }
+
+        // Store linking keys for potential future use
+        activeLinkingSession.linkingKeys = linkingKeys
+        activeLinkingSession.newDevicePublicKey = newDevicePubKey
+
+        // Get master key from keychain
+        const { getMasterKey } = await import('../crypto/keychain')
+        const masterKey = await getMasterKey()
+        if (!masterKey) {
+          throw new Error('Master key not found in keychain')
+        }
+
+        // Encrypt master key (T111)
+        const { ciphertext, nonce } = encryptMasterKeyForLinking(
+          Buffer.from(masterKey),
+          linkingKeys.encKey
+        )
+
+        const encryptedMasterKeyBase64 = ciphertext.toString('base64')
+        const nonceBase64 = nonce.toString('base64')
+
+        // Compute key_confirm HMAC (T110a)
+        const keyConfirm = computeKeyConfirm(
+          linkingKeys.macKey,
+          sessionId,
+          encryptedMasterKeyBase64,
+          nonceBase64
+        )
+
+        // Call server to approve
+        await syncApi.instance.approveLinking(
+          sessionId,
+          encryptedMasterKeyBase64,
+          nonceBase64,
+          keyConfirm.toString('base64'),
+          tokens.accessToken
+        )
+
+        // Update session status
+        activeLinkingSession.status = 'approved'
+
+        // Clean up after a delay
+        setTimeout(() => {
+          if (activeLinkingSession?.sessionId === sessionId) {
+            activeLinkingSession.ephemeralKeyPair.secretKey.fill(0)
+            if (activeLinkingSession.linkingKeys) {
+              activeLinkingSession.linkingKeys.encKey.fill(0)
+              activeLinkingSession.linkingKeys.macKey.fill(0)
+            }
+            activeLinkingSession = null
+          }
+        }, 30 * 1000) // 30 seconds after approval
+
+        return {
+          success: true,
+          message: 'Linking approved. New device is being set up.'
+        }
+      } catch (error) {
+        if (error instanceof SyncApiError) {
+          throw new Error(error.message)
+        }
+        throw error
+      }
     })
   )
 
+  /**
+   * Complete Linking (New Device)
+   *
+   * Called by new device after approval to complete the linking process.
+   *
+   * Flow:
+   * 1. Verify we have a pending request
+   * 2. Call server to get encrypted master key
+   * 3. Verify key_confirm HMAC
+   * 4. Decrypt master key
+   * 5. Store master key and tokens in keychain
+   */
+  ipcMain.handle(
+    SYNC_CHANNELS.COMPLETE_LINKING,
+    createValidatedHandler(CompleteLinkingInputSchema, async (input) => {
+      const { sessionId } = input
+
+      // Verify we have a pending request
+      if (!pendingLinkingRequest || pendingLinkingRequest.sessionId !== sessionId) {
+        throw new Error('No pending linking request found')
+      }
+
+      // Check expiry
+      if (Date.now() > pendingLinkingRequest.expiresAt) {
+        // Clean up
+        pendingLinkingRequest.myKeyPair.secretKey.fill(0)
+        pendingLinkingRequest.linkingKeys.encKey.fill(0)
+        pendingLinkingRequest.linkingKeys.macKey.fill(0)
+        pendingLinkingRequest = null
+        throw new Error('Linking request has expired')
+      }
+
+      try {
+        const myPublicKeyBase64 = pendingLinkingRequest.myKeyPair.publicKey.toString('base64')
+
+        // Call server to complete linking
+        const response = await syncApi.instance.completeLinking(sessionId, myPublicKeyBase64)
+
+        // Verify key_confirm HMAC (T110a)
+        const expectedHmac = Buffer.from(response.key_confirm, 'base64')
+        const isValid = verifyKeyConfirm(
+          pendingLinkingRequest.linkingKeys.macKey,
+          expectedHmac,
+          sessionId,
+          response.encrypted_master_key,
+          response.nonce
+        )
+
+        if (!isValid) {
+          throw new Error('Invalid key confirmation - linking verification failed')
+        }
+
+        // Decrypt master key (T111)
+        const encryptedMasterKey = Buffer.from(response.encrypted_master_key, 'base64')
+        const nonce = Buffer.from(response.nonce, 'base64')
+        const masterKey = decryptMasterKeyForLinking(
+          encryptedMasterKey,
+          nonce,
+          pendingLinkingRequest.linkingKeys.encKey
+        )
+
+        // Save session to keychain
+        const keychain = await import('../crypto/keychain')
+
+        // Get user ID from device info
+        const userId = await keychain.getUserId()
+
+        await keychain.saveSyncSession({
+          userId: userId || response.device.id, // Fallback to device ID if user ID not set
+          deviceId: response.device.id,
+          accessToken: response.tokens.accessToken,
+          refreshToken: response.tokens.refreshToken,
+          masterKey
+        })
+
+        // Clean up key material
+        pendingLinkingRequest.myKeyPair.secretKey.fill(0)
+        pendingLinkingRequest.linkingKeys.encKey.fill(0)
+        pendingLinkingRequest.linkingKeys.macKey.fill(0)
+        pendingLinkingRequest = null
+
+        return {
+          success: true,
+          deviceId: response.device.id,
+          message: 'Device linked successfully'
+        }
+      } catch (error) {
+        // Clean up on error
+        if (pendingLinkingRequest) {
+          pendingLinkingRequest.myKeyPair.secretKey.fill(0)
+          pendingLinkingRequest.linkingKeys.encKey.fill(0)
+          pendingLinkingRequest.linkingKeys.macKey.fill(0)
+          pendingLinkingRequest = null
+        }
+        if (error instanceof SyncApiError) {
+          throw new Error(error.message)
+        }
+        throw error
+      }
+    })
+  )
+
+  /**
+   * Cancel Linking
+   *
+   * Called by either device to cancel an active linking session.
+   */
   ipcMain.handle(
     SYNC_CHANNELS.CANCEL_LINKING,
     createHandler(async () => {
-      // TODO: Implement in Phase 3 (User Story 4)
+      // Clean up existing device session
+      if (activeLinkingSession) {
+        const sessionId = activeLinkingSession.sessionId
+
+        // Try to reject on server if we have tokens
+        const tokens = await getTokens()
+        if (tokens) {
+          try {
+            await syncApi.instance.rejectLinking(sessionId, tokens.accessToken)
+          } catch {
+            // Ignore errors - session might already be expired
+          }
+        }
+
+        // Zero out key material
+        activeLinkingSession.ephemeralKeyPair.secretKey.fill(0)
+        if (activeLinkingSession.linkingKeys) {
+          activeLinkingSession.linkingKeys.encKey.fill(0)
+          activeLinkingSession.linkingKeys.macKey.fill(0)
+        }
+        activeLinkingSession = null
+      }
+
+      // Clean up new device pending request
+      if (pendingLinkingRequest) {
+        pendingLinkingRequest.myKeyPair.secretKey.fill(0)
+        pendingLinkingRequest.linkingKeys.encKey.fill(0)
+        pendingLinkingRequest.linkingKeys.macKey.fill(0)
+        pendingLinkingRequest = null
+      }
+
       return { success: true }
     })
   )
 
+  /**
+   * Get Linking Status
+   *
+   * Returns the current linking session status for either device.
+   */
   ipcMain.handle(
     SYNC_CHANNELS.GET_LINKING_STATUS,
     createHandler(async () => {
-      // TODO: Implement in Phase 3 (User Story 4)
+      // Check for active session (existing device)
+      if (activeLinkingSession) {
+        const isExpired = Date.now() > activeLinkingSession.expiresAt
+
+        if (isExpired) {
+          // Clean up expired session
+          activeLinkingSession.ephemeralKeyPair.secretKey.fill(0)
+          if (activeLinkingSession.linkingKeys) {
+            activeLinkingSession.linkingKeys.encKey.fill(0)
+            activeLinkingSession.linkingKeys.macKey.fill(0)
+          }
+          activeLinkingSession = null
+          return { status: 'none', session: null }
+        }
+
+        return {
+          status: activeLinkingSession.status,
+          session: {
+            sessionId: activeLinkingSession.sessionId,
+            expiresAt: activeLinkingSession.expiresAt,
+            deviceName: activeLinkingSession.deviceName,
+            devicePlatform: activeLinkingSession.devicePlatform
+          },
+          role: 'existing'
+        }
+      }
+
+      // Check for pending request (new device)
+      if (pendingLinkingRequest) {
+        const isExpired = Date.now() > pendingLinkingRequest.expiresAt
+
+        if (isExpired) {
+          // Clean up expired request
+          pendingLinkingRequest.myKeyPair.secretKey.fill(0)
+          pendingLinkingRequest.linkingKeys.encKey.fill(0)
+          pendingLinkingRequest.linkingKeys.macKey.fill(0)
+          pendingLinkingRequest = null
+          return { status: 'none', session: null }
+        }
+
+        return {
+          status: 'waiting_approval',
+          session: {
+            sessionId: pendingLinkingRequest.sessionId,
+            expiresAt: pendingLinkingRequest.expiresAt
+          },
+          role: 'new'
+        }
+      }
+
       return { status: 'none', session: null }
     })
   )
@@ -1277,6 +1804,23 @@ export function unregisterSyncHandlers(): void {
 
   clearPendingSignup()
   pendingOAuth = null
+
+  // Clean up linking state
+  if (activeLinkingSession) {
+    activeLinkingSession.ephemeralKeyPair.secretKey.fill(0)
+    if (activeLinkingSession.linkingKeys) {
+      activeLinkingSession.linkingKeys.encKey.fill(0)
+      activeLinkingSession.linkingKeys.macKey.fill(0)
+    }
+    activeLinkingSession = null
+  }
+
+  if (pendingLinkingRequest) {
+    pendingLinkingRequest.myKeyPair.secretKey.fill(0)
+    pendingLinkingRequest.linkingKeys.encKey.fill(0)
+    pendingLinkingRequest.linkingKeys.macKey.fill(0)
+    pendingLinkingRequest = null
+  }
 
   console.log('[IPC] Sync handlers unregistered')
 }

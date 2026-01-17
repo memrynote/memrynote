@@ -95,6 +95,35 @@ export interface RefreshResponse {
   expires_in: number
 }
 
+/** Linking session initiation response (T104) */
+export interface LinkingSessionResponse {
+  session_id: string
+  token: string
+  expires_at: string
+}
+
+/** Linking complete response (T107) */
+export interface LinkingCompleteResponse {
+  encrypted_master_key: string
+  nonce: string
+  key_confirm: string
+  device: DevicePublic
+  tokens: {
+    accessToken: string
+    refreshToken: string
+    expiresIn: number
+  }
+}
+
+/** Linking status response */
+export interface LinkingStatusResponse {
+  status: 'pending' | 'scanned' | 'approved' | 'completed' | 'rejected' | 'expired'
+  new_device_public_key?: string
+  new_device_confirm?: string
+  device_name?: string
+  device_platform?: string
+}
+
 // =============================================================================
 // API Client Class
 // =============================================================================
@@ -423,6 +452,136 @@ export class SyncApiClient {
   async getRecoveryData(userId: string): Promise<RecoveryData> {
     return this.request<RecoveryData>('GET', '/auth/recovery', {
       query: { user_id: userId }
+    })
+  }
+
+  // ---------------------------------------------------------------------------
+  // Device Linking Endpoints (T104-T108, T112-T114)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Initiate a device linking session (T104, T112)
+   *
+   * Called by existing device to start linking process.
+   *
+   * @param ephemeralPublicKey - Base64-encoded X25519 public key
+   * @param accessToken - JWT access token
+   * @returns Session info for QR code
+   */
+  async initiateLinking(
+    ephemeralPublicKey: string,
+    accessToken: string
+  ): Promise<LinkingSessionResponse> {
+    return this.request<LinkingSessionResponse>('POST', '/auth/linking/initiate', {
+      body: { ephemeral_public_key: ephemeralPublicKey },
+      token: accessToken
+    })
+  }
+
+  /**
+   * Scan linking QR code (T105, T113)
+   *
+   * Called by new device after scanning QR.
+   *
+   * @param sessionId - Linking session ID
+   * @param newDevicePublicKey - Base64-encoded X25519 public key
+   * @param newDeviceConfirm - Base64-encoded HMAC proof
+   * @param deviceName - Name for the new device
+   * @param devicePlatform - Platform of the new device
+   * @returns Success response
+   */
+  async scanLinkingQR(
+    sessionId: string,
+    newDevicePublicKey: string,
+    newDeviceConfirm: string,
+    deviceName: string,
+    devicePlatform: 'macos' | 'windows' | 'linux' | 'ios' | 'android'
+  ): Promise<MessageResponse> {
+    return this.request<MessageResponse>('POST', `/auth/linking/${sessionId}/scan`, {
+      body: {
+        new_device_public_key: newDevicePublicKey,
+        new_device_confirm: newDeviceConfirm,
+        device_name: deviceName,
+        device_platform: devicePlatform
+      }
+    })
+  }
+
+  /**
+   * Approve device linking (T106, T114)
+   *
+   * Called by existing device to approve and send encrypted master key.
+   *
+   * @param sessionId - Linking session ID
+   * @param encryptedMasterKey - Base64-encoded encrypted master key
+   * @param nonce - Base64-encoded encryption nonce
+   * @param keyConfirm - Base64-encoded HMAC proof
+   * @param accessToken - JWT access token
+   * @returns Success response
+   */
+  async approveLinking(
+    sessionId: string,
+    encryptedMasterKey: string,
+    nonce: string,
+    keyConfirm: string,
+    accessToken: string
+  ): Promise<MessageResponse> {
+    return this.request<MessageResponse>('POST', `/auth/linking/${sessionId}/approve`, {
+      body: {
+        encrypted_master_key: encryptedMasterKey,
+        nonce,
+        key_confirm: keyConfirm
+      },
+      token: accessToken
+    })
+  }
+
+  /**
+   * Complete device linking (T107, T113)
+   *
+   * Called by new device to retrieve encrypted master key and register device.
+   *
+   * @param sessionId - Linking session ID
+   * @param newDevicePublicKey - Base64-encoded X25519 public key (for verification)
+   * @returns Encrypted master key and auth tokens
+   */
+  async completeLinking(
+    sessionId: string,
+    newDevicePublicKey: string
+  ): Promise<LinkingCompleteResponse> {
+    return this.request<LinkingCompleteResponse>('POST', `/auth/linking/${sessionId}/complete`, {
+      body: { new_device_public_key: newDevicePublicKey }
+    })
+  }
+
+  /**
+   * Reject device linking (T108)
+   *
+   * Called by existing device to reject the linking request.
+   *
+   * @param sessionId - Linking session ID
+   * @param accessToken - JWT access token
+   * @returns Success response
+   */
+  async rejectLinking(sessionId: string, accessToken: string): Promise<MessageResponse> {
+    return this.request<MessageResponse>('POST', `/auth/linking/${sessionId}/reject`, {
+      token: accessToken
+    })
+  }
+
+  /**
+   * Get linking session status
+   *
+   * @param sessionId - Linking session ID
+   * @param accessToken - JWT access token (optional, depends on who's checking)
+   * @returns Session status
+   */
+  async getLinkingStatus(
+    sessionId: string,
+    accessToken?: string
+  ): Promise<LinkingStatusResponse> {
+    return this.request<LinkingStatusResponse>('GET', `/auth/linking/${sessionId}/status`, {
+      token: accessToken
     })
   }
 }
