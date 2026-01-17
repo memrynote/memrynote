@@ -87,7 +87,7 @@ interface SignupState {
 
 /** Stored state during OAuth flow */
 interface OAuthState {
-  provider: 'google' | 'apple' | 'github'
+  provider: 'google'
   deviceName: string
   state: string
   codeVerifier: string

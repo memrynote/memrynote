@@ -408,7 +408,7 @@ auth.get('/oauth/:provider', async (c) => {
   const codeChallengeMethod = c.req.query('code_challenge_method')
 
   // Validate provider
-  if (!['google', 'apple', 'github'].includes(provider)) {
+  if (provider !== 'google') {
     throw new ValidationError(`Invalid OAuth provider: ${provider}`)
   }
 
@@ -417,22 +417,8 @@ auth.get('/oauth/:provider', async (c) => {
     throw new ValidationError('Missing required OAuth parameters')
   }
 
-  // Build authorization URL based on provider
-  let authUrl: string
-
-  switch (provider) {
-    case 'google':
-      authUrl = buildGoogleAuthUrl(redirectUri, state, codeChallenge, c.env)
-      break
-    case 'apple':
-      authUrl = buildAppleAuthUrl(redirectUri, state, codeChallenge, c.env)
-      break
-    case 'github':
-      authUrl = buildGitHubAuthUrl(redirectUri, state, c.env)
-      break
-    default:
-      throw new ValidationError(`Unsupported provider: ${provider}`)
-  }
+  // Build authorization URL for Google
+  const authUrl = buildGoogleAuthUrl(redirectUri, state, codeChallenge, c.env)
 
   // Redirect to provider
   return c.redirect(authUrl)
@@ -447,26 +433,12 @@ auth.post('/oauth/:provider/callback', zValidator('json', oauthCallbackSchema), 
   const { code, state, code_verifier, redirect_uri } = c.req.valid('json')
 
   // Validate provider
-  if (!['google', 'apple', 'github'].includes(provider)) {
+  if (provider !== 'google') {
     throw new ValidationError(`Invalid OAuth provider: ${provider}`)
   }
 
   // Exchange code for tokens and get user profile
-  let userProfile: { email: string; providerId: string }
-
-  switch (provider) {
-    case 'google':
-      userProfile = await exchangeGoogleCode(code, code_verifier, redirect_uri, c.env)
-      break
-    case 'apple':
-      userProfile = await exchangeAppleCode(code, code_verifier, c.env)
-      break
-    case 'github':
-      userProfile = await exchangeGitHubCode(code, c.env)
-      break
-    default:
-      throw new ValidationError(`Unsupported provider: ${provider}`)
-  }
+  const userProfile = await exchangeGoogleCode(code, code_verifier, redirect_uri, c.env)
 
   // Find or create user
   let user = await getUserByOAuthProvider(c.env.DB, provider, userProfile.providerId)
@@ -483,7 +455,7 @@ auth.post('/oauth/:provider/callback', zValidator('json', oauthCallbackSchema), 
     user = await createUser(c.env.DB, {
       email: userProfile.email,
       authMethod: 'oauth',
-      authProvider: provider as 'google' | 'apple' | 'github',
+      authProvider: 'google',
       authProviderId: userProfile.providerId
     })
     isNewUser = true
@@ -579,32 +551,6 @@ function buildGoogleAuthUrl(redirectUri: string, state: string, codeChallenge: s
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
 }
 
-function buildAppleAuthUrl(redirectUri: string, state: string, codeChallenge: string, env: Env): string {
-  const params = new URLSearchParams({
-    client_id: env.OAUTH_APPLE_CLIENT_ID || '',
-    redirect_uri: redirectUri,
-    response_type: 'code',
-    scope: 'email name',
-    state,
-    code_challenge: codeChallenge,
-    code_challenge_method: 'S256',
-    response_mode: 'form_post'
-  })
-
-  return `https://appleid.apple.com/auth/authorize?${params.toString()}`
-}
-
-function buildGitHubAuthUrl(redirectUri: string, state: string, env: Env): string {
-  const params = new URLSearchParams({
-    client_id: env.OAUTH_GITHUB_CLIENT_ID || '',
-    redirect_uri: redirectUri,
-    scope: 'read:user user:email',
-    state
-  })
-
-  return `https://github.com/login/oauth/authorize?${params.toString()}`
-}
-
 async function exchangeGoogleCode(
   code: string,
   codeVerifier: string,
@@ -645,115 +591,6 @@ async function exchangeGoogleCode(
   return {
     email: userInfo.email,
     providerId: userInfo.id
-  }
-}
-
-async function exchangeAppleCode(
-  code: string,
-  codeVerifier: string,
-  env: Env
-): Promise<{ email: string; providerId: string }> {
-  // Exchange code for tokens
-  const tokenResponse = await fetch('https://appleid.apple.com/auth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code,
-      client_id: env.OAUTH_APPLE_CLIENT_ID || '',
-      client_secret: env.OAUTH_APPLE_CLIENT_SECRET || '',
-      code_verifier: codeVerifier,
-      grant_type: 'authorization_code'
-    }).toString()
-  })
-
-  if (!tokenResponse.ok) {
-    throw new AuthenticationError('Failed to exchange Apple authorization code')
-  }
-
-  const tokens = (await tokenResponse.json()) as { id_token: string }
-
-  // Decode ID token to get user info (Apple returns info in the ID token)
-  const payload = JSON.parse(atob(tokens.id_token.split('.')[1])) as {
-    sub: string
-    email?: string
-  }
-
-  if (!payload.email) {
-    throw new AuthenticationError('Apple did not return email address')
-  }
-
-  return {
-    email: payload.email,
-    providerId: payload.sub
-  }
-}
-
-async function exchangeGitHubCode(
-  code: string,
-  env: Env
-): Promise<{ email: string; providerId: string }> {
-  // Exchange code for tokens
-  const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json'
-    },
-    body: JSON.stringify({
-      client_id: env.OAUTH_GITHUB_CLIENT_ID || '',
-      client_secret: env.OAUTH_GITHUB_CLIENT_SECRET || '',
-      code
-    })
-  })
-
-  if (!tokenResponse.ok) {
-    throw new AuthenticationError('Failed to exchange GitHub authorization code')
-  }
-
-  const tokens = (await tokenResponse.json()) as { access_token: string }
-
-  // Get user info
-  const userResponse = await fetch('https://api.github.com/user', {
-    headers: {
-      Authorization: `Bearer ${tokens.access_token}`,
-      Accept: 'application/json'
-    }
-  })
-
-  if (!userResponse.ok) {
-    throw new AuthenticationError('Failed to get GitHub user info')
-  }
-
-  const userInfo = (await userResponse.json()) as { id: number; email: string | null }
-
-  // Get email if not public
-  let email = userInfo.email
-  if (!email) {
-    const emailsResponse = await fetch('https://api.github.com/user/emails', {
-      headers: {
-        Authorization: `Bearer ${tokens.access_token}`,
-        Accept: 'application/json'
-      }
-    })
-
-    if (emailsResponse.ok) {
-      const emails = (await emailsResponse.json()) as Array<{
-        email: string
-        primary: boolean
-        verified: boolean
-      }>
-      const primaryEmail = emails.find((e) => e.primary && e.verified)
-      email = primaryEmail?.email || null
-    }
-  }
-
-  if (!email) {
-    throw new AuthenticationError('GitHub account must have a verified email address')
-  }
-
-  return {
-    email,
-    providerId: userInfo.id.toString()
   }
 }
 

@@ -2164,7 +2164,7 @@ export interface SyncClientAPI {
 
   // Auth (OAuth)
   oauthStart(input: {
-    provider: 'google' | 'apple' | 'github'
+    provider: 'google'
     deviceName: string
   }): Promise<{ authUrl: string }>
   oauthCallback(input: {

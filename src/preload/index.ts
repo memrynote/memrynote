@@ -1339,7 +1339,7 @@ const api = {
 
     // Auth (OAuth)
     /** Start OAuth flow */
-    oauthStart: (input: { provider: 'google' | 'apple' | 'github'; deviceName: string }) =>
+    oauthStart: (input: { provider: 'google'; deviceName: string }) =>
       ipcRenderer.invoke(SyncChannels.invoke.OAUTH_START, input),
     /** Handle OAuth callback */
     oauthCallback: (input: { code: string; state: string }) =>

@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,                   -- User's email address
   email_verified INTEGER NOT NULL DEFAULT 0,    -- Boolean: email verified?
   auth_method TEXT NOT NULL,                    -- 'email' | 'oauth'
-  auth_provider TEXT,                           -- 'google' | 'apple' | 'github' | NULL
+  auth_provider TEXT,                           -- 'google' | NULL
   auth_provider_id TEXT,                        -- Provider's user ID (NULL for email auth)
   password_hash TEXT,                           -- Argon2id hash (only for email auth)
   password_salt TEXT,                           -- Salt for password hash (only for email auth)

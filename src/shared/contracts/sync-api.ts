@@ -520,7 +520,7 @@ export type AuthMethod = 'email' | 'oauth'
 /**
  * OAuth providers
  */
-export type OAuthProvider = 'google' | 'apple' | 'github'
+export type OAuthProvider = 'google'
 
 /**
  * Public user information (safe to send to client)
@@ -544,7 +544,7 @@ export const UserPublicSchema = z.object({
   email: z.string().email(),
   emailVerified: z.boolean(),
   authMethod: z.enum(['email', 'oauth']),
-  authProvider: z.enum(['google', 'apple', 'github']).optional(),
+  authProvider: z.literal('google').optional(),
   storageUsed: z.number(),
   storageLimit: z.number(),
   createdAt: z.number(),

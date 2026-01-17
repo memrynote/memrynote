@@ -36,7 +36,7 @@ export interface ChangePasswordInput {
 }
 
 export interface OAuthStartInput {
-  provider: 'google' | 'apple' | 'github'
+  provider: 'google'
   deviceName: string
 }
 

@@ -203,7 +203,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
   const [email, setEmail] = useState('')
   const [deviceName, setDeviceName] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [oauthProvider, setOauthProvider] = useState<'google' | 'apple' | 'github' | null>(null)
+  const [oauthProvider, setOauthProvider] = useState<'google' | null>(null)
   const [oauthResult, setOauthResult] = useState<OAuthSuccessEvent | null>(null)
 
   // Get query client to invalidate auth queries on OAuth success
@@ -347,7 +347,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
 
   // Handle OAuth
   const handleOAuthStart = useCallback(
-    async (provider: 'google' | 'apple' | 'github') => {
+    async (provider: 'google') => {
       setError(null)
       setOauthProvider(provider)
       try {

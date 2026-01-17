@@ -46,7 +46,7 @@ export interface UserPublic {
   email: string
   emailVerified: boolean
   authMethod: 'email' | 'oauth'
-  authProvider?: 'google' | 'apple' | 'github'
+  authProvider?: 'google'
   storageUsed: number
   storageLimit: number
   createdAt: Date
@@ -58,7 +58,7 @@ export interface UserPublic {
 export interface CreateUserInput {
   email: string
   authMethod: 'email' | 'oauth'
-  authProvider?: 'google' | 'apple' | 'github'
+  authProvider?: 'google'
   authProviderId?: string
   passwordHash?: string
   passwordSalt?: string
@@ -104,7 +104,7 @@ export function toPublicUser(user: User): UserPublic {
     email: user.email,
     emailVerified: user.email_verified === 1,
     authMethod: user.auth_method,
-    authProvider: user.auth_provider as 'google' | 'apple' | 'github' | undefined,
+    authProvider: user.auth_provider as 'google' | undefined,
     storageUsed: user.storage_used,
     storageLimit: user.storage_limit,
     createdAt: new Date(user.created_at),

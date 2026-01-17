@@ -47,7 +47,7 @@ export interface AuthResult {
     email: string
     emailVerified: boolean
     authMethod: 'email' | 'oauth'
-    authProvider?: 'google' | 'apple' | 'github'
+    authProvider?: 'google'
     storageUsed: number
     storageLimit: number
     createdAt: string
@@ -312,14 +312,14 @@ export class SyncApiClient {
   /**
    * Get OAuth authorization URL
    *
-   * @param provider - OAuth provider (google, apple, github)
+   * @param provider - OAuth provider (google)
    * @param redirectUri - Redirect URI after auth
    * @param state - CSRF state token
    * @param codeChallenge - PKCE code challenge
    * @returns Authorization URL to redirect to
    */
   getOAuthUrl(
-    provider: 'google' | 'apple' | 'github',
+    provider: 'google',
     redirectUri: string,
     state: string,
     codeChallenge: string
@@ -345,7 +345,7 @@ export class SyncApiClient {
    * @returns Auth result with tokens
    */
   async oauthCallback(
-    provider: 'google' | 'apple' | 'github',
+    provider: 'google',
     code: string,
     state: string,
     codeVerifier: string,

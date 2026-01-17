@@ -32,10 +32,6 @@ export interface Env {
   JWT_SECRET: string
   OAUTH_GOOGLE_CLIENT_ID?: string
   OAUTH_GOOGLE_CLIENT_SECRET?: string
-  OAUTH_APPLE_CLIENT_ID?: string
-  OAUTH_APPLE_CLIENT_SECRET?: string
-  OAUTH_GITHUB_CLIENT_ID?: string
-  OAUTH_GITHUB_CLIENT_SECRET?: string
   RESEND_API_KEY?: string
   OAUTH_CALLBACK_URL?: string
 }
