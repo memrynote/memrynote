@@ -38,7 +38,16 @@ import {
 import { createAuthResult, refreshAccessToken } from '../services/auth'
 import { registerDevice, toPublicDevice } from '../services/device'
 import { sendVerificationEmail, sendPasswordResetEmail } from '../services/email'
-import { ValidationError, AuthenticationError, ConflictError, NotFoundError } from '../lib/errors'
+import {
+  ValidationError,
+  AuthenticationError,
+  ConflictError,
+  NotFoundError,
+  LinkingSessionError
+} from '../lib/errors'
+import { generateTokens } from '../services/auth'
+import { countActiveDevices } from '../services/device'
+import { rateLimit, RATE_LIMITS } from '../middleware/rate-limit'
 
 // =============================================================================
 // Zod Schemas
@@ -102,6 +111,35 @@ const oauthCallbackSchema = z.object({
   state: z.string().min(1),
   code_verifier: z.string().min(1),
   redirect_uri: z.string().min(1)
+})
+
+// -----------------------------------------------------------------------------
+// Device Linking Schemas (T104-T107)
+// -----------------------------------------------------------------------------
+
+const linkingInitiateSchema = z.object({
+  ephemeral_public_key: z.string().min(1) // X25519 public key (Base64)
+})
+
+const linkingScanSchema = z.object({
+  new_device_public_key: z.string().min(1), // X25519 public key (Base64)
+  token: z.string().min(1), // One-time token from QR
+  new_device_confirm: z.string().min(1) // HMAC proof (Base64)
+})
+
+const linkingApproveSchema = z.object({
+  encrypted_master_key: z.string().min(1), // Encrypted with ECDH shared secret (Base64)
+  nonce: z.string().min(1), // Encryption nonce (Base64)
+  key_confirm: z.string().min(1) // HMAC confirmation (Base64)
+})
+
+const linkingCompleteSchema = z.object({
+  device: z.object({
+    name: z.string().min(1).max(100),
+    platform: z.enum(['macos', 'windows', 'linux', 'ios', 'android']),
+    app_version: z.string().min(1),
+    os_version: z.string().optional()
+  })
 })
 
 // =============================================================================
@@ -532,6 +570,356 @@ auth.get('/recovery', async (c) => {
     key_verifier: user.key_verifier
   })
 })
+
+// =============================================================================
+// Device Linking Endpoints (T104-T107)
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// T104: Linking Session Initiation
+// POST /auth/linking/initiate
+// -----------------------------------------------------------------------------
+
+auth.post(
+  '/linking/initiate',
+  authMiddleware,
+  rateLimit(RATE_LIMITS.DEVICE_LINKING),
+  zValidator('json', linkingInitiateSchema),
+  async (c) => {
+    const { ephemeral_public_key } = c.req.valid('json')
+    const authUser = c.get('user')
+
+    // Generate session ID and one-time token
+    const sessionId = crypto.randomUUID()
+    const token = generateLinkingToken()
+    const now = Date.now()
+    const expiresAt = now + 5 * 60 * 1000 // 5 minutes
+
+    // Store in D1 linking_sessions table
+    await c.env.DB.prepare(
+      `INSERT INTO linking_sessions (
+        id, user_id, initiator_device_id, ephemeral_public_key,
+        status, created_at, expires_at
+      ) VALUES (?, ?, ?, ?, 'pending', ?, ?)`
+    )
+      .bind(sessionId, authUser.userId, authUser.deviceId, ephemeral_public_key, now, expiresAt)
+      .run()
+
+    // Initialize Durable Object for real-time WebSocket updates
+    const doId = c.env.LINKING_SESSION.idFromName(sessionId)
+    const linkingDO = c.env.LINKING_SESSION.get(doId)
+
+    await linkingDO.fetch(
+      new Request('https://internal/init', {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId,
+          userId: authUser.userId,
+          token,
+          expiresAt
+        })
+      })
+    )
+
+    // Build QR data for client to encode
+    const qrData = JSON.stringify({
+      session_id: sessionId,
+      token,
+      ephemeral_public_key,
+      expires_at: new Date(expiresAt).toISOString()
+    })
+
+    return c.json(
+      {
+        id: sessionId,
+        token,
+        ephemeral_public_key,
+        expires_at: new Date(expiresAt).toISOString(),
+        qr_data: qrData
+      },
+      201
+    )
+  }
+)
+
+// -----------------------------------------------------------------------------
+// T105: QR Scan Endpoint
+// POST /auth/linking/:session_id/scan
+// -----------------------------------------------------------------------------
+
+auth.post(
+  '/linking/:session_id/scan',
+  rateLimit({
+    ...RATE_LIMITS.DEVICE_LINKING,
+    keyGenerator: (c) => {
+      const ip =
+        c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
+      return `linking_scan:${ip}`
+    }
+  }),
+  zValidator('json', linkingScanSchema),
+  async (c) => {
+    const sessionId = c.req.param('session_id')
+    const { new_device_public_key, token, new_device_confirm } = c.req.valid('json')
+
+    // Find session in D1
+    const session = await c.env.DB.prepare(
+      `SELECT id, user_id, status, expires_at, ephemeral_public_key
+       FROM linking_sessions WHERE id = ?`
+    )
+      .bind(sessionId)
+      .first<{
+        id: string
+        user_id: string
+        status: string
+        expires_at: number
+        ephemeral_public_key: string
+      }>()
+
+    if (!session) {
+      throw new NotFoundError('Linking session')
+    }
+
+    // Validate session state
+    if (session.expires_at < Date.now()) {
+      throw new LinkingSessionError('Session has expired', 'SESSION_EXPIRED')
+    }
+
+    if (session.status !== 'pending') {
+      throw new LinkingSessionError('Session already used', 'SESSION_ALREADY_USED')
+    }
+
+    // Validate token via Durable Object (constant-time comparison)
+    const doId = c.env.LINKING_SESSION.idFromName(sessionId)
+    const linkingDO = c.env.LINKING_SESSION.get(doId)
+
+    const tokenValidation = await linkingDO.fetch(
+      new Request('https://internal/validate-token', {
+        method: 'POST',
+        body: JSON.stringify({ token })
+      })
+    )
+
+    if (!tokenValidation.ok) {
+      const error = (await tokenValidation.json()) as { error?: string }
+      if (tokenValidation.status === 410) {
+        throw new LinkingSessionError('Session has expired', 'SESSION_EXPIRED')
+      }
+      throw new ValidationError(error.error || 'Invalid token')
+    }
+
+    // Update session with new device info
+    await c.env.DB.prepare(
+      `UPDATE linking_sessions
+       SET new_device_public_key = ?, new_device_confirm = ?, status = 'scanned'
+       WHERE id = ?`
+    )
+      .bind(new_device_public_key, new_device_confirm, sessionId)
+      .run()
+
+    // Notify existing device via Durable Object WebSocket (reuse existing DO reference)
+    await linkingDO.fetch(
+      new Request('https://internal/notify-scanned', {
+        method: 'POST',
+        body: JSON.stringify({
+          newDevicePublicKey: new_device_public_key
+        })
+      })
+    )
+
+    return c.json({ status: 'scanned' })
+  }
+)
+
+// -----------------------------------------------------------------------------
+// T106: Linking Approval Endpoint
+// POST /auth/linking/:session_id/approve
+// -----------------------------------------------------------------------------
+
+auth.post(
+  '/linking/:session_id/approve',
+  authMiddleware,
+  rateLimit(RATE_LIMITS.DEVICE_LINKING),
+  zValidator('json', linkingApproveSchema),
+  async (c) => {
+    const sessionId = c.req.param('session_id')
+    const { encrypted_master_key, nonce, key_confirm } = c.req.valid('json')
+    const authUser = c.get('user')
+
+    // Find session in D1
+    const session = await c.env.DB.prepare(
+      `SELECT id, user_id, initiator_device_id, status, expires_at
+       FROM linking_sessions WHERE id = ?`
+    )
+      .bind(sessionId)
+      .first<{
+        id: string
+        user_id: string
+        initiator_device_id: string
+        status: string
+        expires_at: number
+      }>()
+
+    if (!session) {
+      throw new NotFoundError('Linking session')
+    }
+
+    // Verify ownership
+    if (session.user_id !== authUser.userId) {
+      throw new AuthenticationError('Not authorized to approve this session')
+    }
+
+    // Validate session state
+    if (session.expires_at < Date.now()) {
+      throw new LinkingSessionError('Session has expired', 'SESSION_EXPIRED')
+    }
+
+    if (session.status !== 'scanned') {
+      throw new LinkingSessionError(
+        'Session must be in scanned state to approve',
+        'SESSION_INVALID'
+      )
+    }
+
+    // Check device limit before allowing approval
+    const deviceCount = await countActiveDevices(c.env.DB, authUser.userId)
+    if (deviceCount >= 10) {
+      throw new LinkingSessionError('Device limit reached (maximum 10 devices)', 'DEVICE_LIMIT_REACHED')
+    }
+
+    // Store encrypted master key
+    await c.env.DB.prepare(
+      `UPDATE linking_sessions
+       SET encrypted_master_key = ?, encrypted_key_nonce = ?, key_confirm = ?, status = 'approved'
+       WHERE id = ?`
+    )
+      .bind(encrypted_master_key, nonce, key_confirm, sessionId)
+      .run()
+
+    // Notify new device via Durable Object WebSocket
+    const doId = c.env.LINKING_SESSION.idFromName(sessionId)
+    const linkingDO = c.env.LINKING_SESSION.get(doId)
+
+    await linkingDO.fetch(new Request('https://internal/notify-approved', { method: 'POST' }))
+
+    return c.json({ status: 'approved' })
+  }
+)
+
+// -----------------------------------------------------------------------------
+// T107: Linking Completion Endpoint
+// POST /auth/linking/:session_id/complete
+// -----------------------------------------------------------------------------
+
+auth.post(
+  '/linking/:session_id/complete',
+  rateLimit({
+    ...RATE_LIMITS.DEVICE_LINKING,
+    keyGenerator: (c) => {
+      const ip =
+        c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown'
+      return `linking_complete:${ip}`
+    }
+  }),
+  zValidator('json', linkingCompleteSchema),
+  async (c) => {
+    const sessionId = c.req.param('session_id')
+    const { device } = c.req.valid('json')
+
+    // Find session in D1
+    const session = await c.env.DB.prepare(
+      `SELECT id, user_id, status, expires_at,
+              encrypted_master_key, encrypted_key_nonce, key_confirm
+       FROM linking_sessions WHERE id = ?`
+    )
+      .bind(sessionId)
+      .first<{
+        id: string
+        user_id: string
+        status: string
+        expires_at: number
+        encrypted_master_key: string | null
+        encrypted_key_nonce: string | null
+        key_confirm: string | null
+      }>()
+
+    if (!session) {
+      throw new NotFoundError('Linking session')
+    }
+
+    // Validate session state
+    if (session.expires_at < Date.now()) {
+      throw new LinkingSessionError('Session has expired', 'SESSION_EXPIRED')
+    }
+
+    if (session.status !== 'approved') {
+      throw new LinkingSessionError(
+        'Session not yet approved. Please wait for approval from existing device.',
+        'SESSION_INVALID'
+      )
+    }
+
+    if (!session.encrypted_master_key || !session.encrypted_key_nonce) {
+      throw new LinkingSessionError('Encrypted key data not available', 'SESSION_INVALID')
+    }
+
+    // Get user for token generation
+    const user = await getUserById(c.env.DB, session.user_id)
+    if (!user) {
+      throw new NotFoundError('User')
+    }
+
+    // Register new device
+    const newDevice = await registerDevice(c.env.DB, {
+      userId: session.user_id,
+      name: device.name,
+      platform: device.platform,
+      osVersion: device.os_version,
+      appVersion: device.app_version
+    })
+
+    // Generate tokens for new device
+    const tokens = await generateTokens(user, newDevice.id, c.env.JWT_SECRET)
+
+    // Mark session as completed
+    const now = Date.now()
+    await c.env.DB.prepare(
+      `UPDATE linking_sessions SET status = 'completed', completed_at = ? WHERE id = ?`
+    )
+      .bind(now, sessionId)
+      .run()
+
+    return c.json({
+      encrypted_master_key: session.encrypted_master_key,
+      nonce: session.encrypted_key_nonce,
+      key_confirm: session.key_confirm,
+      device: toPublicDevice(newDevice),
+      tokens: {
+        access_token: tokens.accessToken,
+        refresh_token: tokens.refreshToken,
+        expires_in: tokens.expiresIn
+      }
+    })
+  }
+)
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Generate a secure one-time token for QR code linking.
+ * Uses 32 bytes of randomness encoded as URL-safe Base64.
+ */
+function generateLinkingToken(): string {
+  const array = new Uint8Array(32)
+  crypto.getRandomValues(array)
+  // URL-safe Base64 encoding
+  return btoa(String.fromCharCode(...array))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
 
 // =============================================================================
 // OAuth Helper Functions

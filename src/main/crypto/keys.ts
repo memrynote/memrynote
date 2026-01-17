@@ -245,6 +245,197 @@ export function deriveAllKeys(masterKey: Buffer): DerivedKeys {
 }
 
 // =============================================================================
+// X25519 Key Exchange (Device Linking) - T109, T110, T110a
+// =============================================================================
+
+/** X25519 public key length (32 bytes) */
+const X25519_PUBLIC_KEY_LENGTH = 32
+
+/** X25519 secret key length (32 bytes) */
+const X25519_SECRET_KEY_LENGTH = 32
+
+/**
+ * Generate an X25519 key pair for ECDH key exchange (T109).
+ *
+ * Used in device linking to establish a shared secret between
+ * the existing device and the new device.
+ *
+ * @returns X25519 key pair with publicKey and secretKey (both 32 bytes)
+ */
+export function generateX25519KeyPair(): { publicKey: Buffer; secretKey: Buffer } {
+  const publicKey = Buffer.alloc(X25519_PUBLIC_KEY_LENGTH)
+  const secretKey = Buffer.alloc(X25519_SECRET_KEY_LENGTH)
+
+  // Generate random secret key
+  sodium.randombytes_buf(secretKey)
+
+  // Derive public key from secret key using X25519 base point multiplication
+  sodium.crypto_scalarmult_base(publicKey, secretKey)
+
+  return { publicKey, secretKey }
+}
+
+/**
+ * Compute X25519 shared secret between two parties (T110).
+ *
+ * Performs ECDH key exchange using X25519 (Curve25519).
+ *
+ * @param mySecretKey - Our 32-byte X25519 secret key
+ * @param theirPublicKey - Their 32-byte X25519 public key
+ * @returns 32-byte shared secret
+ * @throws Error if key lengths are invalid
+ */
+export function computeX25519SharedSecret(mySecretKey: Buffer, theirPublicKey: Buffer): Buffer {
+  if (mySecretKey.length !== X25519_SECRET_KEY_LENGTH) {
+    throw new Error(`Secret key must be ${X25519_SECRET_KEY_LENGTH} bytes, got ${mySecretKey.length}`)
+  }
+  if (theirPublicKey.length !== X25519_PUBLIC_KEY_LENGTH) {
+    throw new Error(`Public key must be ${X25519_PUBLIC_KEY_LENGTH} bytes, got ${theirPublicKey.length}`)
+  }
+
+  const sharedSecret = Buffer.alloc(32)
+
+  // Perform X25519 scalar multiplication (ECDH)
+  sodium.crypto_scalarmult(sharedSecret, mySecretKey, theirPublicKey)
+
+  return sharedSecret
+}
+
+/**
+ * Derive encryption and MAC keys for device linking from a shared secret (T110).
+ *
+ * Uses HKDF to derive two separate keys:
+ * - encKey: For encrypting the master key (HKDF context: LINKING_ENC)
+ * - macKey: For HMAC proofs (HKDF context: LINKING_MAC)
+ *
+ * @param sharedSecret - 32-byte ECDH shared secret
+ * @returns Object containing encKey and macKey (both 32 bytes)
+ */
+export function deriveLinkingKeys(sharedSecret: Buffer): { encKey: Buffer; macKey: Buffer } {
+  if (sharedSecret.length !== 32) {
+    throw new Error(`Shared secret must be 32 bytes, got ${sharedSecret.length}`)
+  }
+
+  const encKey = deriveKey(sharedSecret, HKDF_CONTEXTS.LINKING_ENC)
+  const macKey = deriveKey(sharedSecret, HKDF_CONTEXTS.LINKING_MAC)
+
+  return { encKey, macKey }
+}
+
+// =============================================================================
+// Linking HMAC Proofs (T110a)
+// =============================================================================
+
+import { createLinkingHmacPayload } from './cbor'
+import { computeHmacRaw } from './signatures'
+
+/**
+ * Compute the new_device_confirm HMAC proof (T110a).
+ *
+ * Sent by the new device to prove possession of the session token
+ * and the shared secret.
+ *
+ * HMAC payload: { sessionId, token, newDevicePublicKey }
+ *
+ * @param macKey - 32-byte MAC key from deriveLinkingKeys()
+ * @param sessionId - Linking session ID
+ * @param token - Session token from QR code
+ * @param newDevicePublicKey - New device's X25519 public key (Base64)
+ * @returns 32-byte HMAC
+ */
+export function computeNewDeviceConfirm(
+  macKey: Buffer,
+  sessionId: string,
+  token: string,
+  newDevicePublicKey: string
+): Buffer {
+  const payload = createLinkingHmacPayload({
+    sessionId,
+    token,
+    newDevicePublicKey
+  })
+
+  return computeHmacRaw(macKey, payload)
+}
+
+/**
+ * Verify the new_device_confirm HMAC proof (T110a).
+ *
+ * Called by the existing device to verify the new device has
+ * the correct session token and shared secret.
+ *
+ * @param macKey - 32-byte MAC key from deriveLinkingKeys()
+ * @param expectedHmac - 32-byte HMAC to verify
+ * @param sessionId - Linking session ID
+ * @param token - Session token
+ * @param newDevicePublicKey - New device's X25519 public key (Base64)
+ * @returns true if HMAC is valid
+ */
+export function verifyNewDeviceConfirm(
+  macKey: Buffer,
+  expectedHmac: Buffer,
+  sessionId: string,
+  token: string,
+  newDevicePublicKey: string
+): boolean {
+  const computed = computeNewDeviceConfirm(macKey, sessionId, token, newDevicePublicKey)
+  return computed.equals(expectedHmac)
+}
+
+/**
+ * Compute the key_confirm HMAC proof (T110a).
+ *
+ * Sent by the existing device to prove the encrypted master key
+ * is authentic.
+ *
+ * HMAC payload: { sessionId, encryptedMasterKey, nonce }
+ *
+ * @param macKey - 32-byte MAC key from deriveLinkingKeys()
+ * @param sessionId - Linking session ID
+ * @param encryptedMasterKey - Encrypted master key (Base64)
+ * @param nonce - Encryption nonce (Base64)
+ * @returns 32-byte HMAC
+ */
+export function computeKeyConfirm(
+  macKey: Buffer,
+  sessionId: string,
+  encryptedMasterKey: string,
+  nonce: string
+): Buffer {
+  const payload = createLinkingHmacPayload({
+    sessionId,
+    encryptedMasterKey,
+    nonce
+  })
+
+  return computeHmacRaw(macKey, payload)
+}
+
+/**
+ * Verify the key_confirm HMAC proof (T110a).
+ *
+ * Called by the new device to verify the encrypted master key
+ * came from a device with the correct shared secret.
+ *
+ * @param macKey - 32-byte MAC key from deriveLinkingKeys()
+ * @param expectedHmac - 32-byte HMAC to verify
+ * @param sessionId - Linking session ID
+ * @param encryptedMasterKey - Encrypted master key (Base64)
+ * @param nonce - Encryption nonce (Base64)
+ * @returns true if HMAC is valid
+ */
+export function verifyKeyConfirm(
+  macKey: Buffer,
+  expectedHmac: Buffer,
+  sessionId: string,
+  encryptedMasterKey: string,
+  nonce: string
+): boolean {
+  const computed = computeKeyConfirm(macKey, sessionId, encryptedMasterKey, nonce)
+  return computed.equals(expectedHmac)
+}
+
+// =============================================================================
 // Random Key Generation
 // =============================================================================
 

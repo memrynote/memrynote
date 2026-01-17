@@ -66,6 +66,7 @@ export const SYNC_CHANNELS = {
   GENERATE_LINKING_QR: 'sync:generate-linking-qr',
   LINK_VIA_QR: 'sync:link-via-qr',
   APPROVE_LINKING: 'sync:approve-linking',
+  COMPLETE_LINKING: 'sync:complete-linking',
   CANCEL_LINKING: 'sync:cancel-linking',
   GET_LINKING_STATUS: 'sync:get-linking-status',
 
@@ -308,23 +309,45 @@ export interface GenerateLinkingQROutput {
 }
 
 export interface LinkViaQRInput {
-  qrData: string // Scanned QR data
+  /** Linking session ID from QR */
+  sessionId: string
+  /** Session token from QR (for HMAC proof) */
+  token: string
+  /** Existing device's X25519 public key (Base64) */
+  ephemeralPublicKey: string
+  /** Name for this device */
   deviceName: string
 }
 
 export const LinkViaQRInputSchema = z.object({
-  qrData: z.string(),
+  sessionId: z.string(),
+  token: z.string(),
+  ephemeralPublicKey: z.string(),
   deviceName: z.string().min(1).max(100)
 })
 
 export interface ApproveLinkingInput {
+  /** Linking session ID */
   sessionId: string
-  approve: boolean
+  /** New device's X25519 public key (Base64) */
+  newDevicePublicKey: string
+  /** New device's HMAC proof (Base64) */
+  newDeviceConfirm: string
 }
 
 export const ApproveLinkingInputSchema = z.object({
   sessionId: z.string(),
-  approve: z.boolean()
+  newDevicePublicKey: z.string(),
+  newDeviceConfirm: z.string()
+})
+
+export interface CompleteLinkingInput {
+  /** Linking session ID */
+  sessionId: string
+}
+
+export const CompleteLinkingInputSchema = z.object({
+  sessionId: z.string()
 })
 
 // --- Device Linking (Recovery Phrase) ---

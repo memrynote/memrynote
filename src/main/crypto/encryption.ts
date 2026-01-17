@@ -314,3 +314,56 @@ export function encryptChunk(
 export function decryptChunk(ciphertext: Buffer, nonce: Buffer, fileKey: Buffer): Buffer {
   return decrypt(ciphertext, nonce, fileKey)
 }
+
+// =============================================================================
+// Master Key Encryption for Device Linking (T111)
+// =============================================================================
+
+/**
+ * Encrypt the master key for device linking (T111).
+ *
+ * Uses XChaCha20-Poly1305 with the linking encryption key derived
+ * from the ECDH shared secret.
+ *
+ * @param masterKey - 32-byte master key to encrypt
+ * @param encKey - 32-byte encryption key from deriveLinkingKeys()
+ * @returns Object with ciphertext and nonce (both Buffers)
+ */
+export function encryptMasterKeyForLinking(
+  masterKey: Buffer,
+  encKey: Buffer
+): { ciphertext: Buffer; nonce: Buffer } {
+  if (masterKey.length !== KEY_LENGTH) {
+    throw new Error(`Master key must be ${KEY_LENGTH} bytes, got ${masterKey.length}`)
+  }
+
+  const result = encrypt(masterKey, encKey)
+
+  return {
+    ciphertext: Buffer.from(result.ciphertext),
+    nonce: Buffer.from(result.nonce)
+  }
+}
+
+/**
+ * Decrypt the master key received during device linking (T111).
+ *
+ * @param ciphertext - Encrypted master key
+ * @param nonce - 24-byte nonce
+ * @param encKey - 32-byte encryption key from deriveLinkingKeys()
+ * @returns 32-byte master key
+ * @throws Error if decryption fails
+ */
+export function decryptMasterKeyForLinking(
+  ciphertext: Buffer,
+  nonce: Buffer,
+  encKey: Buffer
+): Buffer {
+  const masterKey = decrypt(ciphertext, nonce, encKey)
+
+  if (masterKey.length !== KEY_LENGTH) {
+    throw new Error(`Decrypted master key has invalid length: ${masterKey.length}`)
+  }
+
+  return masterKey
+}
