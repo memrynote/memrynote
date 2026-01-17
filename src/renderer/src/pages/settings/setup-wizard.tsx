@@ -760,8 +760,9 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps) {
             sessionId={linkingSessionId}
             onCancel={goBack}
             onApproved={() => {
-              setStep('complete')
-              onComplete?.()
+              // Empty - let the wizard's useLinkingEvents handler manage navigation.
+              // It properly waits for completeLinking() to succeed before showing 'complete'.
+              // LinkingPending still shows the "Approved!" visual feedback.
             }}
             onRejected={(reason) => {
               setError(reason)
