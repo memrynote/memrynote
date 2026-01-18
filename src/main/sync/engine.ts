@@ -512,6 +512,19 @@ export class SyncEngine extends EventEmitter {
           })
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error)
+          const errorStack = error instanceof Error ? error.stack : undefined
+          console.error(`[Sync] Failed to process pulled item:`, {
+            type: item.type,
+            id: item.id,
+            operation: item.operation,
+            deletedAt: item.deletedAt,
+            hasEncryptedData: !!item.encryptedData,
+            encryptedDataLength: item.encryptedData?.length,
+            hasSignature: !!item.signature,
+            hasClock: !!item.clock,
+            error: errorMessage,
+            stack: errorStack
+          })
           result.errors.push(`Failed to process ${item.type}/${item.id}: ${errorMessage}`)
         }
       }
@@ -660,21 +673,35 @@ export class SyncEngine extends EventEmitter {
    * Process a pulled item (verify and decrypt).
    */
   private async processPulledItem(item: SyncPullItem): Promise<void> {
+    console.log(`[Sync] Processing pulled item: ${item.type}/${item.id}`)
+
+    // Step 1: Get master key
     const masterKey = await getMasterKey()
     if (!masterKey) {
       throw new Error('Master key not available')
     }
+    console.log(`[Sync] Step 1: Master key available`)
 
-    // Parse encrypted data
-    const encrypted = JSON.parse(item.encryptedData) as {
+    // Step 2: Parse encrypted data
+    let encrypted: {
       encryptedData: string
       dataNonce: string
       encryptedKey: string
       keyNonce: string
       cryptoVersion: number
     }
+    try {
+      encrypted = JSON.parse(item.encryptedData)
+      console.log(`[Sync] Step 2: Parsed encrypted data, cryptoVersion: ${encrypted.cryptoVersion}`)
+    } catch (parseError) {
+      console.error(`[Sync] Step 2 FAILED: Could not parse encryptedData`, {
+        encryptedDataPreview: item.encryptedData?.substring(0, 200),
+        error: parseError instanceof Error ? parseError.message : String(parseError)
+      })
+      throw new Error(`Failed to parse encryptedData: ${parseError instanceof Error ? parseError.message : String(parseError)}`)
+    }
 
-    // Verify signature
+    // Step 3: Derive signing key and verify signature
     const signingKeySeed = deriveSigningKeySeed(masterKey)
     const { publicKey } = generateSigningKeyPair(signingKeySeed)
 
@@ -701,26 +728,53 @@ export class SyncEngine extends EventEmitter {
     )
 
     if (!signatureValid) {
+      console.error(`[Sync] Step 3 FAILED: Invalid signature`, {
+        itemId: item.id,
+        itemType: item.type,
+        operation,
+        signatureLength: item.signature?.length
+      })
       throw new Error('Invalid signature')
     }
+    console.log(`[Sync] Step 3: Signature verified`)
 
-    // Derive vault key and decrypt
-    const vaultKey = deriveVaultKey(masterKey)
-    const decrypted = decryptItemFromBase64(
-      encrypted.encryptedData,
-      encrypted.dataNonce,
-      encrypted.encryptedKey,
-      encrypted.keyNonce,
-      vaultKey
-    )
+    // Step 4: Derive vault key and decrypt
+    let decrypted: string
+    try {
+      const vaultKey = deriveVaultKey(masterKey)
+      decrypted = decryptItemFromBase64(
+        encrypted.encryptedData,
+        encrypted.dataNonce,
+        encrypted.encryptedKey,
+        encrypted.keyNonce,
+        vaultKey
+      )
+      console.log(`[Sync] Step 4: Decrypted payload, length: ${decrypted.length}`)
+    } catch (decryptError) {
+      console.error(`[Sync] Step 4 FAILED: Decryption error`, {
+        error: decryptError instanceof Error ? decryptError.message : String(decryptError)
+      })
+      throw new Error(`Decryption failed: ${decryptError instanceof Error ? decryptError.message : String(decryptError)}`)
+    }
 
-    // Handle based on type and operation
-    const payload = JSON.parse(decrypted)
+    // Step 5: Parse decrypted payload
+    let payload: unknown
+    try {
+      payload = JSON.parse(decrypted)
+      console.log(`[Sync] Step 5: Parsed payload`)
+    } catch (payloadParseError) {
+      console.error(`[Sync] Step 5 FAILED: Could not parse decrypted payload`, {
+        decryptedPreview: decrypted.substring(0, 200),
+        error: payloadParseError instanceof Error ? payloadParseError.message : String(payloadParseError)
+      })
+      throw new Error(`Failed to parse decrypted payload: ${payloadParseError instanceof Error ? payloadParseError.message : String(payloadParseError)}`)
+    }
 
-    // Check for conflicts using vector clock
+    // Step 6: Check for conflicts using vector clock
     if (item.clock) {
       const comparison = compareClock(this._deviceClock, item.clock)
       if (comparison === ClockComparison.CONCURRENT) {
+        console.log(`[Sync] Step 6: Conflict detected, using LWW`)
         // Concurrent modification - emit conflict event
         this.emit('conflict-detected', {
           id: item.id,
@@ -732,13 +786,27 @@ export class SyncEngine extends EventEmitter {
       }
     }
 
-    // Apply the change to local database
-    await this.applyPulledItem(item.type, item.id, payload, item.deletedAt)
+    // Step 7: Apply the change to local database
+    try {
+      await this.applyPulledItem(item.type, item.id, payload, item.deletedAt)
+      console.log(`[Sync] Step 7: Applied to local database`)
+    } catch (applyError) {
+      console.error(`[Sync] Step 7 FAILED: Could not apply to database`, {
+        type: item.type,
+        id: item.id,
+        deletedAt: item.deletedAt,
+        payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload) : 'not-object',
+        error: applyError instanceof Error ? applyError.message : String(applyError),
+        stack: applyError instanceof Error ? applyError.stack : undefined
+      })
+      throw applyError
+    }
 
     // Update clock
     if (item.clock) {
       this._deviceClock = mergeClock(this._deviceClock, item.clock)
     }
+    console.log(`[Sync] Successfully processed: ${item.type}/${item.id}`)
   }
 
   /**
