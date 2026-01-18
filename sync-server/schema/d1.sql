@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS sync_items (
   id TEXT PRIMARY KEY,                          -- UUID (same as client item ID)
   user_id TEXT NOT NULL,                        -- FK to users
   type TEXT NOT NULL,                           -- 'note' | 'task' | 'project' | 'settings' | 'attachment' | 'inbox_item' | 'saved_filter'
+  operation TEXT NOT NULL DEFAULT 'create',     -- 'create' | 'update' | 'delete' - needed for signature verification
   blob_key TEXT NOT NULL,                       -- R2 object key for encrypted blob
   size INTEGER NOT NULL,                        -- Blob size in bytes
   version INTEGER NOT NULL DEFAULT 1,           -- Incremented on each update

@@ -31,6 +31,7 @@ export interface SyncItem {
   id: string
   user_id: string
   type: SyncItemType
+  operation: SyncOperation
   blob_key: string
   size: number
   version: number
@@ -56,6 +57,7 @@ export interface SyncPushItem {
 export interface SyncPullItem {
   id: string
   type: SyncItemType
+  operation: SyncOperation
   version: number
   encryptedData: string
   signature: string
@@ -297,18 +299,18 @@ export class SyncService {
       await this.db
         .prepare(
           `UPDATE sync_items
-           SET blob_key = ?, size = ?, version = version + 1, clock = ?, state_vector = ?, modified_at = ?, deleted_at = NULL
+           SET blob_key = ?, size = ?, version = version + 1, operation = ?, clock = ?, state_vector = ?, modified_at = ?, deleted_at = NULL
            WHERE id = ?`
         )
-        .bind(blobKey, size, JSON.stringify(item.clock ?? {}), item.stateVector ?? null, now, item.id)
+        .bind(blobKey, size, item.operation, JSON.stringify(item.clock ?? {}), item.stateVector ?? null, now, item.id)
         .run()
     } else {
       await this.db
         .prepare(
-          `INSERT INTO sync_items (id, user_id, type, blob_key, size, version, clock, state_vector, created_at, modified_at)
-           VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
+          `INSERT INTO sync_items (id, user_id, type, operation, blob_key, size, version, clock, state_vector, created_at, modified_at)
+           VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
         )
-        .bind(item.id, userId, item.type, blobKey, size, JSON.stringify(item.clock ?? {}), item.stateVector ?? null, now, now)
+        .bind(item.id, userId, item.type, item.operation, blobKey, size, JSON.stringify(item.clock ?? {}), item.stateVector ?? null, now, now)
         .run()
     }
 
@@ -379,6 +381,7 @@ export class SyncService {
         pullItems.push({
           id: item.id,
           type: item.type,
+          operation: item.operation,
           version: item.version,
           encryptedData,
           signature,
@@ -431,6 +434,7 @@ export class SyncService {
     return {
       id: item.id,
       type: item.type,
+      operation: item.operation,
       version: item.version,
       encryptedData,
       signature,
