@@ -96,6 +96,23 @@ export async function markBootstrapped(): Promise<void> {
   console.log('[Bootstrap] Marked as complete')
 }
 
+/**
+ * Clear the bootstrap flag.
+ *
+ * This should be called when:
+ * - User re-authenticates after keychain was cleared
+ * - Device needs to re-bootstrap existing data
+ */
+export async function clearBootstrapFlag(): Promise<void> {
+  try {
+    const db = getDatabase()
+    await db.delete(syncState).where(eq(syncState.key, SYNC_STATE_KEYS.INITIAL_SYNC_COMPLETE))
+    console.log('[Bootstrap] Cleared bootstrap flag')
+  } catch (error) {
+    console.error('[Bootstrap] Error clearing bootstrap flag:', error)
+  }
+}
+
 // =============================================================================
 // Bootstrap Execution
 // =============================================================================
@@ -107,7 +124,8 @@ export async function markBootstrapped(): Promise<void> {
  * It queues all existing projects, tasks, inbox items, saved filters,
  * and settings for upload to the sync server.
  *
- * The function is idempotent - it will skip if already bootstrapped.
+ * The function is idempotent - it will skip if already bootstrapped,
+ * unless the session is incomplete (e.g., keychain was cleared).
  *
  * @returns Bootstrap result with counts of queued items
  */
@@ -116,12 +134,23 @@ export async function performBootstrap(): Promise<BootstrapResult> {
 
   // Check if already bootstrapped
   if (await hasBootstrapped()) {
-    console.log('[Bootstrap] Already completed, skipping')
-    return {
-      success: true,
-      skipped: true,
-      reason: 'Already bootstrapped',
-      counts: { projects: 0, tasks: 0, inboxItems: 0, savedFilters: 0, settings: 0, total: 0 },
+    // Verify session is complete - if not, user re-authenticated after keychain was cleared
+    // In this case, we need to re-bootstrap to push existing data from this device
+    const { getSyncSession } = await import('../crypto/keychain')
+    const session = await getSyncSession()
+
+    if (!session) {
+      console.log('[Bootstrap] Bootstrap flag set but session incomplete - clearing flag for re-bootstrap')
+      await clearBootstrapFlag()
+      // Continue with bootstrap below
+    } else {
+      console.log('[Bootstrap] Already completed with valid session, skipping')
+      return {
+        success: true,
+        skipped: true,
+        reason: 'Already bootstrapped',
+        counts: { projects: 0, tasks: 0, inboxItems: 0, savedFilters: 0, settings: 0, total: 0 },
+      }
     }
   }
 

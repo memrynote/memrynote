@@ -346,12 +346,17 @@ async function handleCompleteLinking(
       const engine = getSyncEngine()
       await engine.initialize()
       if (engine.isReady()) {
+        // Bootstrap existing data BEFORE starting engine
+        // This ensures queued items are present when sync runs
+        const { performBootstrap } = await import('../sync/bootstrap')
+        const bootstrapResult = await performBootstrap()
+        console.log(
+          '[Bootstrap] Result:',
+          bootstrapResult.skipped ? 'skipped' : `queued ${bootstrapResult.counts.total} items`
+        )
+
         await engine.start()
         console.log('[Sync] Engine started after QR device linking')
-
-        // Bootstrap existing data for initial sync
-        const { performBootstrap } = await import('../sync/bootstrap')
-        performBootstrap().catch((err) => console.error('[Bootstrap] Failed:', err))
       }
     } catch (err) {
       console.warn('[Sync] Failed to start engine after linking:', err)
@@ -518,12 +523,17 @@ export function registerSyncHandlers(): void {
           const engine = getSyncEngine()
           await engine.initialize()
           if (engine.isReady()) {
+            // Bootstrap existing data BEFORE starting engine
+            // This ensures queued items are present when sync runs
+            const { performBootstrap } = await import('../sync/bootstrap')
+            const bootstrapResult = await performBootstrap()
+            console.log(
+              '[Bootstrap] Result:',
+              bootstrapResult.skipped ? 'skipped' : `queued ${bootstrapResult.counts.total} items`
+            )
+
             await engine.start()
             console.log('[Sync] Engine started after first device setup')
-
-            // Bootstrap existing data for initial sync
-            const { performBootstrap } = await import('../sync/bootstrap')
-            performBootstrap().catch((err) => console.error('[Bootstrap] Failed:', err))
           }
         } catch (err) {
           console.warn('[Sync] Failed to start engine after setup:', err)
@@ -2028,12 +2038,17 @@ export function registerSyncHandlers(): void {
           const engine = getSyncEngine()
           await engine.initialize()
           if (engine.isReady()) {
+            // Bootstrap existing data BEFORE starting engine
+            // This ensures queued items are present when sync runs
+            const { performBootstrap } = await import('../sync/bootstrap')
+            const bootstrapResult = await performBootstrap()
+            console.log(
+              '[Bootstrap] Result:',
+              bootstrapResult.skipped ? 'skipped' : `queued ${bootstrapResult.counts.total} items`
+            )
+
             await engine.start()
             console.log('[Sync] Engine started after recovery phrase linking')
-
-            // Bootstrap existing data for initial sync
-            const { performBootstrap } = await import('../sync/bootstrap')
-            performBootstrap().catch((err) => console.error('[Bootstrap] Failed:', err))
           }
         } catch (err) {
           console.warn('[Sync] Failed to start engine after recovery:', err)

@@ -20,8 +20,10 @@ import { KEYCHAIN_KEYS, type KeychainKey } from '@shared/contracts/crypto'
 // Constants
 // =============================================================================
 
-/** Service name for keychain entries */
-const SERVICE_NAME = 'memry'
+/** Service name for keychain entries (supports multi-instance testing via env var) */
+const SERVICE_NAME = process.env.MEMRY_KEYCHAIN_SUFFIX
+  ? `memry-${process.env.MEMRY_KEYCHAIN_SUFFIX}`
+  : 'memry'
 
 // =============================================================================
 // Basic Operations
