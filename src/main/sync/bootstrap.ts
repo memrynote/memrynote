@@ -133,24 +133,14 @@ export async function performBootstrap(): Promise<BootstrapResult> {
   console.log('[Bootstrap] Starting initial sync bootstrap...')
 
   // Check if already bootstrapped
+  // Note: Callers (sign-in handlers) explicitly clear this flag for fresh sign-ins
   if (await hasBootstrapped()) {
-    // Verify session is complete - if not, user re-authenticated after keychain was cleared
-    // In this case, we need to re-bootstrap to push existing data from this device
-    const { getSyncSession } = await import('../crypto/keychain')
-    const session = await getSyncSession()
-
-    if (!session) {
-      console.log('[Bootstrap] Bootstrap flag set but session incomplete - clearing flag for re-bootstrap')
-      await clearBootstrapFlag()
-      // Continue with bootstrap below
-    } else {
-      console.log('[Bootstrap] Already completed with valid session, skipping')
-      return {
-        success: true,
-        skipped: true,
-        reason: 'Already bootstrapped',
-        counts: { projects: 0, tasks: 0, inboxItems: 0, savedFilters: 0, settings: 0, total: 0 },
-      }
+    console.log('[Bootstrap] Already completed, skipping')
+    return {
+      success: true,
+      skipped: true,
+      reason: 'Already bootstrapped',
+      counts: { projects: 0, tasks: 0, inboxItems: 0, savedFilters: 0, settings: 0, total: 0 },
     }
   }
 

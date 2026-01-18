@@ -346,9 +346,10 @@ async function handleCompleteLinking(
       const engine = getSyncEngine()
       await engine.initialize()
       if (engine.isReady()) {
-        // Bootstrap existing data BEFORE starting engine
-        // This ensures queued items are present when sync runs
-        const { performBootstrap } = await import('../sync/bootstrap')
+        // Fresh sign-in: clear bootstrap flag to force re-bootstrap of existing data
+        const { performBootstrap, clearBootstrapFlag } = await import('../sync/bootstrap')
+        await clearBootstrapFlag()
+
         const bootstrapResult = await performBootstrap()
         console.log(
           '[Bootstrap] Result:',
@@ -523,9 +524,10 @@ export function registerSyncHandlers(): void {
           const engine = getSyncEngine()
           await engine.initialize()
           if (engine.isReady()) {
-            // Bootstrap existing data BEFORE starting engine
-            // This ensures queued items are present when sync runs
-            const { performBootstrap } = await import('../sync/bootstrap')
+            // Fresh sign-in: clear bootstrap flag to force re-bootstrap of existing data
+            const { performBootstrap, clearBootstrapFlag } = await import('../sync/bootstrap')
+            await clearBootstrapFlag()
+
             const bootstrapResult = await performBootstrap()
             console.log(
               '[Bootstrap] Result:',
@@ -2038,9 +2040,10 @@ export function registerSyncHandlers(): void {
           const engine = getSyncEngine()
           await engine.initialize()
           if (engine.isReady()) {
-            // Bootstrap existing data BEFORE starting engine
-            // This ensures queued items are present when sync runs
-            const { performBootstrap } = await import('../sync/bootstrap')
+            // Fresh sign-in: clear bootstrap flag to force re-bootstrap of existing data
+            const { performBootstrap, clearBootstrapFlag } = await import('../sync/bootstrap')
+            await clearBootstrapFlag()
+
             const bootstrapResult = await performBootstrap()
             console.log(
               '[Bootstrap] Result:',
