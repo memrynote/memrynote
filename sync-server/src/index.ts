@@ -179,12 +179,10 @@ export default worker
  * - Tracking connected devices
  */
 export class UserSyncState implements DurableObject {
-  private connections: Map<string, WebSocket> = new Map()
-
   constructor(
     private state: DurableObjectState,
     private env: Env
-  ) {}
+  ) { }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
@@ -224,11 +222,8 @@ export class UserSyncState implements DurableObject {
     const pair = new WebSocketPair()
     const [client, server] = Object.values(pair)
 
-    // Accept the WebSocket
+    // Accept the WebSocket with deviceId as tag for hibernation-safe retrieval
     this.state.acceptWebSocket(server, [deviceId])
-
-    // Store connection
-    this.connections.set(deviceId, server)
 
     // Send welcome message
     server.send(
@@ -243,6 +238,9 @@ export class UserSyncState implements DurableObject {
 
   /**
    * Handle broadcast request from sync endpoints.
+   *
+   * Uses hibernation-safe getWebSockets() API instead of in-memory Map
+   * to ensure connections persist through DO hibernation.
    */
   private async handleBroadcast(request: Request): Promise<Response> {
     try {
@@ -257,24 +255,30 @@ export class UserSyncState implements DurableObject {
         payload: body.payload,
       })
 
-      // Broadcast to all connected devices except the sender
+      // Use hibernation-safe API instead of in-memory Map
+      const webSockets = this.state.getWebSockets()
       let sentCount = 0
-      for (const [deviceId, socket] of this.connections.entries()) {
+
+      for (const socket of webSockets) {
+        const tags = this.state.getTags(socket)
+        const deviceId = tags[0] // deviceId was set as tag during accept
+
         if (deviceId !== body.excludeDevice) {
           try {
             socket.send(message)
             sentCount++
           } catch {
-            // Socket might be closed, remove it
-            this.connections.delete(deviceId)
+            // Socket closed, will be cleaned up automatically by hibernation API
           }
         }
       }
 
+      console.log(`[Broadcast] Sent to ${sentCount} devices`)
       return new Response(JSON.stringify({ sent: sentCount }), {
         headers: { 'Content-Type': 'application/json' },
       })
     } catch (error) {
+      console.error('[Broadcast] Error:', error)
       return new Response(JSON.stringify({ error: 'Failed to broadcast' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
@@ -284,12 +288,18 @@ export class UserSyncState implements DurableObject {
 
   /**
    * Handle status request.
+   *
+   * Uses hibernation-safe getWebSockets() API to get accurate connection count
+   * even after DO hibernation.
    */
   private handleStatus(): Response {
+    const webSockets = this.state.getWebSockets()
+    const deviceIds = webSockets.map((ws) => this.state.getTags(ws)[0])
+
     return new Response(
       JSON.stringify({
-        connectedDevices: Array.from(this.connections.keys()),
-        count: this.connections.size,
+        connectedDevices: deviceIds,
+        count: webSockets.length,
       }),
       { headers: { 'Content-Type': 'application/json' } }
     )
@@ -323,28 +333,20 @@ export class UserSyncState implements DurableObject {
 
   /**
    * Handle WebSocket close event.
+   * Cleanup is handled automatically by the hibernation API.
    */
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
-    // Find and remove the closed connection
-    for (const [deviceId, socket] of this.connections.entries()) {
-      if (socket === ws) {
-        this.connections.delete(deviceId)
-        break
-      }
-    }
+    const tags = this.state.getTags(ws)
+    console.log(`[WebSocket] Connection closed for device ${tags[0]}, code: ${code}`)
   }
 
   /**
    * Handle WebSocket error event.
+   * Cleanup is handled automatically by the hibernation API.
    */
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
-    // Find and remove the errored connection
-    for (const [deviceId, socket] of this.connections.entries()) {
-      if (socket === ws) {
-        this.connections.delete(deviceId)
-        break
-      }
-    }
+    const tags = this.state.getTags(ws)
+    console.error(`[WebSocket] Error for device ${tags[0]}:`, error)
   }
 }
 

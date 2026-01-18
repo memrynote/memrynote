@@ -58,6 +58,22 @@ import {
   generateSigningKeyPair
 } from '../crypto'
 
+import { TasksChannels, InboxChannels } from '@shared/ipc-channels'
+
+// =============================================================================
+// Helper: Emit events to renderer for UI updates
+// =============================================================================
+
+/**
+ * Emit an event to all renderer windows.
+ * Used to notify React providers of database changes from sync operations.
+ */
+function emitSyncEvent(channel: string, data: unknown): void {
+  BrowserWindow.getAllWindows().forEach((win) => {
+    win.webContents.send(channel, data)
+  })
+}
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -552,14 +568,21 @@ export class SyncEngine extends EventEmitter {
 
   /**
    * Pull a single item by ID.
+   *
+   * Called when WebSocket receives item-synced notification from another device.
+   * Includes a small delay to let D1 transaction commit before pulling,
+   * preventing race condition where broadcast arrives before DB write settles.
    */
-  async pullSingleItem(_itemId: string, _type: SyncItemType): Promise<void> {
+  async pullSingleItem(itemId: string, type: SyncItemType): Promise<void> {
     const tokens = await getTokens()
     if (!tokens?.accessToken) return
 
     try {
-      // This would call a specific endpoint to get a single item
-      // For now, just trigger a full pull
+      // Small delay to let D1 transaction commit before pulling
+      // This prevents race condition where broadcast arrives before DB write settles
+      await new Promise((resolve) => setTimeout(resolve, 300))
+
+      console.log(`[Sync] Pulling after notification for ${type}:${itemId}`)
       await this.pull()
     } catch (error) {
       this.emitError(error)
@@ -847,12 +870,15 @@ export class SyncEngine extends EventEmitter {
     switch (type) {
       case 'task':
         await db.delete(tasks).where(eq(tasks.id, id))
+        emitSyncEvent(TasksChannels.events.DELETED, { id })
         break
       case 'project':
         await db.delete(projects).where(eq(projects.id, id))
+        emitSyncEvent(TasksChannels.events.PROJECT_DELETED, { id })
         break
       case 'inbox_item':
         await db.delete(inboxItems).where(eq(inboxItems.id, id))
+        emitSyncEvent(InboxChannels.events.ARCHIVED, { id })
         break
       case 'saved_filter':
         await db.delete(savedFilters).where(eq(savedFilters.id, id))
@@ -892,6 +918,9 @@ export class SyncEngine extends EventEmitter {
 
     switch (type) {
       case 'task': {
+        // Check if task exists to determine create vs update
+        const existingTask = db.select().from(tasks).where(eq(tasks.id, data.id as string)).get()
+
         await db
           .insert(tasks)
           .values({
@@ -937,9 +966,21 @@ export class SyncEngine extends EventEmitter {
               clock: data.clock as Record<string, number> | null
             }
           })
+
+        // Emit event for UI update
+        const task = db.select().from(tasks).where(eq(tasks.id, data.id as string)).get()
+        if (task) {
+          emitSyncEvent(
+            existingTask ? TasksChannels.events.UPDATED : TasksChannels.events.CREATED,
+            { id: task.id, task }
+          )
+        }
         break
       }
       case 'project': {
+        // Check if project exists to determine create vs update
+        const existingProject = db.select().from(projects).where(eq(projects.id, data.id as string)).get()
+
         await db
           .insert(projects)
           .values({
@@ -967,9 +1008,21 @@ export class SyncEngine extends EventEmitter {
               archivedAt: data.archivedAt as string | null
             }
           })
+
+        // Emit event for UI update
+        const project = db.select().from(projects).where(eq(projects.id, data.id as string)).get()
+        if (project) {
+          emitSyncEvent(
+            existingProject ? TasksChannels.events.PROJECT_UPDATED : TasksChannels.events.PROJECT_CREATED,
+            { id: project.id, project }
+          )
+        }
         break
       }
       case 'inbox_item': {
+        // Check if inbox item exists to determine create vs update
+        const existingInboxItem = db.select().from(inboxItems).where(eq(inboxItems.id, data.id as string)).get()
+
         await db
           .insert(inboxItems)
           .values({
@@ -1023,6 +1076,15 @@ export class SyncEngine extends EventEmitter {
               clock: data.clock as Record<string, number> | null
             }
           })
+
+        // Emit event for UI update
+        const inboxItem = db.select().from(inboxItems).where(eq(inboxItems.id, data.id as string)).get()
+        if (inboxItem) {
+          emitSyncEvent(
+            existingInboxItem ? InboxChannels.events.UPDATED : InboxChannels.events.CAPTURED,
+            existingInboxItem ? { id: inboxItem.id, inboxItem } : { inboxItem }
+          )
+        }
         break
       }
       case 'saved_filter': {
