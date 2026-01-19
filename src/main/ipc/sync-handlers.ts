@@ -319,11 +319,9 @@ async function handleCompleteLinking(
     // Save session to keychain
     const keychain = await import('../crypto/keychain')
 
-    // Get user ID from device info
-    const userId = await keychain.getUserId()
-
+    // Use userId from server response (fixes issue where device ID was used as user ID)
     await keychain.saveSyncSession({
-      userId: userId || response.device.id, // Fallback to device ID if user ID not set
+      userId: response.userId,
       deviceId: response.device.id,
       accessToken: response.tokens.accessToken,
       refreshToken: response.tokens.refreshToken,
@@ -869,10 +867,19 @@ export function registerSyncHandlers(): void {
 
   /**
    * Logout - Clear session
+   *
+   * Stops the sync engine (disconnects WebSocket, removes listeners),
+   * then clears all stored credentials.
    */
   ipcMain.handle(
     SYNC_CHANNELS.LOGOUT,
     createHandler(async () => {
+      // Stop sync engine first (disconnects WebSocket, removes listeners)
+      const { getSyncEngine } = await import('../sync/engine')
+      const engine = getSyncEngine()
+      await engine.stop()
+
+      // Then clear credentials
       await clearSyncSession()
       clearPendingSignup()
       pendingOAuth = null
