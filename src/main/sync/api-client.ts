@@ -123,6 +123,7 @@ export interface LinkingCompleteResponse {
     refreshToken: string
     expiresIn: number
   }
+  userId: string
 }
 
 /** Linking status response */

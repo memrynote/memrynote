@@ -958,7 +958,8 @@ auth.post(
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         expiresIn: tokens.expiresIn
-      }
+      },
+      userId: session.user_id
     })
   }
 )

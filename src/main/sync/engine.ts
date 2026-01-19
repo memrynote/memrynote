@@ -278,7 +278,7 @@ export class SyncEngine extends EventEmitter {
   /**
    * Stop the sync engine.
    *
-   * Disconnects WebSocket and stops queue processing.
+   * Disconnects WebSocket, removes event listeners, and stops queue processing.
    */
   async stop(): Promise<void> {
     if (!this._isRunning) return
@@ -290,11 +290,23 @@ export class SyncEngine extends EventEmitter {
       this._autoSyncTimer = null
     }
 
+    // Remove WebSocket event listeners BEFORE disconnecting
+    const wsManager = getWebSocketManager()
+    wsManager.removeAllListeners('item-synced')
+    wsManager.removeAllListeners('linking-request')
+    wsManager.removeAllListeners('linking-approved')
+    wsManager.removeAllListeners('error')
+
     // Disconnect WebSocket
-    getWebSocketManager().disconnect()
+    wsManager.disconnect()
+
+    // Remove network monitor listeners
+    const networkMonitor = getNetworkMonitor()
+    networkMonitor.removeAllListeners('online')
+    networkMonitor.removeAllListeners('offline')
 
     // Stop network monitor
-    getNetworkMonitor().stop()
+    networkMonitor.stop()
 
     // Save state
     await this.saveState()
