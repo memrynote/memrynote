@@ -47,9 +47,11 @@ CREATE TABLE IF NOT EXISTS devices (
   last_sync_at INTEGER,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
+  revoked_at INTEGER,
   UNIQUE(user_id, auth_public_key)
 );
 CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id);
+CREATE INDEX IF NOT EXISTS idx_devices_active ON devices(user_id) WHERE revoked_at IS NULL;
 
 -- T014b: refresh_tokens table
 CREATE TABLE IF NOT EXISTS refresh_tokens (
@@ -145,6 +147,26 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   window_start INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_rate_key ON rate_limits(key);
+
+-- T049a: oauth_states table (for PKCE + CSRF protection)
+CREATE TABLE IF NOT EXISTS oauth_states (
+  state TEXT PRIMARY KEY,
+  code_verifier TEXT NOT NULL,
+  redirect_uri TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_expires ON oauth_states(expires_at);
+
+-- T050b: device_challenges table (for device registration)
+CREATE TABLE IF NOT EXISTS device_challenges (
+  public_key TEXT PRIMARY KEY,
+  nonce TEXT NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_challenge_expires ON device_challenges(expires_at);
 
 -- T017e: crdt_updates table
 CREATE TABLE IF NOT EXISTS crdt_updates (

@@ -15,6 +15,9 @@ import { authMiddleware, type AuthContext } from './middleware/auth'
 // Services
 import { runCleanupJobs, logCleanupResult } from './services/cleanup'
 
+// Routes
+import { authRoutes } from './routes/auth'
+
 // Error handling
 import { SyncError, isSyncError, ErrorCode } from './lib/errors'
 
@@ -32,6 +35,8 @@ export interface Env {
   // Secrets
   JWT_SECRET: string
   RESEND_API_KEY: string
+  GOOGLE_CLIENT_ID: string
+  GOOGLE_CLIENT_SECRET: string
   // Variables
   EMAIL_FROM: string
   EMAIL_FROM_NAME: string
@@ -110,20 +115,8 @@ app.get('/health', async (c) => {
 // Auth Routes (Public - for login/registration)
 // =============================================================================
 
-// Auth routes will be implemented in Phase 2+ (T035-T039)
-// Placeholder routes for now
-
-app.post('/api/v1/auth/otp/request', async (c) => {
-  return c.json({ message: 'OTP request endpoint - to be implemented' }, 501)
-})
-
-app.post('/api/v1/auth/otp/verify', async (c) => {
-  return c.json({ message: 'OTP verify endpoint - to be implemented' }, 501)
-})
-
-app.post('/api/v1/auth/token/refresh', async (c) => {
-  return c.json({ message: 'Token refresh endpoint - to be implemented' }, 501)
-})
+// Mount auth routes at /api/v1/auth
+app.route('/api/v1/auth', authRoutes)
 
 // =============================================================================
 // Protected Routes (Require Auth)

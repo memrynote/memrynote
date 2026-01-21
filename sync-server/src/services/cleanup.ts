@@ -7,6 +7,8 @@
 
 import { cleanupRefreshTokens } from './auth'
 import { cleanupRateLimits } from '../middleware/rate-limit'
+import { cleanupExpiredOAuthStates } from './oauth'
+import { cleanupDeviceChallenges } from './device'
 
 /**
  * OTP code expiry time (10 minutes).
@@ -125,6 +127,8 @@ export interface CleanupResult {
   completedLinkingSessions: number
   refreshTokens: number
   rateLimits: number
+  oauthStates: number
+  deviceChallenges: number
   totalCleaned: number
   durationMs: number
 }
@@ -147,6 +151,8 @@ export const runCleanupJobs = async (db: D1Database): Promise<CleanupResult> => 
     completedLinkingSessions,
     refreshTokens,
     rateLimits,
+    oauthStates,
+    deviceChallenges,
   ] = await Promise.all([
     cleanupExpiredOtpCodes(db),
     cleanupUsedOtpCodes(db),
@@ -154,6 +160,8 @@ export const runCleanupJobs = async (db: D1Database): Promise<CleanupResult> => 
     cleanupCompletedLinkingSessions(db),
     cleanupRefreshTokens(db),
     cleanupRateLimits(db),
+    cleanupExpiredOAuthStates(db),
+    cleanupDeviceChallenges(db),
   ])
 
   const durationMs = Date.now() - startTime
@@ -163,7 +171,9 @@ export const runCleanupJobs = async (db: D1Database): Promise<CleanupResult> => 
     linkingSessions +
     completedLinkingSessions +
     refreshTokens +
-    rateLimits
+    rateLimits +
+    oauthStates +
+    deviceChallenges
 
   return {
     otpCodes,
@@ -172,6 +182,8 @@ export const runCleanupJobs = async (db: D1Database): Promise<CleanupResult> => 
     completedLinkingSessions,
     refreshTokens,
     rateLimits,
+    oauthStates,
+    deviceChallenges,
     totalCleaned,
     durationMs,
   }
@@ -189,6 +201,8 @@ export const logCleanupResult = (result: CleanupResult): void => {
       `(OTP: ${result.otpCodes + result.usedOtpCodes}, ` +
       `Sessions: ${result.linkingSessions + result.completedLinkingSessions}, ` +
       `Tokens: ${result.refreshTokens}, ` +
-      `RateLimits: ${result.rateLimits})`
+      `RateLimits: ${result.rateLimits}, ` +
+      `OAuth: ${result.oauthStates}, ` +
+      `DeviceChallenges: ${result.deviceChallenges})`
   )
 }
