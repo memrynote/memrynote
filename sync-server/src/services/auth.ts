@@ -376,3 +376,35 @@ export const verifyAccessToken = async (
     throw new SyncError('Invalid token', ErrorCode.AUTH_INVALID_TOKEN, 401)
   }
 }
+
+/**
+ * T052, T052a: Issue a new access and refresh token pair.
+ * Used after successful authentication (OTP verify, OAuth callback).
+ *
+ * @param db - D1 database
+ * @param userId - User ID
+ * @param deviceId - Device ID
+ * @param jwtSecret - JWT signing secret
+ * @returns Token pair with expiration times
+ */
+export const issueTokenPair = async (
+  db: D1Database,
+  userId: string,
+  deviceId: string,
+  jwtSecret: string
+): Promise<RefreshTokenResult> => {
+  const now = Date.now()
+
+  const accessToken = await generateAccessToken(userId, deviceId, jwtSecret)
+  const refreshToken = await createRefreshToken(db, userId, deviceId)
+
+  const accessTokenExpiresAt = now + 15 * 60 * 1000 // 15 minutes
+  const refreshTokenExpiresAt = now + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000
+
+  return {
+    accessToken,
+    refreshToken,
+    accessTokenExpiresAt,
+    refreshTokenExpiresAt,
+  }
+}
