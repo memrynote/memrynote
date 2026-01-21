@@ -3,11 +3,10 @@
  * Handles all sync-related IPC communication from renderer.
  *
  * Note: Most handlers are stubs until the sync engine (T074+) is implemented.
+ * Stub handlers return synchronous values wrapped by createHandler's Promise.
  *
  * @module ipc/sync-handlers
  */
-
-/* eslint-disable @typescript-eslint/require-await */
 
 import { ipcMain, BrowserWindow } from 'electron'
 import { SyncChannels } from '@shared/contracts/ipc-sync'
@@ -66,46 +65,44 @@ export function registerSyncHandlers(): void {
 
   ipcMain.handle(
     SyncChannels.invoke.GET_SYNC_STATUS,
-    createHandler(async (): Promise<GetSyncStatusResponse> => {
-      return {
+    createHandler(
+      (): GetSyncStatusResponse => ({
         state: getDefaultSyncState(),
         isOnline: false
-      }
-    })
+      })
+    )
   )
 
   ipcMain.handle(
     SyncChannels.invoke.TRIGGER_SYNC,
     createValidatedHandler(
       TriggerSyncRequestSchema.optional(),
-      async (): Promise<TriggerSyncResponse> => {
-        return {
-          success: false,
-          itemsSynced: 0,
-          errors: ['Sync not yet implemented']
-        }
-      }
+      (): TriggerSyncResponse => ({
+        success: false,
+        itemsSynced: 0,
+        errors: ['Sync not yet implemented']
+      })
     )
   )
 
   ipcMain.handle(
     SyncChannels.invoke.PAUSE_SYNC,
-    createHandler(async () => createNotImplementedResponse())
+    createHandler(() => createNotImplementedResponse())
   )
 
   ipcMain.handle(
     SyncChannels.invoke.RESUME_SYNC,
-    createHandler(async () => createNotImplementedResponse())
+    createHandler(() => createNotImplementedResponse())
   )
 
   ipcMain.handle(
     SyncChannels.invoke.GET_SYNC_HISTORY,
-    createHandler(async () => ({ history: [] }))
+    createHandler(() => ({ history: [] }))
   )
 
   ipcMain.handle(
     SyncChannels.invoke.CLEAR_SYNC_QUEUE,
-    createHandler(async () => createNotImplementedResponse())
+    createHandler(() => createNotImplementedResponse())
   )
 
   // ============================================================================
@@ -116,13 +113,11 @@ export function registerSyncHandlers(): void {
     SyncChannels.invoke.SETUP_FIRST_DEVICE,
     createValidatedHandler(
       SetupFirstDeviceRequestSchema,
-      async (): Promise<SetupFirstDeviceResponse> => {
-        return {
-          recoveryPhrase: [],
-          device: {} as Device,
-          user: {} as UserPublic
-        }
-      }
+      (): SetupFirstDeviceResponse => ({
+        recoveryPhrase: [],
+        device: {} as Device,
+        user: {} as UserPublic
+      })
     )
   )
 
@@ -130,15 +125,13 @@ export function registerSyncHandlers(): void {
     SyncChannels.invoke.VERIFY_RECOVERY_PHRASE,
     createValidatedHandler(
       VerifyRecoveryPhraseRequestSchema,
-      async (): Promise<VerifyRecoveryPhraseResponse> => {
-        return { valid: false, error: 'Not implemented' }
-      }
+      (): VerifyRecoveryPhraseResponse => ({ valid: false, error: 'Not implemented' })
     )
   )
 
   ipcMain.handle(
     SyncChannels.invoke.GET_RECOVERY_PHRASE,
-    createHandler(async () => ({ phrase: [] as string[] }))
+    createHandler(() => ({ phrase: [] as string[] }))
   )
 
   // ============================================================================
@@ -147,20 +140,20 @@ export function registerSyncHandlers(): void {
 
   ipcMain.handle(
     SyncChannels.invoke.CREATE_LINKING_SESSION,
-    createHandler(async (): Promise<CreateLinkingSessionResponse> => {
-      return {
+    createHandler(
+      (): CreateLinkingSessionResponse => ({
         sessionId: '',
         qrCodeDataUrl: '',
         expiresAt: 0
-      }
-    })
+      })
+    )
   )
 
   ipcMain.handle(
     SyncChannels.invoke.SCAN_LINKING_QR,
     createValidatedHandler(
       ScanLinkingQRRequestSchema,
-      async (): Promise<ScanLinkingQRResponse> => createNotImplementedResponse()
+      (): ScanLinkingQRResponse => createNotImplementedResponse()
     )
   )
 
@@ -168,7 +161,7 @@ export function registerSyncHandlers(): void {
     SyncChannels.invoke.APPROVE_LINKING,
     createValidatedHandler(
       z.object({ sessionId: z.string().uuid() }),
-      async (): Promise<ApproveLinkingResponse> => createNotImplementedResponse()
+      (): ApproveLinkingResponse => createNotImplementedResponse()
     )
   )
 
@@ -176,20 +169,20 @@ export function registerSyncHandlers(): void {
     SyncChannels.invoke.COMPLETE_LINKING,
     createValidatedHandler(
       z.object({ sessionId: z.string().uuid() }),
-      async (): Promise<CompleteLinkingResponse> => createNotImplementedResponse()
+      (): CompleteLinkingResponse => createNotImplementedResponse()
     )
   )
 
   ipcMain.handle(
     SyncChannels.invoke.CANCEL_LINKING,
-    createStringHandler(async () => createNotImplementedResponse())
+    createStringHandler(() => createNotImplementedResponse())
   )
 
   ipcMain.handle(
     SyncChannels.invoke.GET_LINKING_STATUS,
     createValidatedHandler(
       z.object({ sessionId: z.string().uuid() }),
-      async (): Promise<GetLinkingStatusResponse> => ({ session: null })
+      (): GetLinkingStatusResponse => ({ session: null })
     )
   )
 
@@ -199,24 +192,24 @@ export function registerSyncHandlers(): void {
 
   ipcMain.handle(
     SyncChannels.invoke.GET_DEVICES,
-    createHandler(async (): Promise<GetDevicesResponse> => {
-      return {
+    createHandler(
+      (): GetDevicesResponse => ({
         devices: [],
         currentDeviceId: ''
-      }
-    })
+      })
+    )
   )
 
   ipcMain.handle(
     SyncChannels.invoke.GET_CURRENT_DEVICE,
-    createHandler(async (): Promise<Device | null> => null)
+    createHandler((): Device | null => null)
   )
 
   ipcMain.handle(
     SyncChannels.invoke.RENAME_DEVICE,
     createValidatedHandler(
       RenameDeviceRequestSchema,
-      async (): Promise<RenameDeviceResponse> => createNotImplementedResponse()
+      (): RenameDeviceResponse => createNotImplementedResponse()
     )
   )
 
@@ -224,7 +217,7 @@ export function registerSyncHandlers(): void {
     SyncChannels.invoke.REVOKE_DEVICE,
     createValidatedHandler(
       RevokeDeviceRequestSchema,
-      async (): Promise<RevokeDeviceResponse> => createNotImplementedResponse()
+      (): RevokeDeviceResponse => createNotImplementedResponse()
     )
   )
 
@@ -234,12 +227,12 @@ export function registerSyncHandlers(): void {
 
   ipcMain.handle(
     SyncChannels.invoke.GET_USER,
-    createHandler(async (): Promise<UserPublic | null> => null)
+    createHandler((): UserPublic | null => null)
   )
 
   ipcMain.handle(
     SyncChannels.invoke.DELETE_ACCOUNT,
-    createHandler(async () => createNotImplementedResponse())
+    createHandler(() => createNotImplementedResponse())
   )
 
   // ============================================================================
@@ -248,14 +241,14 @@ export function registerSyncHandlers(): void {
 
   ipcMain.handle(
     SyncChannels.invoke.GET_CONFLICTS,
-    createHandler(async (): Promise<GetConflictsResponse> => ({ conflicts: [] }))
+    createHandler((): GetConflictsResponse => ({ conflicts: [] }))
   )
 
   ipcMain.handle(
     SyncChannels.invoke.RESOLVE_CONFLICT,
     createValidatedHandler(
       ResolveConflictRequestSchema,
-      async (): Promise<ResolveConflictResponse> => createNotImplementedResponse()
+      (): ResolveConflictResponse => createNotImplementedResponse()
     )
   )
 

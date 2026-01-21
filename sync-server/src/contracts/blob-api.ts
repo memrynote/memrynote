@@ -1,10 +1,19 @@
 /**
+ * AUTO-GENERATED - DO NOT EDIT DIRECTLY
+ *
+ * This file is automatically copied from src/shared/contracts/blob-api.ts
+ * Run `pnpm sync-contracts` to update.
+ *
+ * Changes should be made to the source file, not this copy.
+ */
+
+/**
  * Blob API Contracts
  *
  * Defines request/response schemas for all blob (attachment) endpoints.
+ * Handles chunked uploads and encrypted attachment manifests.
  *
- * NOTE: This file is derived from src/shared/contracts/blob-api.ts
- * Keep in sync with the client-side contract.
+ * @see sync-server/src/contracts/blob-api.ts (keep in sync)
  */
 
 import { z } from 'zod'
@@ -25,9 +34,16 @@ const HashSchema = z
 // =============================================================================
 
 export const BLOB_CONSTANTS = {
+  /** Default chunk size: 8MB */
   DEFAULT_CHUNK_SIZE: 8 * 1024 * 1024,
+
+  /** Maximum file size: 100MB */
   MAX_FILE_SIZE: 100 * 1024 * 1024,
+
+  /** Upload session expiry: 24 hours */
   UPLOAD_SESSION_EXPIRY_MS: 24 * 60 * 60 * 1000,
+
+  /** Maximum chunks per file */
   MAX_CHUNKS: 50
 } as const
 
@@ -35,6 +51,10 @@ export const BLOB_CONSTANTS = {
 // Upload Init
 // =============================================================================
 
+/**
+ * POST /blob/upload/init
+ * Initialize a chunked upload session
+ */
 export const UploadInitRequestSchema = z.object({
   filename: z.string().min(1).max(255),
   mimeType: z.string().min(1).max(127),
@@ -55,6 +75,12 @@ export type UploadInitResponse = z.infer<typeof UploadInitResponseSchema>
 // Chunk Upload
 // =============================================================================
 
+/**
+ * PUT /blob/upload/:sessionId/chunk/:index
+ * Upload a single chunk
+ *
+ * Request body is binary chunk data (not JSON)
+ */
 export const ChunkUploadParamsSchema = z.object({
   sessionId: UuidSchema,
   index: z.coerce.number().int().nonnegative()
@@ -71,6 +97,10 @@ export type ChunkUploadResponse = z.infer<typeof ChunkUploadResponseSchema>
 // Upload Complete
 // =============================================================================
 
+/**
+ * POST /blob/upload/:sessionId/complete
+ * Complete upload and create attachment
+ */
 export const UploadCompleteParamsSchema = z.object({
   sessionId: UuidSchema
 })
@@ -91,6 +121,12 @@ export type UploadCompleteResponse = z.infer<typeof UploadCompleteResponseSchema
 // Chunk Check (Deduplication)
 // =============================================================================
 
+/**
+ * HEAD /blob/chunk/:hash
+ * Check if chunk already exists (for deduplication)
+ *
+ * Response: 200 (exists) or 404 (not found)
+ */
 export const ChunkCheckParamsSchema = z.object({
   hash: HashSchema
 })
@@ -100,6 +136,12 @@ export type ChunkCheckParams = z.infer<typeof ChunkCheckParamsSchema>
 // Chunk Download
 // =============================================================================
 
+/**
+ * GET /blob/chunk/:hash
+ * Download a chunk by its hash
+ *
+ * Response is binary chunk data
+ */
 export const ChunkDownloadParamsSchema = z.object({
   hash: HashSchema
 })
@@ -109,11 +151,18 @@ export type ChunkDownloadParams = z.infer<typeof ChunkDownloadParamsSchema>
 // Manifest Operations
 // =============================================================================
 
+/**
+ * GET /blob/manifest/:attachmentId
+ * Get encrypted attachment manifest
+ */
 export const ManifestGetParamsSchema = z.object({
   attachmentId: UuidSchema
 })
 export type ManifestGetParams = z.infer<typeof ManifestGetParamsSchema>
 
+/**
+ * Encrypted attachment manifest schema
+ */
 export const EncryptedAttachmentManifestSchema = z.object({
   encryptedManifest: Base64Schema,
   manifestNonce: Base64Schema,
@@ -126,6 +175,10 @@ export type EncryptedAttachmentManifest = z.infer<typeof EncryptedAttachmentMani
 export const ManifestGetResponseSchema = EncryptedAttachmentManifestSchema
 export type ManifestGetResponse = z.infer<typeof ManifestGetResponseSchema>
 
+/**
+ * PUT /blob/manifest/:attachmentId
+ * Store encrypted attachment manifest
+ */
 export const ManifestPutParamsSchema = z.object({
   attachmentId: UuidSchema
 })
@@ -143,6 +196,10 @@ export type ManifestPutResponse = z.infer<typeof ManifestPutResponseSchema>
 // Upload Session Status
 // =============================================================================
 
+/**
+ * GET /blob/upload/:sessionId
+ * Get upload session status
+ */
 export const UploadStatusParamsSchema = z.object({
   sessionId: UuidSchema
 })
@@ -163,6 +220,10 @@ export type UploadStatusResponse = z.infer<typeof UploadStatusResponseSchema>
 // Delete Attachment
 // =============================================================================
 
+/**
+ * DELETE /blob/attachment/:attachmentId
+ * Delete an attachment and its chunks
+ */
 export const DeleteAttachmentParamsSchema = z.object({
   attachmentId: UuidSchema
 })
