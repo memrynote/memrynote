@@ -31,11 +31,11 @@
 
 React Context for global state:
 
-| Provider | Location | Purpose |
-|----------|----------|---------|
-| TabProvider | `contexts/tabs/` | VS Code-style tabs, split view, persistence |
-| TasksProvider | `contexts/tasks/` | Tasks and projects |
-| DragProvider | `contexts/drag-context.tsx` | @dnd-kit drag-drop handling |
+| Provider      | Location                    | Purpose                                     |
+| ------------- | --------------------------- | ------------------------------------------- |
+| TabProvider   | `contexts/tabs/`            | VS Code-style tabs, split view, persistence |
+| TasksProvider | `contexts/tasks/`           | Tasks and projects                          |
+| DragProvider  | `contexts/drag-context.tsx` | @dnd-kit drag-drop handling                 |
 
 ## Vault System
 

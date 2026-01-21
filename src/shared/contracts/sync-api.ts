@@ -11,7 +11,15 @@ import { z } from 'zod'
 // Constants
 // =============================================================================
 
-export const SYNC_ITEM_TYPES = ['task', 'note', 'inbox', 'filter', 'project', 'settings', 'journal'] as const
+export const SYNC_ITEM_TYPES = [
+  'task',
+  'note',
+  'inbox',
+  'filter',
+  'project',
+  'settings',
+  'journal'
+] as const
 export type SyncItemType = (typeof SYNC_ITEM_TYPES)[number]
 
 export const SYNC_OPERATIONS = ['create', 'update', 'delete'] as const
@@ -29,7 +37,13 @@ export type AuthMethod = (typeof AUTH_METHODS)[number]
 export const AUTH_PROVIDERS = ['google'] as const
 export type AuthProvider = (typeof AUTH_PROVIDERS)[number]
 
-export const LINKING_SESSION_STATUS = ['pending', 'scanned', 'approved', 'completed', 'expired'] as const
+export const LINKING_SESSION_STATUS = [
+  'pending',
+  'scanned',
+  'approved',
+  'completed',
+  'expired'
+] as const
 export type LinkingSessionStatus = (typeof LINKING_SESSION_STATUS)[number]
 
 // =============================================================================
@@ -211,7 +225,16 @@ export type LinkingQRPayload = z.infer<typeof LinkingQRPayloadSchema>
 
 export const SyncQueueItemSchema = z.object({
   id: UuidSchema,
-  type: z.enum(['note_update', 'task', 'project', 'settings', 'attachment', 'inbox', 'filter', 'journal']),
+  type: z.enum([
+    'note_update',
+    'task',
+    'project',
+    'settings',
+    'attachment',
+    'inbox',
+    'filter',
+    'journal'
+  ]),
   itemId: UuidSchema,
   operation: z.enum(SYNC_OPERATIONS),
   payload: z.string(), // Encrypted JSON (Base64)
@@ -361,7 +384,15 @@ export const TOMBSTONE_POLICY = {
 export const SyncedSettingsSchema = z.object({
   general: z.object({
     defaultView: z.enum(['inbox', 'today', 'upcoming', 'all']),
-    weekStartsOn: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]),
+    weekStartsOn: z.union([
+      z.literal(0),
+      z.literal(1),
+      z.literal(2),
+      z.literal(3),
+      z.literal(4),
+      z.literal(5),
+      z.literal(6)
+    ]),
     dateFormat: z.enum(['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD']),
     timeFormat: z.enum(['12h', '24h']),
     language: z.string().min(2).max(5) // ISO 639-1 code

@@ -20,14 +20,14 @@ Two SQLite databases: `data.db` (source of truth), `index.db` (rebuildable cache
 
 ## Guides
 
-| Topic | Guide |
-|-------|-------|
-| Process model, state, components | [Architecture](.agent/architecture.md) |
-| TypeScript, React, naming | [Code Style](.agent/code-style.md) |
-| Test structure, utilities, mocking | [Testing](.agent/testing.md) |
-| IPC handlers, contracts, validation | [IPC Patterns](.agent/ipc-patterns.md) |
-| Drizzle ORM, schemas, migrations | [Database](.agent/database.md) |
-| Things to avoid | [Anti-patterns](.agent/anti-patterns.md) |
+| Topic                               | Guide                                    |
+| ----------------------------------- | ---------------------------------------- |
+| Process model, state, components    | [Architecture](.agent/architecture.md)   |
+| TypeScript, React, naming           | [Code Style](.agent/code-style.md)       |
+| Test structure, utilities, mocking  | [Testing](.agent/testing.md)             |
+| IPC handlers, contracts, validation | [IPC Patterns](.agent/ipc-patterns.md)   |
+| Drizzle ORM, schemas, migrations    | [Database](.agent/database.md)           |
+| Things to avoid                     | [Anti-patterns](.agent/anti-patterns.md) |
 
 ## Path Aliases
 

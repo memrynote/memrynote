@@ -4,10 +4,10 @@ Drizzle ORM with better-sqlite3.
 
 ## Two Databases
 
-| Database | Purpose | Schema File |
-|----------|---------|-------------|
-| `data.db` | Source of truth (tasks, projects, settings) | `data-schema.ts` |
-| `index.db` | Rebuildable cache (note search, FTS) | `index-schema.ts` |
+| Database   | Purpose                                     | Schema File       |
+| ---------- | ------------------------------------------- | ----------------- |
+| `data.db`  | Source of truth (tasks, projects, settings) | `data-schema.ts`  |
+| `index.db` | Rebuildable cache (note search, FTS)        | `index-schema.ts` |
 
 Schema files: `src/shared/db/schema/`
 

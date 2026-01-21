@@ -525,7 +525,10 @@ export function isSyncChannel(channel: string): boolean {
 }
 
 export function isCryptoChannel(channel: string): boolean {
-  const allChannels = [...Object.values(CryptoChannels.invoke), ...Object.values(CryptoChannels.events)]
+  const allChannels = [
+    ...Object.values(CryptoChannels.invoke),
+    ...Object.values(CryptoChannels.events)
+  ]
   return allChannels.includes(channel as (typeof allChannels)[number])
 }
 

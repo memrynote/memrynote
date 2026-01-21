@@ -19,9 +19,9 @@ Things to avoid in this codebase.
 
 ## Why These Matter
 
-| Anti-pattern | Consequence |
-|--------------|-------------|
-| `as any` | Hides bugs, defeats type safety |
-| Empty catch | Silent failures, debugging nightmares |
-| Node.js in renderer | Breaks Electron security model |
-| Hardcoded paths | Breaks on different OSes |
+| Anti-pattern        | Consequence                           |
+| ------------------- | ------------------------------------- |
+| `as any`            | Hides bugs, defeats type safety       |
+| Empty catch         | Silent failures, debugging nightmares |
+| Node.js in renderer | Breaks Electron security model        |
+| Hardcoded paths     | Breaks on different OSes              |

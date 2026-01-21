@@ -22,8 +22,7 @@ export const R2_CRDT_PATHS = {
    * @param noteId - Note UUID
    * @returns R2 object key
    */
-  snapshot: (userId: string, noteId: string): string =>
-    `${userId}/crdt/${noteId}/snapshot`,
+  snapshot: (userId: string, noteId: string): string => `${userId}/crdt/${noteId}/snapshot`
 } as const
 
 /**
@@ -37,7 +36,7 @@ export const CRDT_THRESHOLDS = {
   MAX_UPDATES_BEFORE_COMPACT: 100,
 
   /** Minimum time between compactions (in milliseconds) */
-  MIN_COMPACT_INTERVAL_MS: 60 * 1000, // 1 minute
+  MIN_COMPACT_INTERVAL_MS: 60 * 1000 // 1 minute
 } as const
 
 /**
@@ -83,5 +82,5 @@ export const buildSnapshotMetadata = (
   noteId,
   sequenceNum,
   sizeBytes,
-  createdAt: Date.now(),
+  createdAt: Date.now()
 })

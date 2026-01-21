@@ -305,7 +305,9 @@ export const SignaturePayloadV1Schema = z.object({
   metadata: z
     .object({
       clock: z.record(z.string(), z.number().int().nonnegative()).optional(),
-      fieldClocks: z.record(z.string(), z.record(z.string(), z.number().int().nonnegative())).optional(),
+      fieldClocks: z
+        .record(z.string(), z.record(z.string(), z.number().int().nonnegative()))
+        .optional(),
       stateVector: z.string().optional()
     })
     .optional()
