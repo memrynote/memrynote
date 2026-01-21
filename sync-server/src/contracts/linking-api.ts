@@ -1,10 +1,20 @@
 /**
+ * AUTO-GENERATED - DO NOT EDIT DIRECTLY
+ *
+ * This file is automatically copied from src/shared/contracts/linking-api.ts
+ * Run `pnpm sync-contracts` to update.
+ *
+ * Changes should be made to the source file, not this copy.
+ */
+
+/**
  * Linking API Contracts
  *
  * Defines request/response schemas for device linking endpoints.
+ * Device linking allows existing devices to securely transfer the master key
+ * to new devices via QR code + encrypted channel.
  *
- * NOTE: This file is derived from src/shared/contracts/linking-api.ts
- * Keep in sync with the client-side contract.
+ * @see sync-server/src/contracts/linking-api.ts (keep in sync)
  */
 
 import { z } from 'zod'
@@ -22,8 +32,13 @@ const UuidSchema = z.uuid()
 // =============================================================================
 
 export const LINKING_CONSTANTS = {
+  /** Session expiry: 10 minutes */
   SESSION_EXPIRY_MS: 10 * 60 * 1000,
+
+  /** QR code refresh interval: 30 seconds */
   QR_REFRESH_INTERVAL_MS: 30 * 1000,
+
+  /** Ephemeral key size (X25519): 32 bytes */
   EPHEMERAL_KEY_SIZE: 32
 } as const
 
@@ -31,6 +46,13 @@ export const LINKING_CONSTANTS = {
 // Initiate Linking (Existing Device)
 // =============================================================================
 
+/**
+ * POST /auth/linking/initiate
+ * Start device linking from existing device
+ *
+ * Called by the existing device to create a linking session
+ * and generate the QR code payload for the new device.
+ */
 export const LinkingInitiateRequestSchema = z.object({
   deviceId: UuidSchema
 })
@@ -48,6 +70,13 @@ export type LinkingInitiateResponse = z.infer<typeof LinkingInitiateResponseSche
 // Scan QR Code (New Device)
 // =============================================================================
 
+/**
+ * POST /auth/linking/scan
+ * New device scans QR code and submits its public key
+ *
+ * Called by the new device after scanning the QR code.
+ * Sends the new device's ephemeral public key and HMAC proof.
+ */
 export const LinkingScanRequestSchema = z.object({
   sessionId: UuidSchema,
   newDevicePublicKey: Base64Schema,
@@ -64,6 +93,13 @@ export type LinkingScanResponse = z.infer<typeof LinkingScanResponseSchema>
 // Approve Linking (Existing Device)
 // =============================================================================
 
+/**
+ * POST /auth/linking/approve
+ * Existing device approves and transfers encrypted master key
+ *
+ * Called by the existing device after verifying the new device
+ * via the confirmation code displayed on the new device.
+ */
 export const LinkingApproveRequestSchema = z.object({
   sessionId: UuidSchema,
   encryptedMasterKey: Base64Schema,
@@ -81,6 +117,13 @@ export type LinkingApproveResponse = z.infer<typeof LinkingApproveResponseSchema
 // Complete Linking (New Device)
 // =============================================================================
 
+/**
+ * POST /auth/linking/complete
+ * New device completes linking and receives master key
+ *
+ * Called by the new device after the existing device approves.
+ * Returns the encrypted master key and registers the new device.
+ */
 export const LinkingCompleteRequestSchema = z.object({
   sessionId: UuidSchema,
   newDeviceConfirm: Base64Schema
@@ -99,6 +142,12 @@ export type LinkingCompleteResponse = z.infer<typeof LinkingCompleteResponseSche
 // Session Status
 // =============================================================================
 
+/**
+ * GET /auth/linking/:sessionId
+ * Get linking session status
+ *
+ * Used by both devices to poll for status updates.
+ */
 export const LinkingStatusParamsSchema = z.object({
   sessionId: UuidSchema
 })
@@ -123,6 +172,12 @@ export type LinkingStatusResponse = z.infer<typeof LinkingStatusResponseSchema>
 // Cancel Linking
 // =============================================================================
 
+/**
+ * DELETE /auth/linking/:sessionId
+ * Cancel a linking session
+ *
+ * Can be called by either device to cancel the linking process.
+ */
 export const LinkingCancelParamsSchema = z.object({
   sessionId: UuidSchema
 })
@@ -137,6 +192,9 @@ export type LinkingCancelResponse = z.infer<typeof LinkingCancelResponseSchema>
 // QR Payload
 // =============================================================================
 
+/**
+ * QR code payload structure (JSON encoded, then possibly compressed)
+ */
 export const LinkingQRPayloadSchema = z.object({
   sessionId: UuidSchema,
   token: z.string().min(32),

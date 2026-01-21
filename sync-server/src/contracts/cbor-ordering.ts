@@ -1,4 +1,13 @@
 /**
+ * AUTO-GENERATED - DO NOT EDIT DIRECTLY
+ *
+ * This file is automatically copied from src/shared/contracts/cbor-ordering.ts
+ * Run `pnpm sync-contracts` to update.
+ *
+ * Changes should be made to the source file, not this copy.
+ */
+
+/**
  * CBOR Field Ordering Contract
  *
  * Defines the exact field order for deterministic CBOR encoding.
@@ -7,9 +16,6 @@
  * RFC 8949 Section 4.2.1 - Deterministic encoding requires:
  * 1. Map keys sorted by encoded length, then lexicographically
  * 2. We pre-define field order to ensure consistency
- *
- * NOTE: This file is a copy of src/shared/contracts/cbor-ordering.ts
- * Keep in sync with the client-side contract.
  */
 
 /**
@@ -25,7 +31,7 @@ export const SIGNATURE_PAYLOAD_V1_FIELD_ORDER = [
   'keyNonce',
   'encryptedData',
   'dataNonce',
-  'metadata',
+  'metadata'
 ] as const
 
 /**
@@ -34,7 +40,7 @@ export const SIGNATURE_PAYLOAD_V1_FIELD_ORDER = [
 export const SIGNATURE_PAYLOAD_V1_METADATA_FIELD_ORDER = [
   'clock',
   'fieldClocks',
-  'stateVector',
+  'stateVector'
 ] as const
 
 /**
@@ -48,7 +54,7 @@ export const CRDT_ITEM_PAYLOAD_FIELD_ORDER = [
   'snapshotNonce',
   'stateVector',
   'encryptedKey',
-  'keyNonce',
+  'keyNonce'
 ] as const
 
 /**
@@ -58,5 +64,5 @@ export const ENCRYPTED_UPDATE_PAYLOAD_FIELD_ORDER = [
   'noteId',
   'encryptedData',
   'nonce',
-  'timestamp',
+  'timestamp'
 ] as const

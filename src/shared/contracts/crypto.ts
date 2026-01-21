@@ -48,7 +48,14 @@ export const HKDF_CONTEXTS = {
 } as const
 
 /**
- * Argon2id parameters for master key derivation
+ * Argon2id parameters for master key derivation.
+ *
+ * Note: libsodium's crypto_pwhash does not expose parallelism parameter.
+ * The underlying Argon2id implementation uses parallelism=1 internally.
+ * This is acceptable for our use case since:
+ * 1. We're running in the main process (single-threaded context)
+ * 2. The memory cost (64MB) and time cost (3 iterations) provide sufficient protection
+ * 3. OWASP recommends these parameters for password hashing in 2024
  */
 export const ARGON2_PARAMS = {
   /** Memory cost in KiB (64MB) */
@@ -57,7 +64,10 @@ export const ARGON2_PARAMS = {
   /** Time cost (iterations) */
   timeCost: 3,
 
-  /** Parallelism */
+  /**
+   * Parallelism - libsodium uses 1 internally (not configurable).
+   * Stored for documentation purposes and potential future migration.
+   */
   parallelism: 1,
 
   /** Output key length in bytes */
