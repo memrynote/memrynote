@@ -203,11 +203,7 @@ describe('Crypto Module', () => {
       expect(result.signature).toHaveLength(64)
       expect(result.signerDeviceId).toBe('device-123')
 
-      const verification = await verifyPayload(
-        payload,
-        result.signature,
-        deviceKeyPair.publicKey
-      )
+      const verification = await verifyPayload(payload, result.signature, deviceKeyPair.publicKey)
       expect(verification.valid).toBe(true)
     })
 

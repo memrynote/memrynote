@@ -36,13 +36,13 @@ export const ContentArea = memo(function ContentArea({ ... }: ContentAreaProps) 
 
 ## Naming Conventions
 
-| Type | Convention | Example |
-|------|------------|---------|
-| Files | kebab-case | `task-section.tsx`, `vault-handlers.ts` |
-| Components | PascalCase | `TaskItem`, `ContentArea` |
-| Event handlers | `handle` prefix | `handleClick`, `handleKeyDown` |
-| Props interfaces | `Props` suffix | `TaskItemProps` |
-| IPC channels | Namespaced | `NotesChannels.invoke.CREATE` |
+| Type             | Convention      | Example                                 |
+| ---------------- | --------------- | --------------------------------------- |
+| Files            | kebab-case      | `task-section.tsx`, `vault-handlers.ts` |
+| Components       | PascalCase      | `TaskItem`, `ContentArea`               |
+| Event handlers   | `handle` prefix | `handleClick`, `handleKeyDown`          |
+| Props interfaces | `Props` suffix  | `TaskItemProps`                         |
+| IPC channels     | Namespaced      | `NotesChannels.invoke.CREATE`           |
 
 ## Import Order
 

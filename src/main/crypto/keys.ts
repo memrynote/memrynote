@@ -44,12 +44,7 @@ export async function deriveKey(
     const contextStr = context.slice(0, 8).padEnd(8, '\0')
     const subkeyId = contextToSubkeyId(context)
 
-    return sodium.crypto_kdf_derive_from_key(
-      length,
-      subkeyId,
-      contextStr,
-      masterKey
-    ) as Uint8Array
+    return sodium.crypto_kdf_derive_from_key(length, subkeyId, contextStr, masterKey) as Uint8Array
   } catch (error) {
     throw new CryptoError('Key derivation failed', CryptoErrorCode.KEY_DERIVATION_FAILED, error)
   }
