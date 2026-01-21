@@ -3,27 +3,29 @@
  *
  * Defines request/response schemas for all authentication endpoints.
  *
- * @see sync-server/src/contracts/auth-api.ts (keep in sync)
+ * NOTE: This file is derived from src/shared/contracts/auth-api.ts
+ * Keep in sync with the client-side contract.
  */
 
 import { z } from 'zod'
-import { DEVICE_PLATFORMS, AUTH_PROVIDERS, DeviceSchema, UserPublicSchema } from './sync-api'
+import {
+  DEVICE_PLATFORMS,
+  AUTH_PROVIDERS,
+  DeviceSchema,
+  UserPublicSchema
+} from './sync-api'
 
 // =============================================================================
 // Common Schemas
 // =============================================================================
 
 const Base64Schema = z.string().regex(/^[A-Za-z0-9+/]*={0,2}$/, 'Invalid Base64 string')
-const EmailSchema = z.email().max(255)
+const EmailSchema = z.string().email().max(255)
 
 // =============================================================================
 // OTP Endpoints
 // =============================================================================
 
-/**
- * POST /auth/otp/request
- * Request a one-time password for email login
- */
 export const OtpRequestSchema = z.object({
   email: EmailSchema
 })
@@ -35,10 +37,6 @@ export const OtpRequestResponseSchema = z.object({
 })
 export type OtpRequestResponse = z.infer<typeof OtpRequestResponseSchema>
 
-/**
- * POST /auth/otp/verify
- * Verify OTP and get tokens
- */
 export const OtpVerifyRequestSchema = z.object({
   email: EmailSchema,
   code: z
@@ -56,10 +54,6 @@ export const OtpVerifyResponseSchema = z.object({
 })
 export type OtpVerifyResponse = z.infer<typeof OtpVerifyResponseSchema>
 
-/**
- * POST /auth/otp/resend
- * Resend OTP code
- */
 export const OtpResendRequestSchema = z.object({
   email: EmailSchema
 })
@@ -75,10 +69,6 @@ export type OtpResendResponse = z.infer<typeof OtpResendResponseSchema>
 // Device Registration
 // =============================================================================
 
-/**
- * POST /auth/devices
- * Register a new device
- */
 export const DeviceRegisterRequestSchema = z.object({
   name: z.string().min(1).max(100),
   platform: z.enum(DEVICE_PLATFORMS),
@@ -100,10 +90,6 @@ export type DeviceRegisterResponse = z.infer<typeof DeviceRegisterResponseSchema
 // OAuth Endpoints
 // =============================================================================
 
-/**
- * GET /auth/oauth/:provider
- * Initiate OAuth flow - returns redirect URL
- */
 export const OAuthProviderParamSchema = z.object({
   provider: z.enum(AUTH_PROVIDERS)
 })
@@ -115,10 +101,6 @@ export const OAuthInitiateResponseSchema = z.object({
 })
 export type OAuthInitiateResponse = z.infer<typeof OAuthInitiateResponseSchema>
 
-/**
- * GET /auth/oauth/:provider/callback
- * OAuth callback from provider
- */
 export const OAuthCallbackQuerySchema = z.object({
   code: z.string(),
   state: z.string(),
@@ -140,10 +122,6 @@ export type OAuthCallbackResponse = z.infer<typeof OAuthCallbackResponseSchema>
 // Token Refresh
 // =============================================================================
 
-/**
- * POST /auth/refresh
- * Refresh access token
- */
 export const RefreshTokenRequestSchema = z.object({
   refreshToken: z.string()
 })
@@ -159,10 +137,6 @@ export type RefreshTokenResponse = z.infer<typeof RefreshTokenResponseSchema>
 // First Device Setup
 // =============================================================================
 
-/**
- * POST /auth/setup
- * Complete first device setup with recovery phrase derived keys
- */
 export const FirstDeviceSetupRequestSchema = z.object({
   kdfSalt: Base64Schema,
   keyVerifier: Base64Schema
@@ -178,20 +152,12 @@ export type FirstDeviceSetupResponse = z.infer<typeof FirstDeviceSetupResponseSc
 // Key Recovery
 // =============================================================================
 
-/**
- * GET /auth/recovery
- * Get recovery info (kdfSalt for master key derivation)
- */
 export const RecoveryInfoResponseSchema = z.object({
   kdfSalt: Base64Schema,
   keyVerifier: Base64Schema
 })
 export type RecoveryInfoResponse = z.infer<typeof RecoveryInfoResponseSchema>
 
-/**
- * POST /auth/recovery/verify
- * Verify recovery phrase by checking key verifier
- */
 export const RecoveryVerifyRequestSchema = z.object({
   keyVerifier: Base64Schema
 })
@@ -206,10 +172,6 @@ export type RecoveryVerifyResponse = z.infer<typeof RecoveryVerifyResponseSchema
 // Logout
 // =============================================================================
 
-/**
- * POST /auth/logout
- * Logout and revoke tokens
- */
 export const LogoutRequestSchema = z.object({
   refreshToken: z.string().optional(),
   allDevices: z.boolean().optional()
