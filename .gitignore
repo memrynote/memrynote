@@ -14,3 +14,7 @@ Thumbs.db
 .social
 .vscode
 test-results
+
+# Cloudflare Workers
+.dev.vars
+.wrangler/
