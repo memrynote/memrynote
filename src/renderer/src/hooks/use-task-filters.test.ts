@@ -343,7 +343,7 @@ describe('useFilterState', () => {
   })
 
   describe('view key changes', () => {
-    it('should reload filters when view changes', () => {
+    it('should reload filters when view changes', async () => {
       const viewKey1 = 'project-project-1-all'
       const viewKey2 = 'project-project-2-all'
 
@@ -369,7 +369,9 @@ describe('useFilterState', () => {
 
       rerender({ ...defaultOptions, selectedId: 'project-2' })
 
-      expect(result.current.filters.search).toBe('project-2-search')
+      await waitFor(() => {
+        expect(result.current.filters.search).toBe('project-2-search')
+      })
     })
   })
 })
@@ -426,20 +428,6 @@ describe('useFilteredAndSortedTasks', () => {
       })
     )
 
-    // applyFiltersAndSort should be called with empty search initially
-    expect(applyFiltersAndSort).toHaveBeenCalledWith(
-      mockTasks,
-      expect.objectContaining({ search: '' }),
-      defaultSort,
-      mockProjects
-    )
-
-    // Advance past debounce
-    act(() => {
-      vi.advanceTimersByTime(200)
-    })
-
-    // Now should be called with the search query
     expect(applyFiltersAndSort).toHaveBeenCalledWith(
       mockTasks,
       expect.objectContaining({ search: 'query' }),

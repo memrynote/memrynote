@@ -43,7 +43,7 @@ export async function signPayload(
     const message = encodeSignaturePayloadV1(payload)
 
     // Sign the encoded message
-    const signature = sodium.crypto_sign_detached(message, privateKey) as Uint8Array
+    const signature = sodium.crypto_sign_detached(message, privateKey)
 
     return {
       signature,
@@ -93,7 +93,7 @@ export async function verifyPayload(
     const message = encodeSignaturePayloadV1(payload)
 
     // Verify the signature
-    const valid = sodium.crypto_sign_verify_detached(sigBytes, message, pubKeyBytes) as boolean
+    const valid = sodium.crypto_sign_verify_detached(sigBytes, message, pubKeyBytes)
 
     return { valid }
   } catch (error) {
@@ -123,7 +123,7 @@ export async function sign(data: Uint8Array, privateKey: Uint8Array): Promise<Ui
   }
 
   try {
-    return sodium.crypto_sign_detached(data, privateKey) as Uint8Array
+    return sodium.crypto_sign_detached(data, privateKey)
   } catch (error) {
     throw new CryptoError('Signing failed', CryptoErrorCode.SIGNATURE_INVALID, error)
   }
@@ -153,7 +153,7 @@ export async function verify(
   }
 
   try {
-    return sodium.crypto_sign_verify_detached(signature, data, publicKey) as boolean
+    return sodium.crypto_sign_verify_detached(signature, data, publicKey)
   } catch {
     return false
   }

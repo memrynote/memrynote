@@ -472,11 +472,6 @@ export async function fileToFolder(
       return { success: false, filedTo: null, error: 'Item has already been filed' }
     }
 
-    // Skip link type (handled separately in another task)
-    if (item.type === 'link') {
-      return { success: false, filedTo: null, error: 'Link filing not implemented yet' }
-    }
-
     // Binary types: move file directly (no markdown wrapper, no tags)
     if (isBinaryType(item.type)) {
       return fileBinaryToFolder(itemId, folderPath)

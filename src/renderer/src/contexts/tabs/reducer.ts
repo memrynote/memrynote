@@ -861,7 +861,7 @@ export function tabReducer(state: TabSystemState, action: TabAction): TabSystemS
       const newFromTabs = fromGroup.tabs.filter((t) => t.id !== tabId)
 
       // Map direction to split type (always horizontal now)
-      const splitDirection: 'horizontal' = 'horizontal'
+      const splitDirection = 'horizontal' as const
 
       // Determine layout order
       const isFirst = direction === 'left'

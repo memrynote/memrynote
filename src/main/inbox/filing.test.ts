@@ -285,7 +285,7 @@ describe('Inbox Filing Operations', () => {
       expect(result.success).toBe(true)
       expect(mockCreateNote).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: expect.stringContaining('Inbox Note'),
+          title: 'Test Item',
           tags: expect.arrayContaining(['inbox'])
         })
       )
@@ -294,7 +294,8 @@ describe('Inbox Filing Operations', () => {
     it('should include date/time in title', async () => {
       const itemId = seedInboxItem(testDb.db, {
         id: 'item-1',
-        title: 'Test Item'
+        title: ' ',
+        content: ''
       })
 
       await convertToNote(itemId)

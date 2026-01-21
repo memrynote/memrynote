@@ -368,7 +368,7 @@ export function findNotesWithTagInfo(
   })
 
   // Sort unpinned by specified sort
-  const sortFn = (a: NoteCache, b: NoteCache) => {
+  const sortFn = (a: NoteCache, b: NoteCache): number => {
     let aVal: string | number
     let bVal: string | number
 
@@ -1448,8 +1448,8 @@ export function getJournalStreak(db: DrizzleDb): {
   const dates = new Set(entries.map((e) => e.date!))
 
   // Calculate current streak (from today or last entry backwards)
-  const formatDateUtc = (date: Date) => date.toISOString().slice(0, 10)
-  const addDaysUtc = (dateStr: string, delta: number) => {
+  const formatDateUtc = (date: Date): string => date.toISOString().slice(0, 10)
+  const addDaysUtc = (dateStr: string, delta: number): string => {
     const date = new Date(`${dateStr}T00:00:00.000Z`)
     date.setUTCDate(date.getUTCDate() + delta)
     return formatDateUtc(date)

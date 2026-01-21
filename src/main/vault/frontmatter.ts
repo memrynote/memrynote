@@ -200,10 +200,13 @@ export function validateNoteId(id: string): boolean {
 export function extractWikiLinks(content: string): string[] {
   const linkPattern = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g
   const links = new Set<string>()
-  let match
+  let match: RegExpExecArray | null
 
   while ((match = linkPattern.exec(content)) !== null) {
-    links.add(match[1].trim())
+    const link = match[1]
+    if (link) {
+      links.add(link.trim())
+    }
   }
 
   return Array.from(links)

@@ -17,7 +17,6 @@ let initialized = false
  */
 export async function ensureSodiumReady(): Promise<typeof sodium> {
   if (!initialized) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     await sodium.ready
     initialized = true
   }

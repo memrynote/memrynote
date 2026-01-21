@@ -29,6 +29,7 @@ export function createValidatedHandler<TSchema extends z.ZodSchema, TResult>(
   handler: (input: z.infer<TSchema>) => TResult | Promise<TResult>
 ): (event: IpcMainInvokeEvent, rawInput: unknown) => Promise<TResult> {
   return async (_event: IpcMainInvokeEvent, rawInput: unknown): Promise<TResult> => {
+    void _event
     try {
       const validated = schema.parse(rawInput)
       return await handler(validated)
@@ -66,6 +67,7 @@ export function createHandler<TResult>(
   handler: () => TResult | Promise<TResult>
 ): (event: IpcMainInvokeEvent) => Promise<TResult> {
   return async (_event: IpcMainInvokeEvent): Promise<TResult> => {
+    void _event
     return handler()
   }
 }

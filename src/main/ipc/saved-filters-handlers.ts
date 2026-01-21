@@ -31,7 +31,7 @@ function emitSavedFilterEvent(channel: string, data: unknown): void {
 /**
  * Helper to get database, throwing a user-friendly error if not available.
  */
-function requireDatabase() {
+function requireDatabase(): ReturnType<typeof getDatabase> {
   try {
     return getDatabase()
   } catch {

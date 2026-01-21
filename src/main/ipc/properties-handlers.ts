@@ -44,7 +44,7 @@ export function registerPropertiesHandlers(): void {
   // -------------------------------------------------------------------------
   ipcMain.handle(
     PropertiesChannels.invoke.GET,
-    createValidatedHandler(GetPropertiesSchema, async (input): Promise<PropertyValue[]> => {
+    createValidatedHandler(GetPropertiesSchema, (input): PropertyValue[] => {
       const db = getIndexDatabase()
       return getNoteProperties(db, input.entityId)
     })

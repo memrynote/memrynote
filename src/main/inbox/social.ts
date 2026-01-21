@@ -540,7 +540,7 @@ export async function extractSocialPost(url: string): Promise<SocialExtractionRe
       return {
         success: false,
         metadata: null,
-        error: `Unsupported platform: ${platform}`
+        error: 'Unsupported platform'
       }
   }
 }

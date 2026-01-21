@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 
 import type { Task, Priority } from '@/data/sample-tasks'
 import type { TaskFilters, TaskSort, SavedFilter, Project, DueDateFilter } from '@/data/tasks-data'
@@ -135,6 +135,7 @@ export const useFilterState = ({
   persistFilters: shouldPersist = true
 }: UseFilterStateOptions): UseFilterStateReturn => {
   const viewKey = getViewKey(selectedType, selectedId, activeView)
+  const lastPersistedViewKey = useRef(viewKey)
 
   // Initialize filters from persisted state or defaults
   const [filters, setFilters] = useState<TaskFilters>(() => {
@@ -153,6 +154,10 @@ export const useFilterState = ({
   // Persist filters when they change
   useEffect(() => {
     if (shouldPersist) {
+      if (lastPersistedViewKey.current !== viewKey) {
+        lastPersistedViewKey.current = viewKey
+        return
+      }
       persistFilters(viewKey, filters, sort)
     }
   }, [viewKey, filters, sort, shouldPersist])

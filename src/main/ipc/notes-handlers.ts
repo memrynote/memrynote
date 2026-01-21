@@ -248,7 +248,7 @@ export function registerNotesHandlers(): void {
   // notes:list - List notes with filtering
   ipcMain.handle(
     NotesChannels.invoke.LIST,
-    createValidatedHandler(NoteListSchema, async (input) => {
+    createValidatedHandler(NoteListSchema, (input) => {
       return listNotes(input)
     })
   )
@@ -264,7 +264,7 @@ export function registerNotesHandlers(): void {
   // notes:get-links - Get note links (outgoing and incoming)
   ipcMain.handle(
     NotesChannels.invoke.GET_LINKS,
-    createStringHandler(async (id) => {
+    createStringHandler((id) => {
       return getNoteLinks(id)
     })
   )
@@ -272,7 +272,7 @@ export function registerNotesHandlers(): void {
   // notes:get-folders - Get folder structure
   ipcMain.handle(
     NotesChannels.invoke.GET_FOLDERS,
-    createHandler(async () => {
+    createHandler(() => {
       return getFolders()
     })
   )
@@ -322,7 +322,7 @@ export function registerNotesHandlers(): void {
   // notes:exists - Check if note exists
   ipcMain.handle(
     NotesChannels.invoke.EXISTS,
-    createStringHandler(async (titleOrPath) => {
+    createStringHandler((titleOrPath) => {
       return noteExists(titleOrPath)
     })
   )
@@ -338,8 +338,8 @@ export function registerNotesHandlers(): void {
   // notes:reveal-in-finder - Reveal note in file explorer
   ipcMain.handle(
     NotesChannels.invoke.REVEAL_IN_FINDER,
-    createStringHandler(async (id) => {
-      await revealInFinder(id)
+    createStringHandler((id) => {
+      revealInFinder(id)
     })
   )
 

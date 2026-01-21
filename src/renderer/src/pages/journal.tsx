@@ -276,7 +276,7 @@ export function JournalPage({ className }: JournalPageProps): React.JSX.Element 
 
         if (backendStats) {
           const avgLevel = Math.round(backendStats.averageLevel) as 0 | 1 | 2 | 3 | 4
-          const activityDots: (0 | 1 | 2 | 3 | 4)[] = Array(5).fill(
+          const activityDots: (0 | 1 | 2 | 3 | 4)[] = Array.from({ length: 5 }, () =>
             backendStats.entryCount > 0 ? avgLevel : 0
           )
 

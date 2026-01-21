@@ -48,7 +48,7 @@ function emitTagEvent(channel: string, data: unknown): void {
 /**
  * Helper to get index database, throwing a user-friendly error if not available.
  */
-function requireIndexDatabase() {
+function requireIndexDatabase(): ReturnType<typeof getIndexDatabase> {
   try {
     return getIndexDatabase()
   } catch {
@@ -59,7 +59,7 @@ function requireIndexDatabase() {
 /**
  * Helper to get data database, throwing a user-friendly error if not available.
  */
-function requireDatabase() {
+function requireDatabase(): ReturnType<typeof getDatabase> {
   try {
     return getDatabase()
   } catch {

@@ -144,7 +144,7 @@ export function TemplateEditorPage({ templateId }: TemplateEditorPageProps) {
       }
       setIsLoading(false)
     }
-    load()
+    void load()
   }, [templateId, getTemplate])
 
   // Initialize state for new template
@@ -310,6 +310,7 @@ export function TemplateEditorPage({ templateId }: TemplateEditorPageProps) {
 
   const handleCreateTag = useCallback(
     (tagName: string, _color: string) => {
+      void _color
       if (isBuiltIn) return
       if (!tags.includes(tagName)) {
         setTags([...tags, tagName])

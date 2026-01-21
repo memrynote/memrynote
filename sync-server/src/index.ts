@@ -92,7 +92,8 @@ export class UserSyncState {
     this.state = state
   }
 
-  async fetch(_request: Request): Promise<Response> {
+  fetch(request: Request): Response {
+    void request
     // Placeholder - to be implemented in Phase 2
     return new Response(JSON.stringify({ status: 'not_implemented' }), {
       headers: { 'Content-Type': 'application/json' }
@@ -107,7 +108,8 @@ export class LinkingSession {
     this.state = state
   }
 
-  async fetch(_request: Request): Promise<Response> {
+  fetch(request: Request): Response {
+    void request
     // Placeholder - to be implemented in Phase 2
     return new Response(JSON.stringify({ status: 'not_implemented' }), {
       headers: { 'Content-Type': 'application/json' }

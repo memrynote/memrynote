@@ -48,7 +48,7 @@ export function safeFileName(title: string, maxLength = 100): string {
   return (
     title
       // Replace special characters with dashes
-      .replace(/[<>:"/\\|?*\x00-\x1f]/g, '-')
+      .replace(/[<>:"/\\|?*\p{Cc}]/gu, '-')
       // Replace multiple spaces/dashes with single dash
       .replace(/[\s-]+/g, '-')
       // Remove leading/trailing dashes and spaces

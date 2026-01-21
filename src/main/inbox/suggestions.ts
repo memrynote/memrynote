@@ -71,7 +71,7 @@ const MIN_CONTENT_LENGTH = 10
 /**
  * Get data database, throwing if not available
  */
-function requireDatabase() {
+function requireDatabase(): ReturnType<typeof getDatabase> {
   try {
     return getDatabase()
   } catch {
@@ -82,7 +82,7 @@ function requireDatabase() {
 /**
  * Get index database, throwing if not available
  */
-function requireIndexDatabase() {
+function requireIndexDatabase(): ReturnType<typeof getIndexDatabase> {
   try {
     return getIndexDatabase()
   } catch {
@@ -93,7 +93,7 @@ function requireIndexDatabase() {
 /**
  * Get raw SQLite database for vec0 queries
  */
-function requireRawIndexDatabase() {
+function requireRawIndexDatabase(): ReturnType<typeof getRawIndexDatabase> {
   try {
     return getRawIndexDatabase()
   } catch {

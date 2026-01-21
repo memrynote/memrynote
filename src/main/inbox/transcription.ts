@@ -77,7 +77,7 @@ function emitTranscriptionEvent(
 /**
  * Get data database, throwing if not available
  */
-function requireDatabase() {
+function requireDatabase(): ReturnType<typeof getDatabase> {
   try {
     return getDatabase()
   } catch {

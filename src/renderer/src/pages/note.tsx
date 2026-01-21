@@ -524,7 +524,7 @@ export function NotePage({ noteId }: NotePageProps) {
             })
             break
 
-          case 'create':
+          case 'create': {
             // Create new note with this title
             const result = await createNote.mutateAsync({ title: target })
             if (!result.success || !result.note) {
@@ -543,6 +543,7 @@ export function NotePage({ noteId }: NotePageProps) {
               isDeleted: false
             })
             break
+          }
 
           case 'not-found':
             // File-like target not found - show error instead of creating a note

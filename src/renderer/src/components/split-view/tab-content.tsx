@@ -150,7 +150,7 @@ export const TabContent = ({ tab, groupId, className }: TabContentProps): React.
           <PlaceholderView
             title="Search Results"
             icon="search"
-            subtitle={`Query: ${tab.viewState?.query ?? ''}`}
+            subtitle={`Query: ${tab.viewState?.query ? String(tab.viewState.query) : ''}`}
           />
         )
 
