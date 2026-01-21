@@ -43,7 +43,12 @@ export {
   generateSalt,
   generateNonce,
   uint8ArrayToBase64,
-  base64ToUint8Array
+  base64ToUint8Array,
+  generateKeyVerifier,
+  deriveVaultKey,
+  deriveSigningKeyPair,
+  deriveVerifyKey,
+  constantTimeEqual
 } from './keys'
 
 // Re-export encryption functions
@@ -69,8 +74,17 @@ export {
   deleteDeviceKeyPair,
   hasKeyMaterial,
   hasDeviceKeyPair,
-  deleteAllKeys
+  deleteAllKeys,
+  storeAuthTokens,
+  retrieveAuthTokens,
+  deleteAuthTokens,
+  storeSigningKeyPair,
+  retrieveSigningKeyPair,
+  deleteSigningKeyPair
 } from './keychain'
+
+// Re-export keychain types
+export type { StoredAuthTokens, StoredSigningKeyPair } from './keychain'
 
 /**
  * Securely zero out sensitive memory.

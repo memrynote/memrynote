@@ -2280,6 +2280,46 @@ export interface VerifySignatureResponse {
 }
 
 // =============================================================================
+// Auth Client API (T054-T056, T056a)
+// =============================================================================
+
+export interface RequestOtpResponse {
+  success: boolean
+  expiresAt: number
+  error?: string
+}
+
+export interface VerifyOtpResponse {
+  success: boolean
+  isNewUser?: boolean
+  needsSetup?: boolean
+  error?: string
+}
+
+export interface ResendOtpResponse {
+  success: boolean
+  expiresAt: number
+  error?: string
+}
+
+export interface DetectOtpClipboardResponse {
+  code: string | null
+}
+
+export interface AuthClientAPI {
+  requestOtp(email: string): Promise<RequestOtpResponse>
+  verifyOtp(email: string, code: string): Promise<VerifyOtpResponse>
+  resendOtp(email: string): Promise<ResendOtpResponse>
+  detectOtpClipboard(): Promise<DetectOtpClipboardResponse>
+  startOAuth(provider: 'google'): Promise<{ success: boolean; authUrl?: string; error?: string }>
+  getSession(): Promise<{ isAuthenticated: boolean; user?: { id: string; email: string } }>
+  refreshSession(): Promise<{ success: boolean; error?: string }>
+  logout(): Promise<{ success: boolean }>
+  getAccessToken(): Promise<string | null>
+  getRefreshToken(): Promise<string | null>
+}
+
+// =============================================================================
 // Sync Client API
 // =============================================================================
 
@@ -2373,6 +2413,7 @@ interface API extends WindowAPI {
   reminders: RemindersClientAPI
   quickCapture: QuickCaptureClientAPI
   folderView: FolderViewClientAPI
+  auth: AuthClientAPI
   sync: SyncClientAPI
   crypto: CryptoClientAPI
   /** Show a native OS context menu and return the selected item id, or null if dismissed */
@@ -2477,6 +2518,10 @@ interface API extends WindowAPI {
   onKeysStored: (callback: (event: unknown) => void) => () => void
   onKeysDerived: (callback: (event: unknown) => void) => () => void
   onKeysDeleted: (callback: (event: unknown) => void) => () => void
+  // Auth event subscriptions
+  onSessionChanged: (callback: (event: unknown) => void) => () => void
+  onSessionExpired: (callback: () => void) => () => void
+  onOAuthCallback: (callback: (event: unknown) => void) => () => void
 }
 
 declare global {

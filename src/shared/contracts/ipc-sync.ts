@@ -136,6 +136,12 @@ export const CryptoChannels = {
  */
 export const AuthChannels = {
   invoke: {
+    // OTP Authentication
+    REQUEST_OTP: 'auth:request-otp',
+    VERIFY_OTP: 'auth:verify-otp',
+    RESEND_OTP: 'auth:resend-otp',
+    DETECT_OTP_CLIPBOARD: 'auth:detect-otp-clipboard',
+
     // OAuth
     START_OAUTH: 'auth:start-oauth',
     HANDLE_OAUTH_CALLBACK: 'auth:handle-oauth-callback',
@@ -391,13 +397,50 @@ export interface HasKeysResponse {
 
 // --- Auth Operations ---
 
+// OTP Authentication
+export interface RequestOtpRequest {
+  email: string
+}
+
+export interface RequestOtpResponse {
+  success: boolean
+  expiresAt: number
+  error?: string
+}
+
+export interface VerifyOtpRequest {
+  email: string
+  code: string
+}
+
+export interface VerifyOtpResponse {
+  success: boolean
+  isNewUser?: boolean
+  needsSetup?: boolean
+  error?: string
+}
+
+export interface ResendOtpRequest {
+  email: string
+}
+
+export interface ResendOtpResponse {
+  success: boolean
+  expiresAt: number
+  error?: string
+}
+
+export interface DetectOtpClipboardResponse {
+  code: string | null
+}
+
+// OAuth
 export interface StartOAuthRequest {
   provider: 'google'
 }
 
 export interface StartOAuthResponse {
   success: boolean
-  /** URL to open in browser (for web-based OAuth) */
   authUrl?: string
   error?: string
 }
@@ -513,6 +556,23 @@ export const EncryptItemRequestSchema = z.object({
 
 export const StartOAuthRequestSchema = z.object({
   provider: z.literal('google')
+})
+
+// OTP Schemas
+export const RequestOtpRequestSchema = z.object({
+  email: z.string().email().max(255)
+})
+
+export const VerifyOtpRequestSchema = z.object({
+  email: z.string().email().max(255),
+  code: z
+    .string()
+    .length(6)
+    .regex(/^\d{6}$/, 'OTP must be 6 digits')
+})
+
+export const ResendOtpRequestSchema = z.object({
+  email: z.string().email().max(255)
 })
 
 // =============================================================================
