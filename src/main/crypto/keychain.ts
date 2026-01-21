@@ -15,8 +15,24 @@ const SERVICE_NAME = 'com.memry.app'
 /** Account names for different key types */
 const ACCOUNTS = {
   MASTER_KEYS: 'master-keys',
-  DEVICE_KEYS: 'device-keys'
+  DEVICE_KEYS: 'device-keys',
+  SIGNING_KEYS: 'signing-keys',
+  AUTH_TOKENS: 'auth-tokens'
 } as const
+
+/** Auth tokens stored in keychain */
+export interface StoredAuthTokens {
+  accessToken: string
+  refreshToken: string
+  userId: string
+  email: string
+}
+
+/** User-level signing keypair (derived from master key) */
+export interface StoredSigningKeyPair {
+  publicKey: string
+  privateKey: string
+}
 
 /**
  * Store key material in the OS keychain.
@@ -185,11 +201,140 @@ export async function deleteAllKeys(): Promise<void> {
   try {
     await Promise.all([
       keytar.deletePassword(SERVICE_NAME, ACCOUNTS.MASTER_KEYS),
-      keytar.deletePassword(SERVICE_NAME, ACCOUNTS.DEVICE_KEYS)
+      keytar.deletePassword(SERVICE_NAME, ACCOUNTS.DEVICE_KEYS),
+      keytar.deletePassword(SERVICE_NAME, ACCOUNTS.SIGNING_KEYS),
+      keytar.deletePassword(SERVICE_NAME, ACCOUNTS.AUTH_TOKENS)
     ])
   } catch (error) {
     throw new CryptoError(
       'Failed to delete all keys from keychain',
+      CryptoErrorCode.KEYCHAIN_ERROR,
+      error
+    )
+  }
+}
+
+// =============================================================================
+// Auth Token Storage (T061)
+// =============================================================================
+
+/**
+ * Store auth tokens in the OS keychain.
+ *
+ * @param tokens - Auth tokens to store
+ * @throws CryptoError if storage fails
+ */
+export async function storeAuthTokens(tokens: StoredAuthTokens): Promise<void> {
+  try {
+    const json = JSON.stringify(tokens)
+    await keytar.setPassword(SERVICE_NAME, ACCOUNTS.AUTH_TOKENS, json)
+  } catch (error) {
+    throw new CryptoError(
+      'Failed to store auth tokens in keychain',
+      CryptoErrorCode.KEYCHAIN_ERROR,
+      error
+    )
+  }
+}
+
+/**
+ * Retrieve auth tokens from the OS keychain.
+ *
+ * @returns Stored auth tokens or null if not found
+ * @throws CryptoError if retrieval fails
+ */
+export async function retrieveAuthTokens(): Promise<StoredAuthTokens | null> {
+  try {
+    const json = await keytar.getPassword(SERVICE_NAME, ACCOUNTS.AUTH_TOKENS)
+    if (!json) {
+      return null
+    }
+    return JSON.parse(json) as StoredAuthTokens
+  } catch (error) {
+    throw new CryptoError(
+      'Failed to retrieve auth tokens from keychain',
+      CryptoErrorCode.KEYCHAIN_ERROR,
+      error
+    )
+  }
+}
+
+/**
+ * Delete auth tokens from the OS keychain.
+ *
+ * @returns true if deleted, false if not found
+ * @throws CryptoError if deletion fails
+ */
+export async function deleteAuthTokens(): Promise<boolean> {
+  try {
+    return await keytar.deletePassword(SERVICE_NAME, ACCOUNTS.AUTH_TOKENS)
+  } catch (error) {
+    throw new CryptoError(
+      'Failed to delete auth tokens from keychain',
+      CryptoErrorCode.KEYCHAIN_ERROR,
+      error
+    )
+  }
+}
+
+// =============================================================================
+// User Signing Keypair Storage (T060a)
+// =============================================================================
+
+/**
+ * Store user-level derived signing keypair in the OS keychain.
+ * This keypair is derived from the master key via HKDF.
+ *
+ * @param keyPair - Signing keypair (Base64 encoded)
+ * @throws CryptoError if storage fails
+ */
+export async function storeSigningKeyPair(keyPair: StoredSigningKeyPair): Promise<void> {
+  try {
+    const json = JSON.stringify(keyPair)
+    await keytar.setPassword(SERVICE_NAME, ACCOUNTS.SIGNING_KEYS, json)
+  } catch (error) {
+    throw new CryptoError(
+      'Failed to store signing keypair in keychain',
+      CryptoErrorCode.KEYCHAIN_ERROR,
+      error
+    )
+  }
+}
+
+/**
+ * Retrieve user-level derived signing keypair from the OS keychain.
+ *
+ * @returns Stored signing keypair (Base64 encoded) or null if not found
+ * @throws CryptoError if retrieval fails
+ */
+export async function retrieveSigningKeyPair(): Promise<StoredSigningKeyPair | null> {
+  try {
+    const json = await keytar.getPassword(SERVICE_NAME, ACCOUNTS.SIGNING_KEYS)
+    if (!json) {
+      return null
+    }
+    return JSON.parse(json) as StoredSigningKeyPair
+  } catch (error) {
+    throw new CryptoError(
+      'Failed to retrieve signing keypair from keychain',
+      CryptoErrorCode.KEYCHAIN_ERROR,
+      error
+    )
+  }
+}
+
+/**
+ * Delete user-level signing keypair from the OS keychain.
+ *
+ * @returns true if deleted, false if not found
+ * @throws CryptoError if deletion fails
+ */
+export async function deleteSigningKeyPair(): Promise<boolean> {
+  try {
+    return await keytar.deletePassword(SERVICE_NAME, ACCOUNTS.SIGNING_KEYS)
+  } catch (error) {
+    throw new CryptoError(
+      'Failed to delete signing keypair from keychain',
       CryptoErrorCode.KEYCHAIN_ERROR,
       error
     )

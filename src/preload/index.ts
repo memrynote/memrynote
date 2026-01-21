@@ -18,7 +18,7 @@ import {
   FolderViewChannels,
   PropertiesChannels
 } from '@shared/ipc-channels'
-import { SyncChannels, CryptoChannels } from '@shared/contracts/ipc-sync'
+import { SyncChannels, CryptoChannels, AuthChannels } from '@shared/contracts/ipc-sync'
 
 // Custom APIs for renderer
 const api = {
@@ -1313,6 +1313,22 @@ const api = {
     return () => ipcRenderer.removeListener(FolderViewChannels.events.CONFIG_UPDATED, handler)
   },
 
+  // Auth API (T054-T056, T056a)
+  auth: {
+    requestOtp: (email: string) => ipcRenderer.invoke(AuthChannels.invoke.REQUEST_OTP, { email }),
+    verifyOtp: (email: string, code: string) =>
+      ipcRenderer.invoke(AuthChannels.invoke.VERIFY_OTP, { email, code }),
+    resendOtp: (email: string) => ipcRenderer.invoke(AuthChannels.invoke.RESEND_OTP, { email }),
+    detectOtpClipboard: () => ipcRenderer.invoke(AuthChannels.invoke.DETECT_OTP_CLIPBOARD),
+    startOAuth: (provider: 'google') =>
+      ipcRenderer.invoke(AuthChannels.invoke.START_OAUTH, { provider }),
+    getSession: () => ipcRenderer.invoke(AuthChannels.invoke.GET_SESSION),
+    refreshSession: () => ipcRenderer.invoke(AuthChannels.invoke.REFRESH_SESSION),
+    logout: () => ipcRenderer.invoke(AuthChannels.invoke.LOGOUT),
+    getAccessToken: () => ipcRenderer.invoke(AuthChannels.invoke.GET_ACCESS_TOKEN),
+    getRefreshToken: () => ipcRenderer.invoke(AuthChannels.invoke.GET_REFRESH_TOKEN)
+  },
+
   // Sync API
   sync: {
     getStatus: () => ipcRenderer.invoke(SyncChannels.invoke.GET_SYNC_STATUS),
@@ -1487,6 +1503,25 @@ const api = {
     const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => callback(data)
     ipcRenderer.on(CryptoChannels.events.KEYS_DELETED, handler)
     return () => ipcRenderer.removeListener(CryptoChannels.events.KEYS_DELETED, handler)
+  },
+
+  // Auth event subscription helpers
+  onSessionChanged: (callback: (event: unknown) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => callback(data)
+    ipcRenderer.on(AuthChannels.events.SESSION_CHANGED, handler)
+    return () => ipcRenderer.removeListener(AuthChannels.events.SESSION_CHANGED, handler)
+  },
+
+  onSessionExpired: (callback: () => void): (() => void) => {
+    const handler = (): void => callback()
+    ipcRenderer.on(AuthChannels.events.SESSION_EXPIRED, handler)
+    return () => ipcRenderer.removeListener(AuthChannels.events.SESSION_EXPIRED, handler)
+  },
+
+  onOAuthCallback: (callback: (event: unknown) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => callback(data)
+    ipcRenderer.on(AuthChannels.events.OAUTH_CALLBACK, handler)
+    return () => ipcRenderer.removeListener(AuthChannels.events.OAUTH_CALLBACK, handler)
   }
 }
 

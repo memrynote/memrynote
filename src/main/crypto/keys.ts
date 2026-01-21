@@ -267,3 +267,134 @@ export function base64ToUint8Array(base64: string): Uint8Array {
   }
   return bytes
 }
+
+// =============================================================================
+// T058: Key Verifier Generation
+// =============================================================================
+
+/**
+ * Generate a key verifier from the master key.
+ * Used for server-side verification without exposing the master key.
+ *
+ * The verifier is:
+ * 1. Derive KEY_VERIFY_INPUT from master key using HKDF
+ * 2. Hash the derived key with BLAKE2b to produce the verifier
+ *
+ * @param masterKey - 32-byte master key
+ * @returns 32-byte key verifier
+ * @throws CryptoError if generation fails
+ */
+export async function generateKeyVerifier(masterKey: Uint8Array): Promise<Uint8Array> {
+  if (masterKey.length !== 32) {
+    throw new CryptoError(
+      `Invalid master key length: expected 32 bytes, got ${masterKey.length}`,
+      CryptoErrorCode.INVALID_KEY_LENGTH
+    )
+  }
+
+  try {
+    const verifyInput = await deriveKey(masterKey, HKDF_CONTEXTS.KEY_VERIFY_INPUT, 32)
+    // Use sodium-native's BLAKE2b hash (crypto_generichash)
+    const hash = Buffer.alloc(32)
+    sodium.crypto_generichash(hash, Buffer.from(verifyInput))
+    return new Uint8Array(hash)
+  } catch (error) {
+    throw new CryptoError(
+      'Key verifier generation failed',
+      CryptoErrorCode.KEY_DERIVATION_FAILED,
+      error
+    )
+  }
+}
+
+// =============================================================================
+// T059: Vault Key Derivation
+// =============================================================================
+
+/**
+ * Derive the vault key from master key.
+ * Used for encrypting/decrypting file keys.
+ *
+ * @param masterKey - 32-byte master key
+ * @returns 32-byte vault key
+ * @throws CryptoError if derivation fails
+ */
+export async function deriveVaultKey(masterKey: Uint8Array): Promise<Uint8Array> {
+  return deriveKey(masterKey, HKDF_CONTEXTS.VAULT_KEY, XCHACHA_PARAMS.keySize)
+}
+
+// =============================================================================
+// T060: Signing Keypair Derivation
+// =============================================================================
+
+/**
+ * Derive Ed25519 signing keypair from master key.
+ * This is the user-level signing keypair (different from device keypair).
+ *
+ * @param masterKey - 32-byte master key
+ * @returns Ed25519 keypair with publicKey and privateKey
+ * @throws CryptoError if derivation fails
+ */
+export async function deriveSigningKeyPair(
+  masterKey: Uint8Array
+): Promise<{ publicKey: Uint8Array; privateKey: Uint8Array }> {
+  const sodium = await ensureSodiumReady()
+
+  if (masterKey.length !== 32) {
+    throw new CryptoError(
+      `Invalid master key length: expected 32 bytes, got ${masterKey.length}`,
+      CryptoErrorCode.INVALID_KEY_LENGTH
+    )
+  }
+
+  try {
+    const signingKeySeed = await deriveKey(
+      masterKey,
+      HKDF_CONTEXTS.SIGNING_KEY,
+      ED25519_PARAMS.seedSize
+    )
+    const keyPair = sodium.crypto_sign_seed_keypair(signingKeySeed) as {
+      publicKey: Uint8Array
+      privateKey: Uint8Array
+    }
+    return keyPair
+  } catch (error) {
+    throw new CryptoError(
+      'Signing keypair derivation failed',
+      CryptoErrorCode.KEY_DERIVATION_FAILED,
+      error
+    )
+  }
+}
+
+// =============================================================================
+// T060: Verify Key Derivation
+// =============================================================================
+
+/**
+ * Derive the verify key from master key.
+ * Used for key verification processes.
+ *
+ * @param masterKey - 32-byte master key
+ * @returns 32-byte verify key
+ * @throws CryptoError if derivation fails
+ */
+export async function deriveVerifyKey(masterKey: Uint8Array): Promise<Uint8Array> {
+  return deriveKey(masterKey, HKDF_CONTEXTS.VERIFY_KEY, 32)
+}
+
+/**
+ * Compare two byte arrays in constant time.
+ * Used for secure comparison of key verifiers and other secrets.
+ *
+ * @param a - First byte array
+ * @param b - Second byte array
+ * @returns true if arrays are equal
+ */
+export function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) {
+    return false
+  }
+  // Use sodium-native's constant-time comparison
+  return sodium.sodium_memcmp(Buffer.from(a), Buffer.from(b))
+}

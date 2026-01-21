@@ -297,18 +297,18 @@ All D1 tables include explicit PKs, FKs, indexes, and constraints.
 
 ### Client Implementation for US1
 
-- [ ] T054 [US1] Implement IPC handler for request-otp in src/main/ipc/sync-handlers.ts
-- [ ] T055 [US1] Implement IPC handler for verify-otp in src/main/ipc/sync-handlers.ts
-- [ ] T056 [US1] Implement IPC handler for resend-otp in src/main/ipc/sync-handlers.ts
-- [ ] T056a [P] [US1] Implement OTP code auto-paste from clipboard detection in src/main/ipc/sync-handlers.ts
-- [ ] T057 [US1] Implement IPC handler for OAuth first device setup in src/main/ipc/sync-handlers.ts
-- [ ] T058 [US1] Implement master key derivation from recovery phrase and key verifier generation in src/main/crypto/keys.ts
-- [ ] T059 [US1] Implement vault key derivation via HKDF in src/main/crypto/keys.ts
-- [ ] T060 [US1] Implement signing/verify key derivation via HKDF in src/main/crypto/keys.ts
-- [ ] T060a [US1] Store derived Ed25519 signing keypair in OS keychain in src/main/crypto/keychain.ts
-- [ ] T061 [US1] Store master key in OS keychain in src/main/crypto/keychain.ts
-- [ ] T061a [US1] Generate and store device signing keypair during first device setup in src/main/crypto/keys.ts
-- [ ] T062 [US1] Implement recovery phrase confirmation IPC handler in src/main/ipc/sync-handlers.ts
+- [x] T054 [US1] Implement IPC handler for request-otp in src/main/ipc/sync-handlers.ts
+- [x] T055 [US1] Implement IPC handler for verify-otp in src/main/ipc/sync-handlers.ts
+- [x] T056 [US1] Implement IPC handler for resend-otp in src/main/ipc/sync-handlers.ts
+- [x] T056a [P] [US1] Implement OTP code auto-paste from clipboard detection in src/main/ipc/sync-handlers.ts
+- [x] T057 [US1] Implement IPC handler for OAuth first device setup in src/main/ipc/sync-handlers.ts
+- [x] T058 [US1] Implement master key derivation from recovery phrase and key verifier generation in src/main/crypto/keys.ts
+- [x] T059 [US1] Implement vault key derivation via HKDF in src/main/crypto/keys.ts
+- [x] T060 [US1] Implement signing/verify key derivation via HKDF in src/main/crypto/keys.ts
+- [x] T060a [US1] Store derived Ed25519 signing keypair in OS keychain in src/main/crypto/keychain.ts
+- [x] T061 [US1] Store master key in OS keychain in src/main/crypto/keychain.ts
+- [x] T061a [US1] Generate and store device signing keypair during first device setup in src/main/crypto/keys.ts
+- [x] T062 [US1] Implement recovery phrase confirmation IPC handler in src/main/ipc/sync-handlers.ts
 
 ### UI Components for US1
 

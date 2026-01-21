@@ -17,6 +17,7 @@ import { registerFolderViewHandlers, unregisterFolderViewHandlers } from './fold
 import { registerPropertiesHandlers, unregisterPropertiesHandlers } from './properties-handlers'
 import { registerSyncHandlers, unregisterSyncHandlers } from './sync-handlers'
 import { registerCryptoHandlers, unregisterCryptoHandlers } from './crypto-handlers'
+import { registerAuthHandlers, unregisterAuthHandlers } from './auth-handlers'
 
 /**
  * Flag to prevent duplicate handler registration
@@ -89,6 +90,9 @@ export function registerAllHandlers(): void {
   // Register crypto handlers
   registerCryptoHandlers()
 
+  // Register auth handlers
+  registerAuthHandlers()
+
   handlersRegistered = true
   console.log('[IPC] All handlers registered')
 }
@@ -117,6 +121,7 @@ export function unregisterAllHandlers(): void {
   unregisterPropertiesHandlers()
   unregisterSyncHandlers()
   unregisterCryptoHandlers()
+  unregisterAuthHandlers()
 
   handlersRegistered = false
   console.log('All IPC handlers unregistered')
@@ -149,3 +154,4 @@ export { registerFolderViewHandlers, unregisterFolderViewHandlers } from './fold
 export { registerPropertiesHandlers, unregisterPropertiesHandlers } from './properties-handlers'
 export { registerSyncHandlers, unregisterSyncHandlers } from './sync-handlers'
 export { registerCryptoHandlers, unregisterCryptoHandlers } from './crypto-handlers'
+export { registerAuthHandlers, unregisterAuthHandlers } from './auth-handlers'
