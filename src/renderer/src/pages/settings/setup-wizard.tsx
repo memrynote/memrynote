@@ -90,12 +90,17 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps): React.
         const response = await verifyOtp(email, code)
         if (response.success) {
           if (response.needsSetup) {
-            const deviceInfo = getDeviceInfo()
-            const setupResult: SetupFirstDeviceResponse =
-              await window.api.sync.setupFirstDevice(deviceInfo)
-            setSetupResponse(setupResult)
-            setRecoveryPhrase(setupResult.recoveryPhrase)
-            setStep('recovery-display')
+            try {
+              const deviceInfo = getDeviceInfo()
+              const setupResult: SetupFirstDeviceResponse =
+                await window.api.sync.setupFirstDevice(deviceInfo)
+              setSetupResponse(setupResult)
+              setRecoveryPhrase(setupResult.recoveryPhrase)
+              setStep('recovery-display')
+            } catch (setupErr) {
+              console.error('[SetupWizard] Device setup error:', setupErr)
+              setError(setupErr instanceof Error ? setupErr.message : 'Device setup failed')
+            }
           } else {
             setStep('complete')
           }
@@ -134,12 +139,17 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps): React.
       const response = await startOAuth('google')
       if (response.success) {
         if (response.isNewUser) {
-          const deviceInfo = getDeviceInfo()
-          const setupResult: SetupFirstDeviceResponse =
-            await window.api.sync.setupFirstDevice(deviceInfo)
-          setSetupResponse(setupResult)
-          setRecoveryPhrase(setupResult.recoveryPhrase)
-          setStep('recovery-display')
+          try {
+            const deviceInfo = getDeviceInfo()
+            const setupResult: SetupFirstDeviceResponse =
+              await window.api.sync.setupFirstDevice(deviceInfo)
+            setSetupResponse(setupResult)
+            setRecoveryPhrase(setupResult.recoveryPhrase)
+            setStep('recovery-display')
+          } catch (setupErr) {
+            console.error('[SetupWizard] Device setup error:', setupErr)
+            setError(setupErr instanceof Error ? setupErr.message : 'Device setup failed')
+          }
         } else {
           setStep('complete')
         }
@@ -262,11 +272,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps): React.
         {step === 'auth' && (
           <div className="space-y-4">
             <OAuthButtons onGoogleClick={handleOAuthGoogle} isLoading={isLoading} error={error} />
-            <EmailEntryForm
-              onSubmit={handleEmailSubmit}
-              isLoading={isLoading}
-              error={error ? undefined : undefined}
-            />
+            <EmailEntryForm onSubmit={handleEmailSubmit} isLoading={isLoading} error={error} />
           </div>
         )}
 

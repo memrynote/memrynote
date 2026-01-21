@@ -44,7 +44,7 @@ export function OtpVerification({
 
     checkClipboard()
 
-    const interval = setInterval(checkClipboard, 2000)
+    const interval = setInterval(checkClipboard, 5000)
     return () => clearInterval(interval)
   }, [])
 
