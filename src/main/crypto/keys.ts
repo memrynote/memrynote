@@ -44,7 +44,7 @@ export async function deriveKey(
     const contextStr = context.slice(0, 8).padEnd(8, '\0')
     const subkeyId = contextToSubkeyId(context)
 
-    return sodium.crypto_kdf_derive_from_key(length, subkeyId, contextStr, masterKey) as Uint8Array
+    return sodium.crypto_kdf_derive_from_key(length, subkeyId, contextStr, masterKey)
   } catch (error) {
     throw new CryptoError('Key derivation failed', CryptoErrorCode.KEY_DERIVATION_FAILED, error)
   }
@@ -94,7 +94,7 @@ function hashCode(str: string): number {
  * @returns 32-byte master key
  * @throws CryptoError if derivation fails
  */
-export async function deriveMasterKey(entropy: Uint8Array, salt: Uint8Array): Promise<Uint8Array> {
+export function deriveMasterKey(entropy: Uint8Array, salt: Uint8Array): Uint8Array {
   if (entropy.length !== 32) {
     throw new CryptoError(
       `Invalid entropy length: expected 32 bytes, got ${entropy.length}`,
@@ -178,7 +178,7 @@ export async function deriveAllKeys(masterKey: Uint8Array): Promise<DerivedKeys>
  */
 export async function generateFileKey(): Promise<Uint8Array> {
   const sodium = await ensureSodiumReady()
-  return sodium.randombytes_buf(XCHACHA_PARAMS.keySize) as Uint8Array
+  return sodium.randombytes_buf(XCHACHA_PARAMS.keySize)
 }
 
 /**
@@ -222,7 +222,7 @@ export function getDevicePublicKeyBase64(keyPair: DeviceSigningKeyPair): string 
 export async function generateSalt(): Promise<Uint8Array> {
   const sodium = await ensureSodiumReady()
   // crypto_pwhash_SALTBYTES is 16 bytes
-  return sodium.randombytes_buf(16) as Uint8Array
+  return sodium.randombytes_buf(16)
 }
 
 /**
@@ -232,7 +232,7 @@ export async function generateSalt(): Promise<Uint8Array> {
  */
 export async function generateNonce(): Promise<Uint8Array> {
   const sodium = await ensureSodiumReady()
-  return sodium.randombytes_buf(XCHACHA_PARAMS.nonceSize) as Uint8Array
+  return sodium.randombytes_buf(XCHACHA_PARAMS.nonceSize)
 }
 
 /**

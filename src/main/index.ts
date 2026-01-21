@@ -261,13 +261,14 @@ void app.whenReady().then(async () => {
           const stream = createReadStream(filePath, { start, end })
           const chunks: Buffer[] = []
 
-          for await (const chunk of stream) {
-            chunks.push(Buffer.from(chunk))
+          for await (const chunk of stream as AsyncIterable<Buffer>) {
+            chunks.push(chunk)
           }
 
           const buffer = Buffer.concat(chunks)
+          const body = new Uint8Array(buffer)
 
-          return new Response(buffer, {
+          return new Response(body, {
             status: 206,
             headers: {
               'Content-Type': mimeType,

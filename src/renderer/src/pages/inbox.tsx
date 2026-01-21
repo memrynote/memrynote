@@ -672,7 +672,7 @@ export function InboxPage({ className }: InboxPageProps): React.JSX.Element {
 
   // Handle delete action with animation
   const handleArchive = useCallback(
-    async (id: string): Promise<void> => {
+    (id: string): void => {
       const deletedItem = items.find((item) => item.id === id)
       if (!deletedItem) return
 
@@ -742,7 +742,7 @@ export function InboxPage({ className }: InboxPageProps): React.JSX.Element {
 
   // Handle snooze action with animation
   const handleSnooze = useCallback(
-    async (id: string, snoozeUntil: string): Promise<void> => {
+    (id: string, snoozeUntil: string): void => {
       const snoozedItem = items.find((item) => item.id === id)
       if (!snoozedItem) return
 
@@ -1021,7 +1021,7 @@ export function InboxPage({ className }: InboxPageProps): React.JSX.Element {
 
   // Handle bulk snooze all
   const handleBulkSnoozeAll = useCallback(
-    async (snoozeUntil: string): Promise<void> => {
+    (snoozeUntil: string): void => {
       const idsToSnooze = Array.from(selectedItemIds)
       if (idsToSnooze.length === 0) return
 

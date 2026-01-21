@@ -128,6 +128,7 @@ export function AppSidebar({ currentPage, viewCounts, onOpenSearch, ...props }: 
  * Inner sidebar component that has access to the drill-down context.
  */
 function AppSidebarInner({ currentPage, viewCounts, onOpenSearch, ...props }: AppSidebarProps) {
+  void currentPage
   // State to hold action buttons from NotesTree
   const [notesActions, setNotesActions] = useState<React.ReactNode>(null)
   const sidebarScrollRef = useRef<HTMLDivElement>(null)

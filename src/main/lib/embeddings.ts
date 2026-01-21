@@ -26,6 +26,11 @@ interface ModelProgress {
   total?: number
 }
 
+type EmbeddingExtractor = (
+  text: string,
+  options: { pooling: 'mean'; normalize: boolean }
+) => Promise<{ data: ArrayLike<number> }>
+
 export interface ModelInfo {
   name: string
   dimension: number
@@ -55,8 +60,7 @@ const MAX_CONTENT_LENGTH = 2000
 // ============================================================================
 
 // Pipeline instance (lazy loaded)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let extractor: any = null
+let extractor: EmbeddingExtractor | null = null
 let isLoading = false
 let loadError: string | null = null
 
@@ -132,7 +136,7 @@ export async function initEmbeddingModel(): Promise<boolean> {
 
     // Create feature extraction pipeline with progress callback
     // Explicitly set dtype to fp32 for CPU (silences "dtype not specified" warning)
-    extractor = await pipeline('feature-extraction', MODEL_NAME, {
+    extractor = (await pipeline('feature-extraction', MODEL_NAME, {
       dtype: 'fp32',
       progress_callback: (progress: ModelProgress) => {
         if (progress.status === 'progress' && progress.progress !== undefined) {
@@ -142,7 +146,7 @@ export async function initEmbeddingModel(): Promise<boolean> {
           emitProgress('loading', 95, 'Finalizing model...')
         }
       }
-    })
+    })) as EmbeddingExtractor
 
     emitProgress('ready', 100, 'Model ready')
     console.log('[Embeddings] Model loaded successfully')

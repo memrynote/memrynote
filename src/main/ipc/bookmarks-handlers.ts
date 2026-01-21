@@ -40,7 +40,7 @@ function emitBookmarkEvent(channel: string, data: unknown): void {
 /**
  * Helper to get data database, throwing a user-friendly error if not available.
  */
-function requireDatabase() {
+function requireDatabase(): ReturnType<typeof getDatabase> {
   try {
     return getDatabase()
   } catch {
@@ -51,7 +51,7 @@ function requireDatabase() {
 /**
  * Helper to get index database for resolving note/journal titles
  */
-function getIndexDb() {
+function getIndexDb(): ReturnType<typeof getIndexDatabase> | null {
   try {
     return getIndexDatabase()
   } catch {

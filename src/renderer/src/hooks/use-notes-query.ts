@@ -405,7 +405,7 @@ export function useNoteMutations() {
   const queryClient = useQueryClient()
 
   const createNote = useMutation({
-    mutationFn: notesService.create,
+    mutationFn: (input) => notesService.create(input),
     onSuccess: () => {
       // Invalidate lists to show new note
       void queryClient.invalidateQueries({ queryKey: notesKeys.lists() })
@@ -413,7 +413,7 @@ export function useNoteMutations() {
   })
 
   const updateNote = useMutation({
-    mutationFn: notesService.update,
+    mutationFn: (input) => notesService.update(input),
     onSuccess: (result, variables) => {
       if (result.success && result.note) {
         // Update single note cache
@@ -425,7 +425,7 @@ export function useNoteMutations() {
   })
 
   const deleteNote = useMutation({
-    mutationFn: notesService.delete,
+    mutationFn: (noteId) => notesService.delete(noteId),
     onSuccess: (_, noteId) => {
       // Remove from cache
       queryClient.removeQueries({ queryKey: notesKeys.note(noteId) })

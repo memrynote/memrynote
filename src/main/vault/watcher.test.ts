@@ -33,7 +33,8 @@ vi.mock('chokidar', () => ({
 vi.mock('../database', () => ({
   getIndexDatabase: vi.fn(),
   getDatabase: vi.fn(),
-  updateFtsContent: vi.fn()
+  updateFtsContent: vi.fn(),
+  queueFtsUpdate: vi.fn()
 }))
 
 vi.mock('../inbox/suggestions', () => ({
@@ -44,7 +45,7 @@ vi.mock('./index', () => ({
   getConfig: vi.fn(() => baseConfig)
 }))
 
-import { getIndexDatabase, getDatabase, updateFtsContent } from '../database'
+import { getIndexDatabase, getDatabase, queueFtsUpdate } from '../database'
 import { updateNoteEmbedding } from '../inbox/suggestions'
 import { getConfig } from './index'
 import { VaultWatcher, getWatcher, startWatcher, stopWatcher } from './watcher'
@@ -63,7 +64,7 @@ describe('vault watcher', () => {
 
     vi.mocked(getDatabase).mockReturnValue(dataDb.db)
     vi.mocked(getIndexDatabase).mockReturnValue(indexDb.db)
-    vi.mocked(updateFtsContent).mockImplementation(() => undefined)
+    vi.mocked(queueFtsUpdate).mockImplementation(() => undefined)
     vi.mocked(updateNoteEmbedding).mockResolvedValue(undefined)
     vi.mocked(getConfig).mockReturnValue(baseConfig)
 
@@ -115,9 +116,7 @@ describe('vault watcher', () => {
     expect(updated?.contentHash).not.toBe(initialHash)
     expect(updated?.wordCount).toBeGreaterThan(initialWordCount)
 
-    expect(updateFtsContent).toHaveBeenCalledWith(indexDb.db, 'note-change', expect.any(String), [
-      'alpha'
-    ])
+    expect(queueFtsUpdate).toHaveBeenCalledWith('note-change', expect.any(String), ['alpha'])
 
     expect(window.webContents.send).toHaveBeenCalledWith(
       NotesChannels.events.UPDATED,

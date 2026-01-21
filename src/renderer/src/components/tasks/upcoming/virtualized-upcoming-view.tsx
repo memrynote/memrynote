@@ -221,7 +221,7 @@ const VirtualItemRenderer = memo(
           </div>
         )
 
-      case 'task':
+      case 'task': {
         if (!item.task || !item.project) return null
         const isCompleted = isTaskCompletedFast(item.task, lookupContext.completionMap)
         return (
@@ -242,6 +242,7 @@ const VirtualItemRenderer = memo(
             }
           />
         )
+      }
 
       case 'empty-day':
         if (!item.date) return null

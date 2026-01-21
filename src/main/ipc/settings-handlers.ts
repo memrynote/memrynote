@@ -107,7 +107,7 @@ const DEFAULT_NOTE_EDITOR_SETTINGS: NoteEditorSettings = {
 /**
  * Get database if available, returning null otherwise.
  */
-function getDbOrNull() {
+function getDbOrNull(): ReturnType<typeof getDatabase> | null {
   try {
     return getDatabase()
   } catch {

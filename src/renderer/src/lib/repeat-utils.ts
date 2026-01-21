@@ -260,7 +260,7 @@ export const getRepeatDisplayText = (config: RepeatConfig): string => {
     case 'daily':
       return interval === 1 ? 'Every day' : `Every ${interval} days`
 
-    case 'weekly':
+    case 'weekly': {
       if (!daysOfWeek || daysOfWeek.length === 0) {
         return interval === 1 ? 'Every week' : `Every ${interval} weeks`
       }
@@ -281,6 +281,7 @@ export const getRepeatDisplayText = (config: RepeatConfig): string => {
         .join(', ')
 
       return interval === 1 ? `Every week on ${daysList}` : `Every ${interval} weeks on ${daysList}`
+    }
 
     case 'monthly':
       if (monthlyType === 'dayOfMonth' && dayOfMonth) {

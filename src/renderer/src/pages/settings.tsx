@@ -1013,7 +1013,7 @@ function AISettings() {
       } else {
         toast.error(result.error || 'Failed to update setting')
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error('Failed to update setting')
     }
   }, [])
@@ -1030,7 +1030,7 @@ function AISettings() {
       } else {
         toast.error(result.error || 'Failed to load model')
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error('Failed to load model')
     } finally {
       setIsLoadingModel(false)
@@ -1052,7 +1052,7 @@ function AISettings() {
         setIsReindexing(false)
         setReindexProgress(null)
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error('Failed to reindex embeddings')
       setIsReindexing(false)
       setReindexProgress(null)

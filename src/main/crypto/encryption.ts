@@ -49,7 +49,7 @@ export async function encrypt(
       null, // No secret nonce
       actualNonce,
       key
-    ) as Uint8Array
+    )
 
     return {
       ciphertext,
@@ -97,7 +97,7 @@ export async function decrypt(
       null, // No additional authenticated data
       nonce,
       key
-    ) as Uint8Array
+    )
 
     return plaintext
   } catch (error) {

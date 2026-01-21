@@ -326,7 +326,7 @@ export class VaultWatcher {
     const parsed = parseNote(content, relativePath)
 
     // Check if this is a rename (UUID matches a pending delete)
-    const oldPath = await checkForRename(parsed.frontmatter.id, relativePath)
+    const oldPath = checkForRename(parsed.frontmatter.id, relativePath)
     if (oldPath !== null) {
       // This was a rename - rename-tracker already handled cache update and event
       return

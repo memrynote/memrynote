@@ -195,23 +195,23 @@ All D1 tables include explicit PKs, FKs, indexes, and constraints.
 
 ### Crypto Module Foundation
 
-- [ ] T020 [P] Implement HKDF key derivation with context strings in src/main/crypto/keys.ts
-- [ ] T020a [P] Implement canonical CBOR encoder helper in src/main/crypto/cbor.ts (cborg) - import field ordering from T020b
-- [ ] T020b [P] Create shared CBOR field ordering contract in src/shared/contracts/cbor-ordering.ts defining exact field order for all signed payloads (SyncItem, LinkingProof, etc.) - this is the SINGLE SOURCE OF TRUTH for both client and server
-- [ ] T021 [P] Implement BIP39 recovery phrase generation in src/main/crypto/recovery.ts
-- [ ] T022 [P] Implement BIP39 recovery phrase validation in src/main/crypto/recovery.ts
-- [ ] T023 Implement Argon2id master key derivation in src/main/crypto/keys.ts
-- [ ] T024 [P] Implement XChaCha20-Poly1305 encryption in src/main/crypto/encryption.ts
-- [ ] T024c [P] Implement per-item file key generation (32-byte random) in src/main/crypto/keys.ts
-- [ ] T024d [P] Implement file key wrapping (encrypt file key with vault key) and unwrapping in src/main/crypto/encryption.ts
-- [ ] T025 [P] Implement XChaCha20-Poly1305 decryption in src/main/crypto/encryption.ts
-- [ ] T026 [P] Implement Ed25519 signing over canonical CBOR in src/main/crypto/signatures.ts
-- [ ] T027 [P] Implement Ed25519 signature verification over canonical CBOR in src/main/crypto/signatures.ts
-- [ ] T028 Implement keychain storage with keytar in src/main/crypto/keychain.ts
-- [ ] T028a Implement device signing keypair generation + storage in src/main/crypto/keys.ts and src/main/crypto/keychain.ts
-- [ ] T028b Implement device signing public key retrieval for registration in src/main/crypto/keys.ts
-- [ ] T029 Create crypto module index exports in src/main/crypto/index.ts
-- [ ] T029a [P] Implement secure memory cleanup (sodium.memzero) for sensitive key material in src/main/crypto/index.ts
+- [x] T020 [P] Implement HKDF key derivation with context strings in src/main/crypto/keys.ts
+- [x] T020a [P] Implement canonical CBOR encoder helper in src/main/crypto/cbor.ts (cborg) - import field ordering from T020b
+- [x] T020b [P] Create shared CBOR field ordering contract in src/shared/contracts/cbor-ordering.ts defining exact field order for all signed payloads (SyncItem, LinkingProof, etc.) - this is the SINGLE SOURCE OF TRUTH forxboth client and server
+- [x] T021 [P] Implement BIP39 recovery phrase generation in src/main/crypto/recovery.ts
+- [x] T022 [P] Implement BIP39 recovery phrase validation in src/main/crypto/recovery.ts
+- [x] T023 Implement Argon2id master key derivation in src/main/crypto/keys.ts
+- [x] T024 [P] Implement XChaCha20-Poly1305 encryption in src/main/crypto/encryption.ts
+- [x] T024c [P] Implement per-item file key generation (32-byte random) in src/main/crypto/keys.ts
+- [x] T024d [P] Implement file key wrapping (encrypt file key with vault key) and unwrapping in src/main/crypto/encryption.ts
+- [x] T025 [P] Implement XChaCha20-Poly1305 decryption in src/main/crypto/encryption.ts
+- [x] T026 [P] Implement Ed25519 signing over canonical CBOR in src/main/crypto/signatures.ts
+- [x] T027 [P] Implement Ed25519 signature verification over canonical CBOR in src/main/crypto/signatures.ts
+- [x] T028 Implement keychain storage with keytar in src/main/crypto/keychain.ts
+- [x] T028a Implement device signing keypair generation + storage in src/main/crypto/keys.ts and src/main/crypto/keychain.ts
+- [x] T028b Implement device signing public key retrieval for registration in src/main/crypto/keys.ts
+- [x] T029 Create crypto module index exports in src/main/crypto/index.ts
+- [x] T029a [P] Implement secure memory cleanup (sodium.memzero) for sensitive key material in src/main/crypto/index.ts
 
 ### Server Foundation
 
