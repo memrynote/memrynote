@@ -240,23 +240,23 @@ All D1 tables include explicit PKs, FKs, indexes, and constraints.
 
 ### Vector Clock Foundation
 
-- [ ] T040 Implement vector clock data structure in src/main/sync/vector-clock.ts
-- [ ] T041 Implement vector clock operations (increment, merge, compare) in src/main/sync/vector-clock.ts
-- [ ] T041a Define HKDF context string constants ("memry-vault-key-v1", "memry-signing-key-v1", "memry-verify-key-v1") in src/main/crypto/keys.ts
-- [ ] T041b Define Argon2id parameter constants (memory: 65536KB, iterations: 3, parallelism: 4) in src/main/crypto/keys.ts
-- [ ] T041c Implement rate limit state persistence using D1 rate_limits table in sync-server/src/middleware/rate-limit.ts
-- [ ] T041d Create typed error codes enum (AUTH*\*, SYNC*_, CRYPTO\__) in sync-server/src/lib/errors.ts
-- [ ] T041e Implement localhost HTTP server for OAuth callbacks in src/main/auth/oauth-server.ts (binds to random port, receives OAuth redirect, extracts auth code, auto-closes after 5 min timeout)
-- [ ] T041f Create canonical CBOR field ordering documentation (reference src/shared/contracts/cbor-ordering.ts) in src/main/crypto/cbor.ts
-- [ ] T041g Define sync cursor types and signature metadata in src/shared/contracts/sync-api.ts
+- [x] T040 Implement vector clock data structure in src/main/sync/vector-clock.ts
+- [x] T041 Implement vector clock operations (increment, merge, compare) in src/main/sync/vector-clock.ts
+- [x] T041a Define HKDF context string constants ("memry-vault-key-v1", "memry-signing-key-v1", "memry-verify-key-v1") in src/main/crypto/keys.ts
+- [x] T041b Define Argon2id parameter constants (memory: 65536KB, iterations: 3, parallelism: 4) in src/main/crypto/keys.ts
+- [x] T041c Implement rate limit state persistence using D1 rate_limits table in sync-server/src/middleware/rate-limit.ts
+- [x] T041d Create typed error codes enum (AUTH*\*, SYNC*_, CRYPTO\__) in sync-server/src/lib/errors.ts
+- [x] T041e Implement localhost HTTP server for OAuth callbacks in src/main/auth/oauth-server.ts (binds to random port, receives OAuth redirect, extracts auth code, auto-closes after 5 min timeout)
+- [x] T041f Create canonical CBOR field ordering documentation (reference src/shared/contracts/cbor-ordering.ts) in src/main/crypto/cbor.ts
+- [x] T041g Define sync cursor types and signature metadata in src/shared/contracts/sync-api.ts
 
 ### Shared Contracts
 
-- [ ] T041h [P] Create Zod schemas for auth endpoints (request-otp, verify-otp, device-register) in src/shared/contracts/auth-api.ts
-- [ ] T041i [P] Create Zod schemas for sync endpoints (push, pull, changes, status) in src/shared/contracts/sync-api.ts
-- [ ] T041j [P] Create Zod schemas for blob endpoints (upload-init, chunk-upload, complete) in src/shared/contracts/blob-api.ts
-- [ ] T041k [P] Create Zod schemas for linking endpoints (initiate, scan, approve, complete) in src/shared/contracts/linking-api.ts
-- [ ] T041l Copy shared contracts to sync-server/src/contracts/ for server-side validation (build step or symlink)
+- [x] T041h [P] Create Zod schemas for auth endpoints (request-otp, verify-otp, device-register) in src/shared/contracts/auth-api.ts
+- [x] T041i [P] Create Zod schemas for sync endpoints (push, pull, changes, status) in src/shared/contracts/sync-api.ts
+- [x] T041j [P] Create Zod schemas for blob endpoints (upload-init, chunk-upload, complete) in src/shared/contracts/blob-api.ts
+- [x] T041k [P] Create Zod schemas for linking endpoints (initiate, scan, approve, complete) in src/shared/contracts/linking-api.ts
+- [x] T041l Copy shared contracts to sync-server/src/contracts/ for server-side validation (build step or symlink)
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
