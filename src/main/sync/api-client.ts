@@ -118,7 +118,7 @@ function createApiClient(): SyncApiClient {
   return {
     async requestOtp(email: string): Promise<OtpRequestResponse> {
       const request: OtpRequest = { email }
-      const response = await fetch(`${baseUrl}/auth/otp/request`, {
+      const response = await fetch(`${baseUrl}/api/v1/auth/otp/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request)
@@ -128,7 +128,7 @@ function createApiClient(): SyncApiClient {
 
     async verifyOtp(email: string, code: string): Promise<OtpVerifyResponse> {
       const request: OtpVerifyRequest = { email, code }
-      const response = await fetch(`${baseUrl}/auth/otp/verify`, {
+      const response = await fetch(`${baseUrl}/api/v1/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request)
@@ -138,7 +138,7 @@ function createApiClient(): SyncApiClient {
 
     async resendOtp(email: string): Promise<OtpResendResponse> {
       const request: OtpResendRequest = { email }
-      const response = await fetch(`${baseUrl}/auth/otp/resend`, {
+      const response = await fetch(`${baseUrl}/api/v1/auth/otp/resend`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request)
@@ -150,7 +150,7 @@ function createApiClient(): SyncApiClient {
       token: string,
       request: FirstDeviceSetupRequest
     ): Promise<FirstDeviceSetupResponse> {
-      const response = await fetch(`${baseUrl}/auth/setup`, {
+      const response = await fetch(`${baseUrl}/api/v1/auth/setup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -165,7 +165,7 @@ function createApiClient(): SyncApiClient {
       token: string,
       request: DeviceRegisterRequest
     ): Promise<DeviceRegisterResponse> {
-      const response = await fetch(`${baseUrl}/auth/devices`, {
+      const response = await fetch(`${baseUrl}/api/v1/auth/devices`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -178,7 +178,7 @@ function createApiClient(): SyncApiClient {
 
     async refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
       const request: RefreshTokenRequest = { refreshToken }
-      const response = await fetch(`${baseUrl}/auth/refresh`, {
+      const response = await fetch(`${baseUrl}/api/v1/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request)
@@ -187,7 +187,7 @@ function createApiClient(): SyncApiClient {
     },
 
     async getRecoveryInfo(token: string): Promise<RecoveryInfoResponse> {
-      const response = await fetch(`${baseUrl}/auth/recovery`, {
+      const response = await fetch(`${baseUrl}/api/v1/auth/recovery`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`
@@ -206,7 +206,7 @@ function createApiClient(): SyncApiClient {
         code_challenge_method: 'S256',
         state: params.state
       })
-      const response = await fetch(`${baseUrl}/auth/oauth/${provider}?${searchParams}`, {
+      const response = await fetch(`${baseUrl}/api/v1/auth/oauth/${provider}?${searchParams}`, {
         method: 'GET'
       })
       return handleResponse<OAuthInitiateResponse>(response)
@@ -216,7 +216,7 @@ function createApiClient(): SyncApiClient {
       provider: string,
       params: OAuthExchangeParams
     ): Promise<OAuthCallbackResponse> {
-      const response = await fetch(`${baseUrl}/auth/oauth/${provider}/callback`, {
+      const response = await fetch(`${baseUrl}/api/v1/auth/oauth/${provider}/callback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -229,7 +229,7 @@ function createApiClient(): SyncApiClient {
     },
 
     async logout(token: string, request?: LogoutRequest): Promise<LogoutResponse> {
-      const response = await fetch(`${baseUrl}/auth/logout`, {
+      const response = await fetch(`${baseUrl}/api/v1/auth/logout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

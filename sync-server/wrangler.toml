@@ -9,11 +9,11 @@ port = 8787
 
 # Scheduled triggers for cleanup jobs
 [triggers]
-crons = ["*/5 * * * *"]  # Run every 5 minutes
+crons = ["*/5 * * * *"] # Run every 5 minutes
 
 # Environment variables (non-secret)
 [vars]
-EMAIL_FROM = "noreply@memry.app"
+EMAIL_FROM = "noreply@memrynote.ai"
 EMAIL_FROM_NAME = "Memry"
 
 # Secrets (set via `wrangler secret put <NAME>`):
@@ -24,7 +24,7 @@ EMAIL_FROM_NAME = "Memry"
 [[d1_databases]]
 binding = "DB"
 database_name = "sync-db"
-database_id = "local"  # Replace with actual D1 database ID after creation
+database_id = "local"     # Replace with actual D1 database ID after creation
 
 # R2 Bucket binding (T009)
 [[r2_buckets]]
@@ -52,7 +52,7 @@ name = "memry-sync-server-staging"
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "sync-db-staging"
-database_id = "staging"  # Replace with actual staging D1 database ID
+database_id = "staging"           # Replace with actual staging D1 database ID
 
 [[env.staging.r2_buckets]]
 binding = "BUCKET"
@@ -64,7 +64,7 @@ name = "memry-sync-server-production"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "sync-db-production"
-database_id = "production"  # Replace with actual production D1 database ID
+database_id = "production"           # Replace with actual production D1 database ID
 
 [[env.production.r2_buckets]]
 binding = "BUCKET"

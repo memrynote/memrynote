@@ -23,6 +23,7 @@ import {
   RefreshTokenRequestSchema,
   FirstDeviceSetupRequestSchema,
   OAuthCallbackQuerySchema,
+  LogoutRequestSchema,
   type OtpRequestResponse,
   type OtpVerifyResponse,
   type OtpResendResponse,
@@ -31,6 +32,8 @@ import {
   type FirstDeviceSetupResponse,
   type OAuthInitiateResponse,
   type OAuthCallbackResponse,
+  type RecoveryInfoResponse,
+  type LogoutResponse,
 } from '../contracts/auth-api'
 import type { Device, DevicePlatform } from '../contracts/sync-api'
 import { createOtp, verifyOtp } from '../services/otp'
@@ -163,6 +166,14 @@ authRoutes.post('/otp/verify', async (c) => {
   }
 
   const tempDeviceId = crypto.randomUUID()
+  const now = Date.now()
+
+  await c.env.DB.prepare(
+    `INSERT INTO devices (id, user_id, name, platform, os_version, app_version, auth_public_key, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+    .bind(tempDeviceId, user.id, 'Pending Registration', 'unknown', null, '0.0.0', '', now, now)
+    .run()
 
   const tokens = await issueTokenPair(c.env.DB, user.id, tempDeviceId, c.env.JWT_SECRET)
 
@@ -516,6 +527,76 @@ authRoutes.post('/refresh', async (c) => {
     return c.json(response)
   }
 )
+
+// =============================================================================
+// Recovery Endpoints
+// =============================================================================
+
+/**
+ * GET /auth/recovery
+ * Get recovery info (kdfSalt and keyVerifier for master key derivation)
+ */
+authRoutes.get('/recovery', authMiddleware(), async (c) => {
+  const auth = getAuth(c)
+
+  const user = await getUserById(c.env.DB, auth.userId)
+
+  if (!user) {
+    throw notFound('User')
+  }
+
+  if (!user.kdfSalt || !user.keyVerifier) {
+    throw notFound('Recovery info not set up. Please complete first device setup.')
+  }
+
+  const response: RecoveryInfoResponse = {
+    kdfSalt: user.kdfSalt,
+    keyVerifier: user.keyVerifier,
+  }
+
+  return c.json(response)
+})
+
+// =============================================================================
+// Logout
+// =============================================================================
+
+/**
+ * POST /auth/logout
+ * Logout and revoke tokens
+ */
+authRoutes.post('/logout', authMiddleware(), async (c) => {
+  const auth = getAuth(c)
+  const body = await c.req.json().catch(() => ({}))
+  const parsed = LogoutRequestSchema.safeParse(body)
+
+  if (!parsed.success) {
+    throw validationError('Invalid request', { issues: parsed.error.issues })
+  }
+
+  const { refreshToken, allDevices } = parsed.data
+
+  if (allDevices) {
+    await c.env.DB.prepare(`DELETE FROM refresh_tokens WHERE user_id = ?`)
+      .bind(auth.userId)
+      .run()
+  } else if (refreshToken) {
+    const tokenHash = await hashToken(refreshToken)
+    await c.env.DB.prepare(`DELETE FROM refresh_tokens WHERE token_hash = ? AND user_id = ?`)
+      .bind(tokenHash, auth.userId)
+      .run()
+  } else {
+    await c.env.DB.prepare(`DELETE FROM refresh_tokens WHERE device_id = ? AND user_id = ?`)
+      .bind(auth.deviceId, auth.userId)
+      .run()
+  }
+
+  const response: LogoutResponse = {
+    success: true,
+  }
+
+  return c.json(response)
+})
 
 // =============================================================================
 // Helper Functions
