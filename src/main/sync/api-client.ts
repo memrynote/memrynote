@@ -26,6 +26,14 @@ import type {
   LogoutRequest,
   LogoutResponse
 } from '@shared/contracts/auth-api'
+import type {
+  SyncItemPush,
+  PushSyncResponse,
+  PullSyncResponse,
+  SyncStatusResponse,
+  VectorClock
+} from '@shared/contracts/sync-api'
+import { retrieveAuthTokens } from '../crypto/keychain'
 
 export class SyncApiError extends Error {
   constructor(
@@ -109,6 +117,9 @@ export interface SyncApiClient {
   initiateOAuth(provider: string, params: OAuthInitiateParams): Promise<OAuthInitiateResponse>
   exchangeOAuthCode(provider: string, params: OAuthExchangeParams): Promise<OAuthCallbackResponse>
   logout(token: string, request?: LogoutRequest): Promise<LogoutResponse>
+  pushItems(items: SyncItemPush[], deviceClock: VectorClock): Promise<PushSyncResponse>
+  pullItems(cursor: number, limit?: number): Promise<PullSyncResponse>
+  getSyncStatus(): Promise<SyncStatusResponse>
 }
 
 let clientInstance: SyncApiClient | null = null
@@ -240,6 +251,58 @@ function createApiClient(): SyncApiClient {
         body: JSON.stringify(request ?? {})
       })
       return handleResponse<LogoutResponse>(response)
+    },
+
+    async pushItems(items: SyncItemPush[], deviceClock: VectorClock): Promise<PushSyncResponse> {
+      const tokens = await retrieveAuthTokens()
+      if (!tokens) {
+        throw new SyncApiError('Not authenticated', 401, 'UNAUTHORIZED')
+      }
+
+      const response = await fetch(`${baseUrl}/api/v1/sync/push`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokens.accessToken}`
+        },
+        body: JSON.stringify({ items, deviceClock })
+      })
+      return handleResponse<PushSyncResponse>(response)
+    },
+
+    async pullItems(cursor: number, limit?: number): Promise<PullSyncResponse> {
+      const tokens = await retrieveAuthTokens()
+      if (!tokens) {
+        throw new SyncApiError('Not authenticated', 401, 'UNAUTHORIZED')
+      }
+
+      const params = new URLSearchParams({ cursor: cursor.toString() })
+      if (limit) {
+        params.set('limit', limit.toString())
+      }
+
+      const response = await fetch(`${baseUrl}/api/v1/sync/pull?${params}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${tokens.accessToken}`
+        }
+      })
+      return handleResponse<PullSyncResponse>(response)
+    },
+
+    async getSyncStatus(): Promise<SyncStatusResponse> {
+      const tokens = await retrieveAuthTokens()
+      if (!tokens) {
+        throw new SyncApiError('Not authenticated', 401, 'UNAUTHORIZED')
+      }
+
+      const response = await fetch(`${baseUrl}/api/v1/sync/status`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${tokens.accessToken}`
+        }
+      })
+      return handleResponse<SyncStatusResponse>(response)
     }
   }
 }
