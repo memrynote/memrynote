@@ -25,6 +25,9 @@ import { UserSyncState } from './durable-objects/user-state'
 // Error handling
 import { SyncError, isSyncError, ErrorCode } from './lib/errors'
 
+// HTTP status codes not in standard libraries
+const HTTP_UPGRADE_REQUIRED = 426
+
 // Auth for WebSocket
 import { verifyAccessToken } from './services/auth'
 
@@ -73,9 +76,15 @@ app.use(
     origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'app://memry'],
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
-    exposeHeaders: ['X-Server-Cursor', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'Retry-After'],
+    exposeHeaders: [
+      'X-Server-Cursor',
+      'X-RateLimit-Limit',
+      'X-RateLimit-Remaining',
+      'X-RateLimit-Reset',
+      'Retry-After'
+    ],
     credentials: true,
-    maxAge: 86400,
+    maxAge: 86400
   })
 )
 
@@ -90,7 +99,7 @@ app.get('/', (c) => {
   return c.json({
     status: 'ok',
     service: 'memry-sync-server',
-    version: '1.0.0',
+    version: '1.0.0'
   })
 })
 
@@ -104,14 +113,14 @@ app.get('/health', async (c) => {
     return c.json({
       status: 'healthy',
       database: result?.ok === 1 ? 'connected' : 'error',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     })
   } catch (error) {
     return c.json(
       {
         status: 'unhealthy',
         database: 'disconnected',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error'
       },
       500
     )
@@ -131,12 +140,10 @@ app.route('/api/v1/auth', authRoutes)
 
 app.get('/api/v1/sync/ws', async (c) => {
   if (c.req.header('Upgrade') !== 'websocket') {
-    return c.json({ error: 'Expected WebSocket upgrade' }, 426)
+    return c.json({ error: 'Expected WebSocket upgrade' }, HTTP_UPGRADE_REQUIRED)
   }
 
-  const token =
-    c.req.query('token') ??
-    c.req.header('Authorization')?.replace(/^Bearer\s+/i, '')
+  const token = c.req.query('token') ?? c.req.header('Authorization')?.replace(/^Bearer\s+/i, '')
 
   if (!token) {
     return c.json({ error: 'Missing authentication token' }, 401)
@@ -153,7 +160,8 @@ app.get('/api/v1/sync/ws', async (c) => {
   const stub = c.env.USER_SYNC_STATE.get(doId)
 
   const url = new URL(c.req.url)
-  url.searchParams.set('token', token)
+  url.searchParams.delete('token')
+  url.searchParams.set('deviceId', payload.deviceId)
   const wsRequest = new Request(url.toString(), c.req.raw)
 
   return stub.fetch(wsRequest)
@@ -218,7 +226,7 @@ app.notFound((c) => {
     {
       error: ErrorCode.SYNC_ITEM_NOT_FOUND,
       message: 'Not found',
-      path: c.req.path,
+      path: c.req.path
     },
     404
   )
@@ -241,7 +249,7 @@ app.onError((err, c) => {
   return c.json(
     {
       error: ErrorCode.SERVER_INTERNAL_ERROR,
-      message: 'Internal server error',
+      message: 'Internal server error'
     },
     500
   )
@@ -272,7 +280,7 @@ export default {
         }
       })()
     )
-  },
+  }
 }
 
 // =============================================================================
@@ -296,7 +304,7 @@ export class LinkingSession {
     void request
     // Placeholder - to be implemented in Phase 2
     return new Response(JSON.stringify({ status: 'not_implemented' }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     })
   }
 }

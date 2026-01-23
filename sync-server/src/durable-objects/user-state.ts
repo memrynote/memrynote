@@ -4,13 +4,12 @@
  * Manages real-time WebSocket connections for cross-device sync.
  * Each instance handles all connected devices for a single user.
  * Uses WebSocket Hibernation API for cost efficiency.
+ *
+ * Note: DurableObject and DurableObjectState types are ambient globals
+ * from @cloudflare/workers-types (configured in tsconfig.json).
  */
 
-import { verifyAccessToken, type JWTPayload } from '../services/auth'
-
-type ClientMessage =
-  | { type: 'ping' }
-  | { type: 'subscribe'; itemTypes?: string[] }
+type ClientMessage = { type: 'ping' } | { type: 'subscribe'; itemTypes?: string[] }
 
 type ServerMessage =
   | { type: 'pong' }
@@ -33,11 +32,10 @@ interface BroadcastRequest {
 
 export class UserSyncState implements DurableObject {
   private state: DurableObjectState
-  private env: { JWT_SECRET: string }
 
-  constructor(state: DurableObjectState, env: { JWT_SECRET: string }) {
+  constructor(state: DurableObjectState, env: unknown) {
+    void env
     this.state = state
-    this.env = env
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -53,29 +51,18 @@ export class UserSyncState implements DurableObject {
 
     return new Response(JSON.stringify({ error: 'Not found' }), {
       status: 404,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     })
   }
 
   private async handleWebSocketUpgrade(request: Request): Promise<Response> {
     const url = new URL(request.url)
 
-    const token = url.searchParams.get('token') ?? this.extractBearerToken(request)
-
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'Missing authentication token' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
-
-    let payload: JWTPayload
-    try {
-      payload = await verifyAccessToken(token, this.env.JWT_SECRET)
-    } catch {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
+    const deviceId = url.searchParams.get('deviceId')
+    if (!deviceId) {
+      return new Response(JSON.stringify({ error: 'Missing deviceId parameter' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
       })
     }
 
@@ -83,39 +70,47 @@ export class UserSyncState implements DurableObject {
     const [client, server] = [pair[0], pair[1]]
 
     const meta: ConnectionMeta = {
-      deviceId: payload.deviceId,
-      connectedAt: Date.now(),
+      deviceId,
+      connectedAt: Date.now()
     }
 
-    this.state.acceptWebSocket(server, [payload.deviceId])
+    this.state.acceptWebSocket(server, [deviceId])
 
-    await this.state.storage.put(`connection:${payload.deviceId}`, meta)
+    // Connection metadata is stored in durable storage (not transiently) because
+    // the WebSocket Hibernation API may evict and recreate the DO. When waking
+    // from hibernation, the DO needs to restore device mappings for broadcast filtering.
+    await this.state.storage.put(`connection:${deviceId}`, meta)
 
     const connectedMessage: ServerMessage = {
       type: 'connected',
-      deviceId: payload.deviceId,
+      deviceId
     }
     server.send(JSON.stringify(connectedMessage))
 
     return new Response(null, { status: 101, webSocket: client })
   }
 
-  private extractBearerToken(request: Request): string | null {
-    const authHeader = request.headers.get('Authorization')
-    if (!authHeader) return null
-    const match = authHeader.match(/^Bearer\s+(.+)$/i)
-    return match ? match[1] : null
-  }
-
   private async handleBroadcast(request: Request): Promise<Response> {
-    let body: BroadcastRequest
+    let body: unknown
     try {
       body = await request.json()
     } catch {
       return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' }
       })
+    }
+
+    if (!this.isValidBroadcastRequest(body)) {
+      return new Response(
+        JSON.stringify({
+          error: 'Invalid broadcast payload: requires cursor (number) and count (number)'
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
     }
 
     const { cursor, count, excludeDeviceId } = body
@@ -123,7 +118,7 @@ export class UserSyncState implements DurableObject {
     const message: ServerMessage = {
       type: 'changes',
       cursor,
-      count,
+      count
     }
 
     const sockets = this.state.getWebSockets()
@@ -146,7 +141,7 @@ export class UserSyncState implements DurableObject {
     }
 
     return new Response(JSON.stringify({ sent: sentCount }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     })
   }
 
@@ -155,7 +150,7 @@ export class UserSyncState implements DurableObject {
 
     let parsed: ClientMessage
     try {
-      parsed = JSON.parse(message)
+      parsed = JSON.parse(message) as ClientMessage
     } catch {
       this.sendError(ws, 'INVALID_MESSAGE', 'Invalid JSON')
       return
@@ -218,5 +213,11 @@ export class UserSyncState implements DurableObject {
   private sendError(ws: WebSocket, code: string, message: string): void {
     const errorMessage: ServerMessage = { type: 'error', code, message }
     ws.send(JSON.stringify(errorMessage))
+  }
+
+  private isValidBroadcastRequest(body: unknown): body is BroadcastRequest {
+    if (typeof body !== 'object' || body === null) return false
+    const obj = body as Record<string, unknown>
+    return typeof obj.cursor === 'number' && typeof obj.count === 'number'
   }
 }
