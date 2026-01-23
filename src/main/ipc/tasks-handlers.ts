@@ -34,6 +34,11 @@ import { getDatabase, type DrizzleDb } from '../database'
 import { generateId } from '../lib/id'
 import * as taskQueries from '@shared/db/queries/tasks'
 import * as projectQueries from '@shared/db/queries/projects'
+import { incrementClock, emptyClock } from '../sync/vector-clock'
+import { retrieveDeviceKeyPair } from '../crypto/keychain'
+import { getSyncQueue } from '../sync/queue'
+import type { VectorClock } from '@shared/contracts/sync-api'
+import type { Task } from '@shared/db/schema/tasks'
 
 /**
  * Emit task event to all windows
@@ -57,6 +62,38 @@ function requireDatabase(): DrizzleDb {
 }
 
 /**
+ * Get the current device ID for vector clock operations.
+ * Returns null if device is not registered (sync not set up).
+ */
+async function getCurrentDeviceId(): Promise<string | null> {
+  try {
+    const keyPair = await retrieveDeviceKeyPair()
+    return keyPair?.deviceId ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Queue a task for sync with the sync engine.
+ * Silently skips if sync is not set up (no device keypair).
+ */
+async function queueTaskForSync(
+  task: Task,
+  operation: 'create' | 'update' | 'delete'
+): Promise<void> {
+  try {
+    const deviceId = await getCurrentDeviceId()
+    if (!deviceId) return
+
+    const queue = getSyncQueue()
+    await queue.add('task', task.id, operation, JSON.stringify(task), 0)
+  } catch (error) {
+    console.warn('[TasksHandlers] Failed to queue task for sync:', error)
+  }
+}
+
+/**
  * Register all task-related IPC handlers.
  * Call this once during app initialization.
  */
@@ -74,6 +111,9 @@ export function registerTasksHandlers(): void {
         const id = generateId()
         const position = taskQueries.getNextTaskPosition(db, input.projectId, input.parentId)
 
+        const deviceId = await getCurrentDeviceId()
+        const clock: VectorClock | null = deviceId ? incrementClock(emptyClock(), deviceId) : null
+
         const task = taskQueries.insertTask(db, {
           id,
           projectId: input.projectId,
@@ -88,7 +128,8 @@ export function registerTasksHandlers(): void {
           startDate: input.startDate ?? null,
           repeatConfig: input.repeatConfig ?? null,
           repeatFrom: input.repeatFrom ?? null,
-          sourceNoteId: input.sourceNoteId ?? null
+          sourceNoteId: input.sourceNoteId ?? null,
+          clock: clock ? JSON.stringify(clock) : null
         })
 
         // Set tags if provided
@@ -108,6 +149,8 @@ export function registerTasksHandlers(): void {
         }
 
         emitTaskEvent(TasksChannels.events.CREATED, { task: enrichedTask })
+
+        await queueTaskForSync(task, 'create')
 
         return { success: true, task: enrichedTask }
       } catch (error) {
@@ -168,7 +211,18 @@ export function registerTasksHandlers(): void {
           }
         }
 
-        const task = taskQueries.updateTask(db, id, updates)
+        const deviceId = await getCurrentDeviceId()
+        let clockUpdate: { clock: string } | Record<string, never> = {}
+        if (deviceId) {
+          const existingTask = taskQueries.getTaskById(db, id)
+          const currentClock: VectorClock = existingTask?.clock
+            ? (JSON.parse(existingTask.clock) as VectorClock)
+            : emptyClock()
+          const newClock = incrementClock(currentClock, deviceId)
+          clockUpdate = { clock: JSON.stringify(newClock) }
+        }
+
+        const task = taskQueries.updateTask(db, id, { ...updates, ...clockUpdate })
         if (!task) {
           return { success: false, task: null, error: 'Task not found' }
         }
@@ -191,6 +245,8 @@ export function registerTasksHandlers(): void {
 
         emitTaskEvent(TasksChannels.events.UPDATED, { id, task: enrichedTask, changes: updates })
 
+        await queueTaskForSync(task, 'update')
+
         return { success: true, task: enrichedTask }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to update task'
@@ -205,8 +261,28 @@ export function registerTasksHandlers(): void {
     createStringHandler(async (id) => {
       try {
         const db = requireDatabase()
+
+        const deviceId = await getCurrentDeviceId()
+        let taskForSync: Task | null = null
+        if (deviceId) {
+          const existingTask = taskQueries.getTaskById(db, id)
+          if (existingTask) {
+            const currentClock: VectorClock = existingTask.clock
+              ? (JSON.parse(existingTask.clock) as VectorClock)
+              : emptyClock()
+            const finalClock = incrementClock(currentClock, deviceId)
+            taskQueries.updateTask(db, id, { clock: JSON.stringify(finalClock) })
+            taskForSync = { ...existingTask, clock: JSON.stringify(finalClock) }
+          }
+        }
+
         taskQueries.deleteTask(db, id)
         emitTaskEvent(TasksChannels.events.DELETED, { id })
+
+        if (taskForSync) {
+          await queueTaskForSync(taskForSync, 'delete')
+        }
+
         return { success: true }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to delete task'

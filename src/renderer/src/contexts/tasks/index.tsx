@@ -33,6 +33,7 @@ import {
   type Status as DbStatus
 } from '@/services/tasks-service'
 import { useVault } from '@/hooks/use-vault'
+import type { ItemSyncedEvent } from '@shared/contracts/ipc-sync'
 
 // =============================================================================
 // TYPE CONVERSION HELPERS
@@ -432,6 +433,34 @@ export const TasksProvider = ({
       setProjects((prev) => prev.filter((p) => p.id !== event.id))
     })
 
+    const unsubItemSynced = window.api.onItemSynced((event: ItemSyncedEvent) => {
+      if (event.itemType !== 'task') return
+
+      const handleSyncedTask = async (): Promise<void> => {
+        if (event.operation === 'deleted') {
+          setTasks((prev) => prev.filter((t) => t.id !== event.itemId))
+        } else {
+          const dbTask = await tasksService.get(event.itemId)
+          if (!dbTask) return
+
+          const uiTask = dbTaskToUiTask(dbTask)
+          setTasks((prev) => {
+            const idx = prev.findIndex((t) => t.id === event.itemId)
+            if (idx >= 0) {
+              const updated = [...prev]
+              updated[idx] = uiTask
+              return updated
+            }
+            return [...prev, uiTask]
+          })
+        }
+      }
+
+      handleSyncedTask().catch((error) => {
+        console.error('[TasksProvider] Failed to handle synced task:', error)
+      })
+    })
+
     return () => {
       unsubTaskCreated()
       unsubTaskUpdated()
@@ -440,6 +469,7 @@ export const TasksProvider = ({
       unsubProjectCreated()
       unsubProjectUpdated()
       unsubProjectDeleted()
+      unsubItemSynced()
     }
   }, [isVaultOpen, setTasks, setProjects])
 

@@ -36,7 +36,9 @@ export const tasks = sqliteTable(
       .default(sql`(datetime('now'))`),
     modifiedAt: text('modified_at')
       .notNull()
-      .default(sql`(datetime('now'))`)
+      .default(sql`(datetime('now'))`),
+
+    clock: text('clock')
   },
   (table) => [
     index('idx_tasks_project').on(table.projectId),

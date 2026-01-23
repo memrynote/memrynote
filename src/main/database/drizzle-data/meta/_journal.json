@@ -64,6 +64,13 @@
       "when": 1768957014379,
       "tag": "0008_last_screwball",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1769208785023,
+      "tag": "0009_goofy_sentry",
+      "breakpoints": true
     }
   ]
 }
