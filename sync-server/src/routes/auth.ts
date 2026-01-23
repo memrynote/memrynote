@@ -166,15 +166,8 @@ authRoutes.post('/otp/verify', async (c) => {
     await updateUser(c.env.DB, user.id, { emailVerified: true })
   }
 
-  const tempDeviceId = crypto.randomUUID()
   const now = Date.now()
-
-  await c.env.DB.prepare(
-    `INSERT INTO devices (id, user_id, name, platform, os_version, app_version, auth_public_key, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  )
-    .bind(tempDeviceId, user.id, 'Pending Registration', 'unknown', null, '0.0.0', '', now, now)
-    .run()
+  const tempDeviceId = await ensurePendingDevice(c.env.DB, user.id, now)
 
   const tokens = await issueTokenPair(c.env.DB, user.id, tempDeviceId, c.env.JWT_SECRET)
 
@@ -190,7 +183,7 @@ authRoutes.post('/otp/verify', async (c) => {
       platform: 'macos',
       appVersion: '1.0.0',
       authPublicKey: '',
-      linkedAt: Date.now(),
+      linkedAt: now,
     },
   }
 
@@ -387,25 +380,8 @@ authRoutes.post('/oauth/:provider/callback', async (c) => {
     googleUser.id
   )
 
-  const tempDeviceId = crypto.randomUUID()
   const now = Date.now()
-
-  await c.env.DB.prepare(
-    `INSERT INTO devices (id, user_id, name, platform, os_version, app_version, auth_public_key, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  )
-    .bind(
-      tempDeviceId,
-      user.id,
-      'Pending Registration',
-      'unknown',
-      null,
-      '0.0.0',
-      '',
-      now,
-      now
-    )
-    .run()
+  const tempDeviceId = await ensurePendingDevice(c.env.DB, user.id, now)
 
   const tokens = await issueTokenPair(c.env.DB, user.id, tempDeviceId, c.env.JWT_SECRET)
 
@@ -785,6 +761,39 @@ async function verifyDeviceChallenge(
     console.error('Failed to verify device challenge:', error)
     return false
   }
+}
+
+async function ensurePendingDevice(
+  db: D1Database,
+  userId: string,
+  now: number
+): Promise<string> {
+  const existingPending = await db
+    .prepare(
+      `SELECT id
+       FROM devices
+       WHERE user_id = ? AND auth_public_key = ?`
+    )
+    .bind(userId, '')
+    .first<{ id: string }>()
+
+  if (existingPending?.id) {
+    await db.prepare(`UPDATE devices SET updated_at = ? WHERE id = ?`)
+      .bind(now, existingPending.id)
+      .run()
+    return existingPending.id
+  }
+
+  const deviceId = crypto.randomUUID()
+  await db
+    .prepare(
+      `INSERT INTO devices (id, user_id, name, platform, os_version, app_version, auth_public_key, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(deviceId, userId, 'Pending Registration', 'unknown', null, '0.0.0', '', now, now)
+    .run()
+
+  return deviceId
 }
 
 export { authRoutes }

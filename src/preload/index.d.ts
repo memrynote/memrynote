@@ -2329,6 +2329,12 @@ export interface AuthClientAPI {
 // Sync Client API
 // =============================================================================
 
+export interface RegisterExistingDeviceResponse {
+  success: boolean
+  device?: Device
+  error?: string
+}
+
 export interface SyncClientAPI {
   getStatus(): Promise<GetSyncStatusResponse>
   trigger(options?: { force?: boolean; types?: string[] }): Promise<TriggerSyncResponse>
@@ -2342,6 +2348,13 @@ export interface SyncClientAPI {
     osVersion: string
     appVersion: string
   }): Promise<SetupFirstDeviceResponse>
+  registerExistingDevice(request: {
+    recoveryPhrase: string[]
+    deviceName: string
+    platform: 'macos' | 'windows' | 'linux'
+    osVersion: string
+    appVersion: string
+  }): Promise<RegisterExistingDeviceResponse>
   verifyRecoveryPhrase(request: { phrase: string[] }): Promise<VerifyRecoveryPhraseResponse>
   getRecoveryPhrase(): Promise<{ phrase: string[] }>
   getDevices(): Promise<GetDevicesResponse>

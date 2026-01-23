@@ -1347,6 +1347,13 @@ const api = {
     verifyRecoveryPhrase: (request: { phrase: string[] }) =>
       ipcRenderer.invoke(SyncChannels.invoke.VERIFY_RECOVERY_PHRASE, request),
     getRecoveryPhrase: () => ipcRenderer.invoke(SyncChannels.invoke.GET_RECOVERY_PHRASE),
+    registerExistingDevice: (request: {
+      recoveryPhrase: string[]
+      deviceName: string
+      platform: 'macos' | 'windows' | 'linux'
+      osVersion: string
+      appVersion: string
+    }) => ipcRenderer.invoke(SyncChannels.invoke.REGISTER_EXISTING_DEVICE, request),
     getDevices: () => ipcRenderer.invoke(SyncChannels.invoke.GET_DEVICES),
     getCurrentDevice: () => ipcRenderer.invoke(SyncChannels.invoke.GET_CURRENT_DEVICE),
     createLinkingSession: () => ipcRenderer.invoke(SyncChannels.invoke.CREATE_LINKING_SESSION),

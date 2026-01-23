@@ -12,12 +12,14 @@ import { OtpVerification } from '@/components/sync/otp-verification'
 import { OAuthButtons } from '@/components/sync/oauth-buttons'
 import { RecoveryPhraseDisplay } from '@/components/sync/recovery-phrase-display'
 import { RecoveryPhraseConfirm } from '@/components/sync/recovery-phrase-confirm'
+import { RecoveryPhraseEntry } from '@/components/sync/recovery-phrase-entry'
+import type { RegisterExistingDeviceResponse } from '@shared/contracts/ipc-sync'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
 import type { SetupFirstDeviceResponse } from '@shared/contracts/ipc-sync'
 
-type WizardStep = 'auth' | 'otp' | 'recovery-display' | 'recovery-confirm' | 'complete'
+type WizardStep = 'auth' | 'otp' | 'recovery-display' | 'recovery-confirm' | 'recovery-entry' | 'complete'
 
 interface SetupWizardProps {
   onComplete?: () => void
@@ -89,8 +91,8 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps): React.
       try {
         const response = await verifyOtp(email, code)
         if (response.success) {
-          const shouldSetup = response.needsSetup ?? response.isNewUser ?? false
-          if (shouldSetup) {
+          const isFirstDevice = response.isNewUser ?? false
+          if (isFirstDevice) {
             try {
               const deviceInfo = getDeviceInfo()
               const setupResult: SetupFirstDeviceResponse =
@@ -103,7 +105,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps): React.
               setError(setupErr instanceof Error ? setupErr.message : 'Device setup failed')
             }
           } else {
-            setStep('complete')
+            setStep('recovery-entry')
           }
         } else {
           setError(response.error || 'Invalid verification code')
@@ -139,8 +141,8 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps): React.
     try {
       const response = await startOAuth('google')
       if (response.success) {
-        const shouldSetup = response.needsSetup ?? response.isNewUser ?? false
-        if (shouldSetup) {
+        const isFirstDevice = response.isNewUser ?? false
+        if (isFirstDevice) {
           try {
             const deviceInfo = getDeviceInfo()
             const setupResult: SetupFirstDeviceResponse =
@@ -153,7 +155,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps): React.
             setError(setupErr instanceof Error ? setupErr.message : 'Device setup failed')
           }
         } else {
-          setStep('complete')
+          setStep('recovery-entry')
         }
       } else {
         setError(response.error || 'Google sign-in failed')
@@ -189,6 +191,33 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps): React.
     }
   }, [recoveryPhrase])
 
+  const handleRecoveryPhraseEntry = useCallback(
+    async (phrase: string[]) => {
+      setIsLoading(true)
+      setError(undefined)
+      try {
+        const deviceInfo = getDeviceInfo()
+        const response: RegisterExistingDeviceResponse =
+          await window.api.sync.registerExistingDevice({
+            recoveryPhrase: phrase,
+            ...deviceInfo
+          })
+        if (response.success) {
+          setStep('complete')
+          toast.success('Device registered successfully!')
+        } else {
+          setError(response.error || 'Failed to register device')
+        }
+      } catch (err) {
+        console.error('[SetupWizard] Recovery entry error:', err)
+        setError(err instanceof Error ? err.message : 'Failed to register device')
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    []
+  )
+
   const handleBackToAuth = useCallback(() => {
     setStep('auth')
     setEmail('')
@@ -215,7 +244,7 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps): React.
     const currentStepIndex =
       step === 'auth' || step === 'otp'
         ? 0
-        : step === 'recovery-display' || step === 'recovery-confirm'
+        : step === 'recovery-display' || step === 'recovery-confirm' || step === 'recovery-entry'
           ? 1
           : 2
 
@@ -303,6 +332,15 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps): React.
             onConfirmed={handleRecoveryConfirmed}
             onBack={handleBackToRecoveryDisplay}
             isLoading={isLoading}
+          />
+        )}
+
+        {step === 'recovery-entry' && (
+          <RecoveryPhraseEntry
+            onSubmit={handleRecoveryPhraseEntry}
+            onBack={handleBackToAuth}
+            isLoading={isLoading}
+            error={error}
           />
         )}
 

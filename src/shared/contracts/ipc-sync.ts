@@ -29,6 +29,7 @@ export const SyncChannels = {
 
     // First Device Setup
     SETUP_FIRST_DEVICE: 'sync:setup-first-device',
+    REGISTER_EXISTING_DEVICE: 'sync:register-existing-device',
     VERIFY_RECOVERY_PHRASE: 'sync:verify-recovery-phrase',
     GET_RECOVERY_PHRASE: 'sync:get-recovery-phrase',
 
@@ -216,6 +217,25 @@ export interface VerifyRecoveryPhraseRequest {
 
 export interface VerifyRecoveryPhraseResponse {
   valid: boolean
+  error?: string
+}
+
+export interface RegisterExistingDeviceRequest {
+  /** Recovery phrase (24 words) */
+  recoveryPhrase: string[]
+  /** Device name */
+  deviceName: string
+  /** Platform */
+  platform: 'macos' | 'windows' | 'linux'
+  /** OS version */
+  osVersion: string
+  /** App version */
+  appVersion: string
+}
+
+export interface RegisterExistingDeviceResponse {
+  success: boolean
+  device?: Device
   error?: string
 }
 
@@ -520,6 +540,14 @@ export const SetupFirstDeviceRequestSchema = z.object({
 
 export const VerifyRecoveryPhraseRequestSchema = z.object({
   phrase: z.array(z.string()).length(24)
+})
+
+export const RegisterExistingDeviceRequestSchema = z.object({
+  recoveryPhrase: z.array(z.string()).length(24),
+  deviceName: z.string().min(1).max(100),
+  platform: z.enum(['macos', 'windows', 'linux']),
+  osVersion: z.string(),
+  appVersion: z.string()
 })
 
 export const ScanLinkingQRRequestSchema = z.object({
