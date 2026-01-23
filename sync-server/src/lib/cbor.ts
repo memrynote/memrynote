@@ -11,7 +11,7 @@ import {
   SIGNATURE_PAYLOAD_V1_FIELD_ORDER,
   SIGNATURE_PAYLOAD_V1_METADATA_FIELD_ORDER,
   CRDT_ITEM_PAYLOAD_FIELD_ORDER,
-  ENCRYPTED_UPDATE_PAYLOAD_FIELD_ORDER,
+  ENCRYPTED_UPDATE_PAYLOAD_FIELD_ORDER
 } from '../contracts/cbor-ordering'
 
 /**
@@ -110,7 +110,7 @@ export function encodeSignaturePayloadV1(payload: SignaturePayloadV1): Uint8Arra
     const prepared = prepareSignaturePayloadV1(payload)
     return cborg.encode(prepared, {
       // Use canonical/deterministic encoding
-      float64: true, // Consistent float representation
+      float64: true // Consistent float representation
     })
   } catch (error) {
     throw new SyncError(
@@ -148,15 +148,12 @@ export function encodeCanonicalCbor(
     }
 
     return cborg.encode(prepared, {
-      float64: true,
+      float64: true
     })
   } catch (error) {
-    throw new SyncError(
-      'Failed to encode CBOR',
-      ErrorCode.CRYPTO_ENCODING_FAILED,
-      500,
-      { originalError: error instanceof Error ? error.message : String(error) }
-    )
+    throw new SyncError('Failed to encode CBOR', ErrorCode.CRYPTO_ENCODING_FAILED, 500, {
+      originalError: error instanceof Error ? error.message : String(error)
+    })
   }
 }
 
@@ -171,12 +168,9 @@ export function decodeCbor<T = unknown>(data: Uint8Array): T {
   try {
     return cborg.decode(data) as T
   } catch (error) {
-    throw new SyncError(
-      'Failed to decode CBOR',
-      ErrorCode.CRYPTO_ENCODING_FAILED,
-      500,
-      { originalError: error instanceof Error ? error.message : String(error) }
-    )
+    throw new SyncError('Failed to decode CBOR', ErrorCode.CRYPTO_ENCODING_FAILED, 500, {
+      originalError: error instanceof Error ? error.message : String(error)
+    })
   }
 }
 
@@ -190,6 +184,6 @@ export function decodeCbor<T = unknown>(data: Uint8Array): T {
 export function encodeDeterministic(data: unknown): Uint8Array {
   const sorted = sortObjectKeys(data)
   return cborg.encode(sorted, {
-    float64: true,
+    float64: true
   })
 }

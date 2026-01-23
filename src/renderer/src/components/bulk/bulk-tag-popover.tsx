@@ -24,7 +24,10 @@ const BulkTagPopoverContent = ({
   itemCount,
   onOpenChange,
   onApplyTags
-}: Pick<BulkTagPopoverProps, 'isOpen' | 'itemCount' | 'onOpenChange' | 'onApplyTags'>): React.JSX.Element => {
+}: Pick<
+  BulkTagPopoverProps,
+  'isOpen' | 'itemCount' | 'onOpenChange' | 'onApplyTags'
+>): React.JSX.Element => {
   const [tags, setTags] = useState<string[]>([])
   const [isApplying, setIsApplying] = useState(false)
 

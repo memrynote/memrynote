@@ -62,7 +62,7 @@ const extractBearerToken = <E extends HonoEnv>(c: Context<E>): string | null => 
  * ```
  */
 export const authMiddleware = <
-  E extends { Bindings: AuthEnv; Variables: AuthVariables },
+  E extends { Bindings: AuthEnv; Variables: AuthVariables }
 >(): MiddlewareHandler<E> => {
   return async (c, next) => {
     const token = extractBearerToken(c)
@@ -83,7 +83,7 @@ export const authMiddleware = <
       userId: payload.sub,
       deviceId: payload.deviceId,
       tokenIssuedAt: payload.iat * 1000, // Convert to ms
-      tokenExpiresAt: payload.exp * 1000, // Convert to ms
+      tokenExpiresAt: payload.exp * 1000 // Convert to ms
     }
 
     c.set('auth', auth)
@@ -112,7 +112,7 @@ export const getAuth = <E extends { Variables: AuthVariables }>(c: Context<E>): 
  * Useful for endpoints that work both authenticated and unauthenticated.
  */
 export const optionalAuthMiddleware = <
-  E extends { Bindings: AuthEnv; Variables: Partial<AuthVariables> },
+  E extends { Bindings: AuthEnv; Variables: Partial<AuthVariables> }
 >(): MiddlewareHandler<E> => {
   return async (c, next) => {
     const token = extractBearerToken(c)
@@ -127,7 +127,7 @@ export const optionalAuthMiddleware = <
             userId: payload.sub,
             deviceId: payload.deviceId,
             tokenIssuedAt: payload.iat * 1000,
-            tokenExpiresAt: payload.exp * 1000,
+            tokenExpiresAt: payload.exp * 1000
           }
 
           // Use type assertion since we're in partial variables mode

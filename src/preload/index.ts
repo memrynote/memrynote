@@ -1379,16 +1379,15 @@ const api = {
     getUser: () => ipcRenderer.invoke(SyncChannels.invoke.GET_USER),
     deleteAccount: () => ipcRenderer.invoke(SyncChannels.invoke.DELETE_ACCOUNT),
     getConflicts: () => ipcRenderer.invoke(SyncChannels.invoke.GET_CONFLICTS),
-    resolveConflict: (request: {
-      itemId: string
-      resolution: 'local' | 'remote' | 'merge'
-    }) => ipcRenderer.invoke(SyncChannels.invoke.RESOLVE_CONFLICT, request)
+    resolveConflict: (request: { itemId: string; resolution: 'local' | 'remote' | 'merge' }) =>
+      ipcRenderer.invoke(SyncChannels.invoke.RESOLVE_CONFLICT, request)
   },
 
   // Crypto API
   crypto: {
     hasKeys: () => ipcRenderer.invoke(CryptoChannels.invoke.HAS_KEYS),
-    generateRecoveryPhrase: () => ipcRenderer.invoke(CryptoChannels.invoke.GENERATE_RECOVERY_PHRASE),
+    generateRecoveryPhrase: () =>
+      ipcRenderer.invoke(CryptoChannels.invoke.GENERATE_RECOVERY_PHRASE),
     deriveKeys: (request: { phrase: string[]; kdfSalt: string }) =>
       ipcRenderer.invoke(CryptoChannels.invoke.DERIVE_KEYS, request),
     verifyMasterKey: (request: { keyVerifier: string }) =>

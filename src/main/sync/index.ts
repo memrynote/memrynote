@@ -15,20 +15,9 @@ export {
   type SyncEngineEvents
 } from './engine'
 
-export {
-  SyncQueue,
-  getSyncQueue,
-  initSyncQueue,
-  type QueueItem,
-  type QueueEvents
-} from './queue'
+export { SyncQueue, getSyncQueue, initSyncQueue, type QueueItem, type QueueEvents } from './queue'
 
-export {
-  NetworkMonitor,
-  getNetworkMonitor,
-  isNetworkOnline,
-  type NetworkEvents
-} from './network'
+export { NetworkMonitor, getNetworkMonitor, isNetworkOnline, type NetworkEvents } from './network'
 
 export {
   WebSocketManager,

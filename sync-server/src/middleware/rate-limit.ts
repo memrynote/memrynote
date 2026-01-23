@@ -18,7 +18,7 @@ export const RATE_LIMITS = {
   sync_push: { requests: 100, windowMs: 60 * 1000 }, // 100 per min
   sync_pull: { requests: 200, windowMs: 60 * 1000 }, // 200 per min
   blob_upload: { requests: 50, windowMs: 60 * 1000 }, // 50 per min
-  default: { requests: 1000, windowMs: 60 * 1000 }, // 1000 per min
+  default: { requests: 1000, windowMs: 60 * 1000 } // 1000 per min
 } as const
 
 export type RateLimitType = keyof typeof RATE_LIMITS
@@ -82,7 +82,7 @@ export const checkRateLimit = async (
       return {
         allowed: true,
         remaining: limit - 1,
-        resetAt: now + windowMs,
+        resetAt: now + windowMs
       }
     }
 
@@ -93,20 +93,17 @@ export const checkRateLimit = async (
       return {
         allowed: false,
         remaining: 0,
-        resetAt,
+        resetAt
       }
     }
 
     // Increment count
-    await db
-      .prepare(`UPDATE rate_limits SET count = count + 1 WHERE key = ?`)
-      .bind(key)
-      .run()
+    await db.prepare(`UPDATE rate_limits SET count = count + 1 WHERE key = ?`).bind(key).run()
 
     return {
       allowed: true,
       remaining: limit - existing.count - 1,
-      resetAt: existing.window_start + windowMs,
+      resetAt: existing.window_start + windowMs
     }
   } catch {
     // On error, allow the request (fail open for availability)
@@ -114,7 +111,7 @@ export const checkRateLimit = async (
     return {
       allowed: true,
       remaining: limit,
-      resetAt: now + windowMs,
+      resetAt: now + windowMs
     }
   }
 }

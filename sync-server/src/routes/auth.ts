@@ -34,16 +34,11 @@ import {
   type OAuthInitiateResponse,
   type OAuthCallbackResponse,
   type RecoveryInfoResponse,
-  type LogoutResponse,
+  type LogoutResponse
 } from '../contracts/auth-api'
 import type { Device, DevicePlatform } from '../contracts/sync-api'
 import { createOtp, verifyOtp } from '../services/otp'
-import {
-  findOrCreateUserByEmail,
-  getUserById,
-  updateUser,
-  userToPublic,
-} from '../services/user'
+import { findOrCreateUserByEmail, getUserById, updateUser, userToPublic } from '../services/user'
 import { issueTokenPair, rotateRefreshToken, hashToken } from '../services/auth'
 import { createEmailService } from '../services/email'
 import { checkRateLimit, RATE_LIMITS } from '../middleware/rate-limit'
@@ -54,7 +49,7 @@ import {
   SyncError,
   ErrorCode,
   notFound,
-  unauthorized,
+  unauthorized
 } from '../lib/errors'
 
 interface AuthVariables {
@@ -87,57 +82,56 @@ const authRoutes = new Hono<{ Bindings: Env; Variables: AuthVariables }>()
  * Rate limiting is done at the handler level with the actual email address.
  */
 authRoutes.post('/otp/request', async (c) => {
-    const body = await c.req.json()
-    const parsed = OtpRequestSchema.safeParse(body)
+  const body = await c.req.json()
+  const parsed = OtpRequestSchema.safeParse(body)
 
-    if (!parsed.success) {
-      throw validationError('Invalid request', { issues: parsed.error.issues })
-    }
-
-    const { email } = parsed.data
-    const normalizedEmail = email.toLowerCase()
-
-    const rateKey = `otp_request:${normalizedEmail}`
-    const rateCheck = await checkRateLimit(
-      c.env.DB,
-      rateKey,
-      RATE_LIMITS.otp_request.requests,
-      RATE_LIMITS.otp_request.windowMs
-    )
-
-    if (!rateCheck.allowed) {
-      const retryAfter = Math.ceil((rateCheck.resetAt - Date.now()) / 1000)
-      c.header('Retry-After', String(retryAfter))
-      throw new SyncError('Too many OTP requests', ErrorCode.AUTH_RATE_LIMITED, 429, { retryAfter })
-    }
-
-    const { code, expiresAt } = await createOtp(c.env.DB, normalizedEmail)
-
-    const emailService = createEmailService({
-      apiKey: c.env.RESEND_API_KEY,
-      fromEmail: c.env.EMAIL_FROM,
-      fromName: c.env.EMAIL_FROM_NAME,
-    })
-
-    const emailResult = await emailService.sendOtpCode(normalizedEmail, code)
-
-    if (!emailResult.success) {
-      console.error('Failed to send OTP email:', emailResult.error)
-      throw new SyncError(
-        'Failed to send verification email. Please try again.',
-        ErrorCode.SERVER_INTERNAL_ERROR,
-        500
-      )
-    }
-
-    const response: OtpRequestResponse = {
-      success: true,
-      expiresAt,
-    }
-
-    return c.json(response)
+  if (!parsed.success) {
+    throw validationError('Invalid request', { issues: parsed.error.issues })
   }
-)
+
+  const { email } = parsed.data
+  const normalizedEmail = email.toLowerCase()
+
+  const rateKey = `otp_request:${normalizedEmail}`
+  const rateCheck = await checkRateLimit(
+    c.env.DB,
+    rateKey,
+    RATE_LIMITS.otp_request.requests,
+    RATE_LIMITS.otp_request.windowMs
+  )
+
+  if (!rateCheck.allowed) {
+    const retryAfter = Math.ceil((rateCheck.resetAt - Date.now()) / 1000)
+    c.header('Retry-After', String(retryAfter))
+    throw new SyncError('Too many OTP requests', ErrorCode.AUTH_RATE_LIMITED, 429, { retryAfter })
+  }
+
+  const { code, expiresAt } = await createOtp(c.env.DB, normalizedEmail)
+
+  const emailService = createEmailService({
+    apiKey: c.env.RESEND_API_KEY,
+    fromEmail: c.env.EMAIL_FROM,
+    fromName: c.env.EMAIL_FROM_NAME
+  })
+
+  const emailResult = await emailService.sendOtpCode(normalizedEmail, code)
+
+  if (!emailResult.success) {
+    console.error('Failed to send OTP email:', emailResult.error)
+    throw new SyncError(
+      'Failed to send verification email. Please try again.',
+      ErrorCode.SERVER_INTERNAL_ERROR,
+      500
+    )
+  }
+
+  const response: OtpRequestResponse = {
+    success: true,
+    expiresAt
+  }
+
+  return c.json(response)
+})
 
 /**
  * T043: POST /auth/otp/verify
@@ -183,8 +177,8 @@ authRoutes.post('/otp/verify', async (c) => {
       platform: 'macos',
       appVersion: '1.0.0',
       authPublicKey: '',
-      linkedAt: now,
-    },
+      linkedAt: now
+    }
   }
 
   return c.json(response)
@@ -196,57 +190,56 @@ authRoutes.post('/otp/verify', async (c) => {
  * Rate limiting is done at the handler level with the actual email address.
  */
 authRoutes.post('/otp/resend', async (c) => {
-    const body = await c.req.json()
-    const parsed = OtpResendRequestSchema.safeParse(body)
+  const body = await c.req.json()
+  const parsed = OtpResendRequestSchema.safeParse(body)
 
-    if (!parsed.success) {
-      throw validationError('Invalid request', { issues: parsed.error.issues })
-    }
-
-    const { email } = parsed.data
-    const normalizedEmail = email.toLowerCase()
-
-    const rateKey = `otp_request:${normalizedEmail}`
-    const rateCheck = await checkRateLimit(
-      c.env.DB,
-      rateKey,
-      RATE_LIMITS.otp_request.requests,
-      RATE_LIMITS.otp_request.windowMs
-    )
-
-    if (!rateCheck.allowed) {
-      const retryAfter = Math.ceil((rateCheck.resetAt - Date.now()) / 1000)
-      c.header('Retry-After', String(retryAfter))
-      throw new SyncError('Too many OTP requests', ErrorCode.AUTH_RATE_LIMITED, 429, { retryAfter })
-    }
-
-    const { code, expiresAt } = await createOtp(c.env.DB, normalizedEmail)
-
-    const emailService = createEmailService({
-      apiKey: c.env.RESEND_API_KEY,
-      fromEmail: c.env.EMAIL_FROM,
-      fromName: c.env.EMAIL_FROM_NAME,
-    })
-
-    const emailResult = await emailService.sendOtpCode(normalizedEmail, code)
-
-    if (!emailResult.success) {
-      console.error('Failed to send OTP email:', emailResult.error)
-      throw new SyncError(
-        'Failed to send verification email. Please try again.',
-        ErrorCode.SERVER_INTERNAL_ERROR,
-        500
-      )
-    }
-
-    const response: OtpResendResponse = {
-      success: true,
-      expiresAt,
-    }
-
-    return c.json(response)
+  if (!parsed.success) {
+    throw validationError('Invalid request', { issues: parsed.error.issues })
   }
-)
+
+  const { email } = parsed.data
+  const normalizedEmail = email.toLowerCase()
+
+  const rateKey = `otp_request:${normalizedEmail}`
+  const rateCheck = await checkRateLimit(
+    c.env.DB,
+    rateKey,
+    RATE_LIMITS.otp_request.requests,
+    RATE_LIMITS.otp_request.windowMs
+  )
+
+  if (!rateCheck.allowed) {
+    const retryAfter = Math.ceil((rateCheck.resetAt - Date.now()) / 1000)
+    c.header('Retry-After', String(retryAfter))
+    throw new SyncError('Too many OTP requests', ErrorCode.AUTH_RATE_LIMITED, 429, { retryAfter })
+  }
+
+  const { code, expiresAt } = await createOtp(c.env.DB, normalizedEmail)
+
+  const emailService = createEmailService({
+    apiKey: c.env.RESEND_API_KEY,
+    fromEmail: c.env.EMAIL_FROM,
+    fromName: c.env.EMAIL_FROM_NAME
+  })
+
+  const emailResult = await emailService.sendOtpCode(normalizedEmail, code)
+
+  if (!emailResult.success) {
+    console.error('Failed to send OTP email:', emailResult.error)
+    throw new SyncError(
+      'Failed to send verification email. Please try again.',
+      ErrorCode.SERVER_INTERNAL_ERROR,
+      500
+    )
+  }
+
+  const response: OtpResendResponse = {
+    success: true,
+    expiresAt
+  }
+
+  return c.json(response)
+})
 
 // =============================================================================
 // OAuth Endpoints
@@ -290,12 +283,12 @@ authRoutes.get('/oauth/:provider', async (c) => {
     clientId: c.env.GOOGLE_CLIENT_ID,
     redirectUri,
     state,
-    codeChallenge,
+    codeChallenge
   })
 
   const response: OAuthInitiateResponse = {
     authUrl: googleAuthUrl,
-    state,
+    state
   }
 
   return c.json(response)
@@ -367,7 +360,7 @@ authRoutes.post('/oauth/:provider/callback', async (c) => {
     codeVerifier: code_verifier,
     redirectUri: storedState.redirect_uri,
     clientId: c.env.GOOGLE_CLIENT_ID,
-    clientSecret: c.env.GOOGLE_CLIENT_SECRET,
+    clientSecret: c.env.GOOGLE_CLIENT_SECRET
   })
 
   const googleUser = await getGoogleUserInfo(tokenResponse.access_token)
@@ -395,9 +388,9 @@ authRoutes.post('/oauth/:provider/callback', async (c) => {
       platform: 'macos',
       appVersion: '1.0.0',
       authPublicKey: '',
-      linkedAt: now,
+      linkedAt: now
     },
-    isNewUser: isNew,
+    isNewUser: isNew
   }
 
   return c.json(response)
@@ -420,13 +413,24 @@ authRoutes.post('/devices', authMiddleware(), async (c) => {
     throw validationError('Invalid request', { issues: parsed.error.issues })
   }
 
-  const { name, platform, osVersion, appVersion, authPublicKey, challengeSignature, challengeNonce } =
-    parsed.data
+  const {
+    name,
+    platform,
+    osVersion,
+    appVersion,
+    authPublicKey,
+    challengeSignature,
+    challengeNonce
+  } = parsed.data
 
   const isValid = await verifyDeviceChallenge(authPublicKey, challengeNonce, challengeSignature)
 
   if (!isValid) {
-    throw new SyncError('Invalid device challenge signature', ErrorCode.CRYPTO_INVALID_SIGNATURE, 400)
+    throw new SyncError(
+      'Invalid device challenge signature',
+      ErrorCode.CRYPTO_INVALID_SIGNATURE,
+      400
+    )
   }
 
   const deviceId = auth.deviceId
@@ -481,12 +485,12 @@ authRoutes.post('/devices', authMiddleware(), async (c) => {
     osVersion,
     appVersion,
     authPublicKey,
-    linkedAt: now,
+    linkedAt: now
   }
 
   const response: DeviceRegisterResponse = {
     device,
-    challenge: newChallenge,
+    challenge: newChallenge
   }
 
   return c.json(response)
@@ -523,11 +527,11 @@ authRoutes.post('/setup', authMiddleware(), async (c) => {
 
   await updateUser(c.env.DB, auth.userId, {
     kdfSalt,
-    keyVerifier,
+    keyVerifier
   })
 
   const response: FirstDeviceSetupResponse = {
-    success: true,
+    success: true
   }
 
   return c.json(response)
@@ -543,25 +547,24 @@ authRoutes.post('/setup', authMiddleware(), async (c) => {
  * Token rotation has built-in replay protection via the rotateRefreshToken function.
  */
 authRoutes.post('/refresh', async (c) => {
-    const body = await c.req.json()
-    const parsed = RefreshTokenRequestSchema.safeParse(body)
+  const body = await c.req.json()
+  const parsed = RefreshTokenRequestSchema.safeParse(body)
 
-    if (!parsed.success) {
-      throw validationError('Invalid request', { issues: parsed.error.issues })
-    }
-
-    const { refreshToken } = parsed.data
-
-    const result = await rotateRefreshToken(c.env.DB, refreshToken, c.env.JWT_SECRET)
-
-    const response: RefreshTokenResponse = {
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-    }
-
-    return c.json(response)
+  if (!parsed.success) {
+    throw validationError('Invalid request', { issues: parsed.error.issues })
   }
-)
+
+  const { refreshToken } = parsed.data
+
+  const result = await rotateRefreshToken(c.env.DB, refreshToken, c.env.JWT_SECRET)
+
+  const response: RefreshTokenResponse = {
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken
+  }
+
+  return c.json(response)
+})
 
 // =============================================================================
 // Recovery Endpoints
@@ -586,7 +589,7 @@ authRoutes.get('/recovery', authMiddleware(), async (c) => {
 
   const response: RecoveryInfoResponse = {
     kdfSalt: user.kdfSalt,
-    keyVerifier: user.keyVerifier,
+    keyVerifier: user.keyVerifier
   }
 
   return c.json(response)
@@ -612,9 +615,7 @@ authRoutes.post('/logout', authMiddleware(), async (c) => {
   const { refreshToken, allDevices } = parsed.data
 
   if (allDevices) {
-    await c.env.DB.prepare(`DELETE FROM refresh_tokens WHERE user_id = ?`)
-      .bind(auth.userId)
-      .run()
+    await c.env.DB.prepare(`DELETE FROM refresh_tokens WHERE user_id = ?`).bind(auth.userId).run()
   } else if (refreshToken) {
     const tokenHash = await hashToken(refreshToken)
     await c.env.DB.prepare(`DELETE FROM refresh_tokens WHERE token_hash = ? AND user_id = ?`)
@@ -627,7 +628,7 @@ authRoutes.post('/logout', authMiddleware(), async (c) => {
   }
 
   const response: LogoutResponse = {
-    success: true,
+    success: true
   }
 
   return c.json(response)
@@ -706,8 +707,8 @@ async function exchangeGoogleCode(params: ExchangeParams): Promise<GoogleTokenRe
       client_secret: params.clientSecret,
       redirect_uri: params.redirectUri,
       grant_type: 'authorization_code',
-      code_verifier: params.codeVerifier,
-    }),
+      code_verifier: params.codeVerifier
+    })
   })
 
   if (!response.ok) {
@@ -728,7 +729,7 @@ interface GoogleUserInfo {
 
 async function getGoogleUserInfo(accessToken: string): Promise<GoogleUserInfo> {
   const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: { Authorization: `Bearer ${accessToken}` }
   })
 
   if (!response.ok) {
@@ -763,11 +764,7 @@ async function verifyDeviceChallenge(
   }
 }
 
-async function ensurePendingDevice(
-  db: D1Database,
-  userId: string,
-  now: number
-): Promise<string> {
+async function ensurePendingDevice(db: D1Database, userId: string, now: number): Promise<string> {
   const existingPending = await db
     .prepare(
       `SELECT id
@@ -778,7 +775,8 @@ async function ensurePendingDevice(
     .first<{ id: string }>()
 
   if (existingPending?.id) {
-    await db.prepare(`UPDATE devices SET updated_at = ? WHERE id = ?`)
+    await db
+      .prepare(`UPDATE devices SET updated_at = ? WHERE id = ?`)
       .bind(now, existingPending.id)
       .run()
     return existingPending.id

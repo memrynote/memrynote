@@ -42,7 +42,7 @@ export const ErrorCode = {
   // Server errors
   SERVER_INTERNAL_ERROR: 'SERVER_INTERNAL_ERROR',
   SERVER_DATABASE_ERROR: 'SERVER_DATABASE_ERROR',
-  SERVER_VALIDATION_ERROR: 'SERVER_VALIDATION_ERROR',
+  SERVER_VALIDATION_ERROR: 'SERVER_VALIDATION_ERROR'
 } as const
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode]
@@ -69,7 +69,7 @@ export class SyncError extends Error {
     return {
       error: this.code,
       message: this.message,
-      ...(this.details && { details: this.details }),
+      ...(this.details && { details: this.details })
     }
   }
 }

@@ -54,17 +54,20 @@ export function RecoveryPhraseEntry({
     })
   }, [])
 
-  const handleKeyDown = useCallback((index: number, e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Tab' || e.key === 'Enter') {
-      e.preventDefault()
-      const nextIndex = e.shiftKey ? index - 1 : index + 1
-      if (nextIndex >= 0 && nextIndex < 24) {
-        inputRefs.current[nextIndex]?.focus()
+  const handleKeyDown = useCallback(
+    (index: number, e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault()
+        const nextIndex = e.shiftKey ? index - 1 : index + 1
+        if (nextIndex >= 0 && nextIndex < 24) {
+          inputRefs.current[nextIndex]?.focus()
+        }
+      } else if (e.key === 'Backspace' && !words[index] && index > 0) {
+        inputRefs.current[index - 1]?.focus()
       }
-    } else if (e.key === 'Backspace' && !words[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus()
-    }
-  }, [words])
+    },
+    [words]
+  )
 
   const allFilled = useMemo(() => {
     return words.every((word) => word.length > 0)
@@ -135,10 +138,7 @@ export function RecoveryPhraseEntry({
                 disabled={isLoading}
                 autoComplete="off"
                 spellCheck={false}
-                className={cn(
-                  'h-8 text-sm px-2',
-                  error && 'border-destructive'
-                )}
+                className={cn('h-8 text-sm px-2', error && 'border-destructive')}
               />
             </div>
           ))}

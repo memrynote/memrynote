@@ -19,7 +19,13 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
 import type { SetupFirstDeviceResponse } from '@shared/contracts/ipc-sync'
 
-type WizardStep = 'auth' | 'otp' | 'recovery-display' | 'recovery-confirm' | 'recovery-entry' | 'complete'
+type WizardStep =
+  | 'auth'
+  | 'otp'
+  | 'recovery-display'
+  | 'recovery-confirm'
+  | 'recovery-entry'
+  | 'complete'
 
 interface SetupWizardProps {
   onComplete?: () => void
@@ -191,32 +197,30 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps): React.
     }
   }, [recoveryPhrase])
 
-  const handleRecoveryPhraseEntry = useCallback(
-    async (phrase: string[]) => {
-      setIsLoading(true)
-      setError(undefined)
-      try {
-        const deviceInfo = getDeviceInfo()
-        const response: RegisterExistingDeviceResponse =
-          await window.api.sync.registerExistingDevice({
-            recoveryPhrase: phrase,
-            ...deviceInfo
-          })
-        if (response.success) {
-          setStep('complete')
-          toast.success('Device registered successfully!')
-        } else {
-          setError(response.error || 'Failed to register device')
+  const handleRecoveryPhraseEntry = useCallback(async (phrase: string[]) => {
+    setIsLoading(true)
+    setError(undefined)
+    try {
+      const deviceInfo = getDeviceInfo()
+      const response: RegisterExistingDeviceResponse = await window.api.sync.registerExistingDevice(
+        {
+          recoveryPhrase: phrase,
+          ...deviceInfo
         }
-      } catch (err) {
-        console.error('[SetupWizard] Recovery entry error:', err)
-        setError(err instanceof Error ? err.message : 'Failed to register device')
-      } finally {
-        setIsLoading(false)
+      )
+      if (response.success) {
+        setStep('complete')
+        toast.success('Device registered successfully!')
+      } else {
+        setError(response.error || 'Failed to register device')
       }
-    },
-    []
-  )
+    } catch (err) {
+      console.error('[SetupWizard] Recovery entry error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to register device')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
 
   const handleBackToAuth = useCallback(() => {
     setStep('auth')

@@ -12,7 +12,7 @@ import type {
   SyncItemPush,
   SyncItemResponse,
   SyncItemType,
-  VectorClock,
+  VectorClock
 } from '../contracts/sync-api'
 
 // =============================================================================
@@ -112,7 +112,7 @@ function rowToResponse(row: SyncItemRow): SyncItemResponse {
     signature: arrayBufferToBase64(row.signature),
     serverCursor: row.server_cursor,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    updatedAt: row.updated_at
   }
 }
 
@@ -149,7 +149,7 @@ function buildSignaturePayload(item: SyncItemPush): Record<string, unknown> {
     encryptedKey: item.encryptedKey,
     keyNonce: item.keyNonce,
     encryptedData: item.encryptedData,
-    dataNonce: item.dataNonce,
+    dataNonce: item.dataNonce
   }
 
   const metadata: Record<string, unknown> = {}
@@ -167,10 +167,7 @@ function buildSignaturePayload(item: SyncItemPush): Record<string, unknown> {
   return payload
 }
 
-async function verifyItemSignature(
-  item: SyncItemPush,
-  publicKeyBase64: string
-): Promise<boolean> {
+async function verifyItemSignature(item: SyncItemPush, publicKeyBase64: string): Promise<boolean> {
   try {
     const publicKeyBytes = base64ToUint8Array(publicKeyBase64)
     const signatureBytes = base64ToUint8Array(item.signature)
@@ -203,7 +200,7 @@ export async function validateItemSignature(
   if (!publicKey) {
     return {
       valid: false,
-      reason: 'Signer device not found or not authorized',
+      reason: 'Signer device not found or not authorized'
     }
   }
 
@@ -212,7 +209,7 @@ export async function validateItemSignature(
   if (!isValid) {
     return {
       valid: false,
-      reason: 'Invalid signature',
+      reason: 'Invalid signature'
     }
   }
 
@@ -229,9 +226,7 @@ export async function getSyncItem(
   itemId: string
 ): Promise<SyncItemResponse | null> {
   const row = await db
-    .prepare(
-      `SELECT * FROM sync_items WHERE user_id = ? AND item_id = ?`
-    )
+    .prepare(`SELECT * FROM sync_items WHERE user_id = ? AND item_id = ?`)
     .bind(userId, itemId)
     .first<SyncItemRow>()
 
@@ -297,7 +292,7 @@ export async function getSyncManifest(
     contentHash: row.content_hash,
     updatedAt: row.updated_at,
     sizeBytes: row.size_bytes,
-    serverCursor: row.server_cursor,
+    serverCursor: row.server_cursor
   }))
 }
 
@@ -340,7 +335,7 @@ export async function getSyncChanges(
     items: items.map(rowToResponse),
     hasMore,
     nextCursor,
-    serverTime: Date.now(),
+    serverTime: Date.now()
   }
 }
 
@@ -411,11 +406,7 @@ export async function upsertSyncItem(
 
   const savedItem = await getSyncItem(db, userId, item.itemId)
   if (!savedItem) {
-    throw new SyncError(
-      'Failed to save sync item',
-      ErrorCode.SERVER_DATABASE_ERROR,
-      500
-    )
+    throw new SyncError('Failed to save sync item', ErrorCode.SERVER_DATABASE_ERROR, 500)
   }
 
   return savedItem
@@ -506,7 +497,7 @@ export async function pushSyncItems(
       console.error(`Failed to upsert item ${item.itemId}:`, error)
       rejected.push({
         itemId: item.itemId,
-        reason: error instanceof Error ? error.message : 'Unknown error',
+        reason: error instanceof Error ? error.message : 'Unknown error'
       })
     }
   }
@@ -522,10 +513,7 @@ export async function pushSyncItems(
   return { accepted, rejected, conflicts, serverCursor }
 }
 
-function detectConflict(
-  serverItem: SyncItemResponse,
-  clientItem: SyncItemPush
-): boolean {
+function detectConflict(serverItem: SyncItemResponse, clientItem: SyncItemPush): boolean {
   if (serverItem.contentHash === clientItem.contentHash) {
     return false
   }
@@ -537,10 +525,7 @@ function detectConflict(
   return true
 }
 
-function isClockDominated(
-  serverClock: VectorClock,
-  clientClock: VectorClock
-): boolean {
+function isClockDominated(serverClock: VectorClock, clientClock: VectorClock): boolean {
   for (const [deviceId, serverTime] of Object.entries(serverClock)) {
     const clientTime = clientClock[deviceId] ?? 0
     if (clientTime < serverTime) {
@@ -618,9 +603,7 @@ export async function getSyncStatus(
     .first<{ count: number }>()
 
   const storageResult = await db
-    .prepare(
-      `SELECT storage_used, storage_limit FROM users WHERE id = ?`
-    )
+    .prepare(`SELECT storage_used, storage_limit FROM users WHERE id = ?`)
     .bind(userId)
     .first<{ storage_used: number; storage_limit: number }>()
 
@@ -638,6 +621,6 @@ export async function getSyncStatus(
     pendingItems: pendingResult?.count ?? 0,
     lastSyncAt: deviceResult?.updated_at ?? null,
     storageUsed: storageResult?.storage_used ?? 0,
-    storageLimit: storageResult?.storage_limit ?? DEFAULT_STORAGE_LIMIT_BYTES,
+    storageLimit: storageResult?.storage_limit ?? DEFAULT_STORAGE_LIMIT_BYTES
   }
 }

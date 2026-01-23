@@ -83,7 +83,7 @@ export const createEmailService = (config: EmailConfig) => {
 </body>
 </html>
           `,
-          text: `Your Memry verification code is: ${code}\n\nThis code expires in 10 minutes.\n\nIf you didn't request this code, you can safely ignore this email.`,
+          text: `Your Memry verification code is: ${code}\n\nThis code expires in 10 minutes.\n\nIf you didn't request this code, you can safely ignore this email.`
         })
 
         if (error) {
@@ -94,7 +94,7 @@ export const createEmailService = (config: EmailConfig) => {
       } catch (error) {
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to send email',
+          error: error instanceof Error ? error.message : 'Failed to send email'
         }
       }
     },
@@ -120,7 +120,7 @@ export const createEmailService = (config: EmailConfig) => {
           day: 'numeric',
           hour: '2-digit',
           minute: '2-digit',
-          timeZoneName: 'short',
+          timeZoneName: 'short'
         })
 
         const { data, error } = await resend.emails.send({
@@ -170,7 +170,7 @@ export const createEmailService = (config: EmailConfig) => {
 </body>
 </html>
           `,
-          text: `A new device has been linked to your Memry account:\n\nDevice: ${deviceName}\nPlatform: ${platform}\nTime: ${timestamp}\n\nIf this wasn't you, please remove the device from your account settings immediately.`,
+          text: `A new device has been linked to your Memry account:\n\nDevice: ${deviceName}\nPlatform: ${platform}\nTime: ${timestamp}\n\nIf this wasn't you, please remove the device from your account settings immediately.`
         })
 
         if (error) {
@@ -181,7 +181,7 @@ export const createEmailService = (config: EmailConfig) => {
       } catch (error) {
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to send email',
+          error: error instanceof Error ? error.message : 'Failed to send email'
         }
       }
     },
@@ -193,10 +193,7 @@ export const createEmailService = (config: EmailConfig) => {
      * @param deviceName - Name of the removed device
      * @returns Send result
      */
-    sendDeviceRemovedAlert: async (
-      email: string,
-      deviceName: string
-    ): Promise<EmailResult> => {
+    sendDeviceRemovedAlert: async (email: string, deviceName: string): Promise<EmailResult> => {
       try {
         const timestamp = new Date().toLocaleString('en-US', {
           weekday: 'long',
@@ -205,7 +202,7 @@ export const createEmailService = (config: EmailConfig) => {
           day: 'numeric',
           hour: '2-digit',
           minute: '2-digit',
-          timeZoneName: 'short',
+          timeZoneName: 'short'
         })
 
         const { data, error } = await resend.emails.send({
@@ -251,7 +248,7 @@ export const createEmailService = (config: EmailConfig) => {
 </body>
 </html>
           `,
-          text: `A device has been removed from your Memry account:\n\nDevice: ${deviceName}\nTime: ${timestamp}\n\nIf you didn't make this change, please secure your account immediately.`,
+          text: `A device has been removed from your Memry account:\n\nDevice: ${deviceName}\nTime: ${timestamp}\n\nIf you didn't make this change, please secure your account immediately.`
         })
 
         if (error) {
@@ -262,10 +259,10 @@ export const createEmailService = (config: EmailConfig) => {
       } catch (error) {
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to send email',
+          error: error instanceof Error ? error.message : 'Failed to send email'
         }
       }
-    },
+    }
   }
 }
 

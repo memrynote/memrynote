@@ -241,7 +241,7 @@ All D1 tables include explicit PKs, FKs, indexes, and constraints.
 - [x] T041a Define HKDF context string constants ("memry-vault-key-v1", "memry-signing-key-v1", "memry-verify-key-v1") in src/main/crypto/keys.ts
 - [x] T041b Define Argon2id parameter constants (memory: 65536KB, iterations: 3, parallelism: 4) in src/main/crypto/keys.ts
 - [x] T041c Implement rate limit state persistence using D1 rate_limits table in sync-server/src/middleware/rate-limit.ts
-- [x] T041d Create typed error codes enum (AUTH*\*, SYNC*_, CRYPTO\__) in sync-server/src/lib/errors.ts
+- [x] T041d Create typed error codes enum (AUTH*\*, SYNC*\_, CRYPTO\_\_) in sync-server/src/lib/errors.ts
 - [x] T041e Implement localhost HTTP server for OAuth callbacks in src/main/auth/oauth-server.ts (binds to random port, receives OAuth redirect, extracts auth code, auto-closes after 5 min timeout)
 - [x] T041f Create canonical CBOR field ordering documentation (reference src/shared/contracts/cbor-ordering.ts) in src/main/crypto/cbor.ts
 - [x] T041g Define sync cursor types and signature metadata in src/shared/contracts/sync-api.ts

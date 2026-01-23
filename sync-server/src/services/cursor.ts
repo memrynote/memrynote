@@ -44,11 +44,7 @@ export const getNextCursor = async (db: D1Database, userId: string): Promise<num
       .first<{ current_cursor: number }>()
 
     if (!result) {
-      throw new SyncError(
-        'Failed to generate cursor',
-        ErrorCode.SERVER_DATABASE_ERROR,
-        500
-      )
+      throw new SyncError('Failed to generate cursor', ErrorCode.SERVER_DATABASE_ERROR, 500)
     }
 
     return result.current_cursor
@@ -110,11 +106,7 @@ export const getNextCursors = async (
       .first<{ current_cursor: number }>()
 
     if (!result) {
-      throw new SyncError(
-        'Failed to generate cursors',
-        ErrorCode.SERVER_DATABASE_ERROR,
-        500
-      )
+      throw new SyncError('Failed to generate cursors', ErrorCode.SERVER_DATABASE_ERROR, 500)
     }
 
     // Generate array of cursors [newValue - count + 1, ..., newValue]
