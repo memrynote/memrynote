@@ -63,7 +63,8 @@ vi.mock('ws', () => {
   }
 
   const Constructor = function () {
-    return (globalThis as Record<string, unknown>).__mockWsFactory?.()
+    const factory = (globalThis as Record<string, unknown>).__mockWsFactory as (() => MockWebSocket) | undefined
+    return factory?.()
   }
   Constructor.OPEN = 1
   Constructor.CLOSED = 3

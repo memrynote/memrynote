@@ -80,7 +80,8 @@ vi.mock('../crypto', () => ({
     privateKey: new Uint8Array(64),
     deviceId: 'mock-device-id'
   }),
-  deriveVaultKey: vi.fn().mockResolvedValue(new Uint8Array(32))
+  deriveVaultKey: vi.fn().mockResolvedValue(new Uint8Array(32)),
+  secureZero: vi.fn().mockResolvedValue(undefined)
 }))
 
 vi.mock('../crypto/signatures', () => ({
@@ -88,22 +89,36 @@ vi.mock('../crypto/signatures', () => ({
   verifyPayload: vi.fn().mockResolvedValue({ valid: true })
 }))
 
-vi.mock('./api-client', () => ({
-  getSyncApiClient: vi.fn().mockReturnValue({
-    pushItems: vi.fn().mockResolvedValue({
-      accepted: [],
-      rejected: [],
-      conflicts: [],
-      serverCursor: 0
+vi.mock('./api-client', () => {
+  class MockSyncApiError extends Error {
+    constructor(
+      message: string,
+      public readonly status: number,
+      public readonly code?: string
+    ) {
+      super(message)
+      this.name = 'SyncApiError'
+    }
+  }
+
+  return {
+    getSyncApiClient: vi.fn().mockReturnValue({
+      pushItems: vi.fn().mockResolvedValue({
+        accepted: [],
+        rejected: [],
+        conflicts: [],
+        serverCursor: 0
+      }),
+      pullItems: vi.fn().mockResolvedValue({
+        items: [],
+        hasMore: false,
+        nextCursor: 0,
+        serverTime: Date.now()
+      })
     }),
-    pullItems: vi.fn().mockResolvedValue({
-      items: [],
-      hasMore: false,
-      nextCursor: 0,
-      serverTime: Date.now()
-    })
-  })
-}))
+    SyncApiError: MockSyncApiError
+  }
+})
 
 describe('SyncEngine', () => {
   let engine: SyncEngine
@@ -334,6 +349,87 @@ describe('SyncEngine', () => {
       await expect(engine.decryptItem(item, 'base64-public-key')).rejects.toThrow(
         'Signature verification failed'
       )
+    })
+  })
+
+  describe('sync lock', () => {
+    it('should prevent concurrent push operations', async () => {
+      // #given
+      const { getSyncQueue } = await import('./queue')
+      vi.mocked(getSyncQueue).mockReturnValue({
+        isEmpty: vi.fn().mockReturnValue(false),
+        getAll: vi.fn().mockReturnValue([
+          {
+            id: 'queue-1',
+            type: 'task',
+            itemId: 'task-123',
+            operation: 'create',
+            payload: '{"title":"Test"}',
+            priority: 0,
+            attempts: 0,
+            lastAttempt: null,
+            errorMessage: null,
+            createdAt: '2024-01-01T00:00:00.000Z'
+          }
+        ]),
+        remove: vi.fn(),
+        updateAttempt: vi.fn()
+      } as never)
+
+      await engine.initialize()
+
+      // Simulate a slow push by delaying the API response
+      const { getSyncApiClient } = await import('./api-client')
+      vi.mocked(getSyncApiClient).mockReturnValue({
+        pushItems: vi.fn().mockImplementation(
+          () =>
+            new Promise((resolve) =>
+              setTimeout(
+                () =>
+                  resolve({
+                    accepted: ['task-123'],
+                    rejected: [],
+                    conflicts: [],
+                    serverCursor: 1
+                  }),
+                100
+              )
+            )
+        ),
+        pullItems: vi.fn().mockResolvedValue({
+          items: [],
+          hasMore: false,
+          nextCursor: 0,
+          serverTime: Date.now()
+        })
+      } as never)
+
+      // #when
+      const push1 = engine.push()
+      const push2 = engine.push()
+
+      const [_result1, result2] = await Promise.all([push1, push2])
+
+      // #then - second push should return null because first is in progress
+      expect(result2).toBeNull()
+    })
+
+    it('should expose isSyncing property', async () => {
+      // #given
+      await engine.initialize()
+
+      // #then
+      expect(engine.isSyncing).toBe(false)
+    })
+  })
+
+  describe('session expired', () => {
+    it('should have session-expired event type defined', () => {
+      // #then - verify the event type is properly defined
+      expect(engine.listenerCount('sync:session-expired')).toBe(0)
+      const handler = vi.fn()
+      engine.on('sync:session-expired', handler)
+      expect(engine.listenerCount('sync:session-expired')).toBe(1)
     })
   })
 })

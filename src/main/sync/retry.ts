@@ -6,6 +6,12 @@
  * @module sync/retry
  */
 
+const DEFAULT_MAX_RETRIES = 5
+const DEFAULT_BASE_DELAY_MS = 1000
+const DEFAULT_MAX_DELAY_MS = 30000
+const DEFAULT_BACKOFF_MULTIPLIER = 2
+const DEFAULT_JITTER_FACTOR = 0.1
+
 export interface RetryConfig {
   maxRetries: number
   baseDelayMs: number
@@ -15,13 +21,16 @@ export interface RetryConfig {
 }
 
 export const DEFAULT_RETRY_CONFIG: RetryConfig = {
-  maxRetries: 5,
-  baseDelayMs: 1000,
-  maxDelayMs: 30000,
-  backoffMultiplier: 2,
-  jitterFactor: 0.1
+  maxRetries: DEFAULT_MAX_RETRIES,
+  baseDelayMs: DEFAULT_BASE_DELAY_MS,
+  maxDelayMs: DEFAULT_MAX_DELAY_MS,
+  backoffMultiplier: DEFAULT_BACKOFF_MULTIPLIER,
+  jitterFactor: DEFAULT_JITTER_FACTOR
 }
 
+/**
+ * Error thrown when all retry attempts are exhausted.
+ */
 export class RetryError extends Error {
   constructor(
     message: string,
@@ -33,11 +42,18 @@ export class RetryError extends Error {
   }
 }
 
+/**
+ * Calculate the delay before the next retry attempt using exponential backoff with jitter.
+ *
+ * @param attempt - The current attempt number (0-indexed)
+ * @param config - Retry configuration
+ * @returns Delay in milliseconds
+ */
 export function calculateBackoff(
   attempt: number,
   config: RetryConfig = DEFAULT_RETRY_CONFIG
 ): number {
-  const { baseDelayMs, maxDelayMs, backoffMultiplier, jitterFactor = 0.1 } = config
+  const { baseDelayMs, maxDelayMs, backoffMultiplier, jitterFactor = DEFAULT_JITTER_FACTOR } = config
 
   const exponentialDelay = baseDelayMs * Math.pow(backoffMultiplier, attempt)
   const cappedDelay = Math.min(exponentialDelay, maxDelayMs)
@@ -55,6 +71,14 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/**
+ * Execute an operation with automatic retry on failure.
+ *
+ * @param operation - The async operation to execute
+ * @param options - Retry options including shouldRetry predicate and onRetry callback
+ * @returns The operation result
+ * @throws RetryError if all attempts fail
+ */
 export async function withRetry<T>(
   operation: () => Promise<T>,
   options: RetryOptions = {}
@@ -98,6 +122,13 @@ export async function withRetry<T>(
   )
 }
 
+/**
+ * Determine if an error should trigger a retry.
+ * Returns false for client errors (4xx) except timeout (408) and rate limit (429).
+ *
+ * @param error - The error to check
+ * @returns true if the error is retryable
+ */
 export function isRetryableError(error: Error): boolean {
   if ('status' in error && typeof (error as { status: unknown }).status === 'number') {
     const status = (error as { status: number }).status
@@ -118,6 +149,13 @@ export function isRetryableError(error: Error): boolean {
   return !nonRetryablePatterns.some((pattern) => message.includes(pattern))
 }
 
+/**
+ * Create a wrapped operation that automatically retries on failure.
+ *
+ * @param operation - The operation to wrap
+ * @param config - Optional retry configuration overrides
+ * @returns A function that executes the operation with retry
+ */
 export function createRetryableOperation<T>(
   operation: () => Promise<T>,
   config: Partial<RetryConfig> = {}

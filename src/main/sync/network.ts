@@ -6,32 +6,35 @@
  * @module sync/network
  */
 
-import { net } from 'electron'
-import { BrowserWindow } from 'electron'
-import { EventEmitter } from 'events'
+import { net, BrowserWindow } from 'electron'
+import { TypedEmitter } from './typed-emitter'
 
-export interface NetworkEvents {
+export interface NetworkEvents extends Record<string, unknown[]> {
   'sync:online': []
   'sync:offline': []
   'sync:connectivity-changed': [online: boolean]
 }
 
-export class NetworkMonitor extends EventEmitter {
+const CHECK_INTERVAL_MS = 30000
+
+export class NetworkMonitor extends TypedEmitter<NetworkEvents> {
   private _isOnline: boolean = true
   private checkInterval: ReturnType<typeof setInterval> | null = null
-  private readonly CHECK_INTERVAL_MS = 30000
+  private started = false
 
-  constructor() {
-    super()
-    this._isOnline = net.isOnline()
-  }
-
+  /**
+   * Start monitoring network connectivity.
+   * Performs an immediate check and schedules periodic checks.
+   */
   start(): void {
-    this.checkInterval = setInterval(() => {
-      this.checkConnectivity()
-    }, this.CHECK_INTERVAL_MS)
+    if (this.started) return
+    this.started = true
 
     this.checkConnectivity()
+
+    this.checkInterval = setInterval(() => {
+      this.checkConnectivity()
+    }, CHECK_INTERVAL_MS)
   }
 
   stop(): void {

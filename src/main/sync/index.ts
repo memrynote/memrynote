@@ -69,3 +69,5 @@ export {
   emptyClock,
   type VectorClock
 } from './vector-clock'
+
+export { TypedEmitter } from './typed-emitter'

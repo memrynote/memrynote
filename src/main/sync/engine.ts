@@ -8,17 +8,17 @@
  */
 
 import { createHash } from 'crypto'
-import { EventEmitter } from 'events'
 import { BrowserWindow } from 'electron'
+import { TypedEmitter } from './typed-emitter'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getDatabase } from '../database/client'
-import { syncState, syncHistory } from '@shared/db/schema/sync-schema'
+import { syncState, syncHistory, devices } from '@shared/db/schema/sync-schema'
 import { getSyncQueue, type QueueItem } from './queue'
 import { getNetworkMonitor } from './network'
 import { getWebSocketManager, type WebSocketMessage } from './websocket'
 import { withRetry, isRetryableError } from './retry'
-import { getSyncApiClient } from './api-client'
+import { getSyncApiClient, SyncApiError } from './api-client'
 import {
   generateFileKey,
   wrapFileKey,
@@ -29,7 +29,8 @@ import {
   base64ToUint8Array,
   retrieveKeyMaterial,
   retrieveDeviceKeyPair,
-  deriveVaultKey
+  deriveVaultKey,
+  secureZero
 } from '../crypto'
 import { signPayloadBase64, verifyPayload } from '../crypto/signatures'
 import { CRYPTO_VERSION } from '@shared/contracts/crypto'
@@ -44,13 +45,16 @@ import type {
   VectorClock
 } from '@shared/contracts/sync-api'
 
-export interface SyncEngineEvents {
+export interface SyncEngineEvents extends Record<string, unknown[]> {
   'sync:status-changed': [status: SyncStatus]
   'sync:item-synced': [itemId: string, direction: 'push' | 'pull']
   'sync:error': [error: Error, context: string]
   'sync:push-complete': [accepted: string[], rejected: string[]]
   'sync:pull-complete': [items: SyncItemResponse[]]
+  'sync:session-expired': []
 }
+
+const MAX_BATCH_SIZE = 100
 
 export interface EncryptedSyncItem {
   itemType: SyncItemType
@@ -89,10 +93,10 @@ const SYNC_STATE_KEYS = {
   DEVICE_CLOCK: 'device_clock'
 } as const
 
-export class SyncEngine extends EventEmitter {
+export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
   private _status: SyncStatus = 'idle'
   private initialized = false
-  private syncing = false
+  private syncLock = false
 
   async initialize(): Promise<void> {
     if (this.initialized) return
@@ -127,8 +131,14 @@ export class SyncEngine extends EventEmitter {
     }
   }
 
+  /**
+   * Push pending items from the queue to the server.
+   * Items are encrypted, signed, and sent in batches of MAX_BATCH_SIZE.
+   *
+   * @returns Push response from server or null if skipped
+   */
   async push(): Promise<PushSyncResponse | null> {
-    if (this.syncing) return null
+    if (this.syncLock) return null
     if (!getNetworkMonitor().isOnline()) {
       this.setStatus('offline')
       return null
@@ -137,98 +147,128 @@ export class SyncEngine extends EventEmitter {
     const queue = getSyncQueue()
     if (queue.isEmpty()) return null
 
-    this.syncing = true
+    this.syncLock = true
     this.setStatus('syncing')
 
     try {
-      const items = queue.getAll()
-      const encryptedItems: SyncItemPush[] = []
+      const allItems = queue.getAll()
+      const itemBatches = this.chunkArray(allItems, MAX_BATCH_SIZE)
+      let lastResponse: PushSyncResponse | null = null
 
-      for (const queueItem of items) {
-        try {
-          const encrypted = await this.encryptAndSignItem(queueItem)
-          encryptedItems.push(encrypted)
-        } catch (error) {
-          const err = error instanceof Error ? error : new Error(String(error))
-          await queue.updateAttempt(queueItem.id, err.message)
-          this.emit('sync:error', err, `encrypt item ${queueItem.itemId}`)
-        }
-      }
+      for (const items of itemBatches) {
+        const encryptedItems: SyncItemPush[] = []
 
-      if (encryptedItems.length === 0) {
-        this.setStatus('idle')
-        this.syncing = false
-        return null
-      }
-
-      const deviceClock = await this.getDeviceClock()
-      const apiClient = getSyncApiClient()
-
-      const response = await withRetry(
-        () => apiClient.pushItems(encryptedItems, deviceClock),
-        {
-          shouldRetry: isRetryableError,
-          onRetry: (error, attempt) => {
-            this.emit('sync:error', error, `push retry ${attempt}`)
+        for (const queueItem of items) {
+          try {
+            const encrypted = await this.encryptAndSignItem(queueItem)
+            encryptedItems.push(encrypted)
+          } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error))
+            await queue.updateAttempt(queueItem.id, err.message)
+            this.emit('sync:error', err, `encrypt item ${queueItem.itemId}`)
           }
         }
-      )
 
-      for (const itemId of response.accepted) {
-        const queueItem = items.find((i) => i.itemId === itemId)
-        if (queueItem) {
-          await queue.remove(queueItem.id)
-          this.emit('sync:item-synced', itemId, 'push')
+        if (encryptedItems.length === 0) continue
+
+        const deviceClock = await this.getDeviceClock()
+        const apiClient = getSyncApiClient()
+
+        try {
+          const response = await withRetry(
+            () => apiClient.pushItems(encryptedItems, deviceClock),
+            {
+              shouldRetry: (error) => this.shouldRetryWithAuthCheck(error),
+              onRetry: (error, attempt) => {
+                this.emit('sync:error', error, `push retry ${attempt}`)
+              }
+            }
+          )
+
+          for (const itemId of response.accepted) {
+            const queueItem = items.find((i) => i.itemId === itemId)
+            if (queueItem) {
+              await queue.remove(queueItem.id)
+              this.emit('sync:item-synced', itemId, 'push')
+            }
+          }
+
+          for (const { itemId, reason } of response.rejected) {
+            const queueItem = items.find((i) => i.itemId === itemId)
+            if (queueItem) {
+              await queue.updateAttempt(queueItem.id, reason)
+            }
+          }
+
+          await this.updateCursor(response.serverCursor)
+          lastResponse = response
+        } catch (error) {
+          if (this.isAuthError(error)) {
+            this.emit('sync:session-expired')
+            this.broadcastToWindows('sync:session-expired', undefined)
+            throw error
+          }
+          throw error
         }
       }
 
-      for (const { itemId, reason } of response.rejected) {
-        const queueItem = items.find((i) => i.itemId === itemId)
-        if (queueItem) {
-          await queue.updateAttempt(queueItem.id, reason)
-        }
+      if (lastResponse) {
+        await this.logSyncHistory('push', allItems.length, 'upload')
+        this.emit('sync:push-complete', lastResponse.accepted, lastResponse.rejected.map((r) => r.itemId))
       }
-
-      await this.updateCursor(response.serverCursor)
-      await this.logSyncHistory('push', encryptedItems.length, 'upload')
-
-      this.emit('sync:push-complete', response.accepted, response.rejected.map((r) => r.itemId))
       this.setStatus('idle')
 
-      return response
+      return lastResponse
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error))
       this.emit('sync:error', err, 'push')
+      await this.logSyncHistory('error', 0, null, err.message)
       this.setStatus('error')
       return null
     } finally {
-      this.syncing = false
+      this.syncLock = false
     }
   }
 
+  /**
+   * Pull items from the server since the last cursor position.
+   * Items are verified, decrypted, and events are emitted for each.
+   *
+   * @returns Pull response from server or null if skipped
+   */
   async pull(): Promise<PullSyncResponse | null> {
-    if (this.syncing) return null
+    if (this.syncLock) return null
     if (!getNetworkMonitor().isOnline()) {
       this.setStatus('offline')
       return null
     }
 
-    this.syncing = true
+    this.syncLock = true
     this.setStatus('syncing')
 
     try {
       const cursor = await this.getCursor()
       const apiClient = getSyncApiClient()
 
-      const response = await withRetry(
-        () => apiClient.pullItems(cursor),
-        {
-          shouldRetry: isRetryableError,
-          onRetry: (error, attempt) => {
-            this.emit('sync:error', error, `pull retry ${attempt}`)
+      let response: PullSyncResponse
+      try {
+        response = await withRetry(
+          () => apiClient.pullItems(cursor),
+          {
+            shouldRetry: (error) => this.shouldRetryWithAuthCheck(error),
+            onRetry: (error, attempt) => {
+              this.emit('sync:error', error, `pull retry ${attempt}`)
+            }
           }
+        )
+      } catch (error) {
+        if (this.isAuthError(error)) {
+          this.emit('sync:session-expired')
+          this.broadcastToWindows('sync:session-expired', undefined)
+          throw error
         }
-      )
+        throw error
+      }
 
       const decryptedItems: DecryptedSyncItem[] = []
 
@@ -253,28 +293,54 @@ export class SyncEngine extends EventEmitter {
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error))
       this.emit('sync:error', err, 'pull')
+      await this.logSyncHistory('error', 0, null, err.message)
       this.setStatus('error')
       return null
     } finally {
-      this.syncing = false
+      this.syncLock = false
     }
   }
 
+  /**
+   * Perform a full sync cycle: push then pull.
+   */
   async sync(): Promise<void> {
     await this.push()
     await this.pull()
   }
 
+  /**
+   * Pause sync operations.
+   */
   pause(): void {
     this.setStatus('paused')
   }
 
+  /**
+   * Resume sync operations from paused state.
+   */
   resume(): void {
     if (this._status === 'paused') {
       this.setStatus('idle')
     }
   }
 
+  /**
+   * Check if sync is currently in progress.
+   */
+  get isSyncing(): boolean {
+    return this.syncLock
+  }
+
+  /**
+   * Encrypt and sign an item for sync.
+   *
+   * @param itemType - The type of sync item
+   * @param itemId - The unique identifier of the item
+   * @param data - The plaintext data to encrypt
+   * @param options - Additional options (operation, clock, stateVector, deleted)
+   * @returns Encrypted and signed sync item
+   */
   async encryptItem(
     itemType: SyncItemType,
     itemId: string,
@@ -294,57 +360,67 @@ export class SyncEngine extends EventEmitter {
     }
 
     const fileKey = await generateFileKey()
-    const { encryptedKey, keyNonce } = await wrapFileKey(fileKey, vaultKey)
+    try {
+      const { encryptedKey, keyNonce } = await wrapFileKey(fileKey, vaultKey)
 
-    const jsonData = JSON.stringify(data)
-    const plaintext = new TextEncoder().encode(jsonData)
-    const { ciphertext, nonce } = await encrypt(plaintext, fileKey)
+      const jsonData = JSON.stringify(data)
+      const plaintext = new TextEncoder().encode(jsonData)
+      const { ciphertext, nonce } = await encrypt(plaintext, fileKey)
 
-    const encryptedData = uint8ArrayToBase64(ciphertext)
-    const dataNonce = uint8ArrayToBase64(nonce)
+      const encryptedData = uint8ArrayToBase64(ciphertext)
+      const dataNonce = uint8ArrayToBase64(nonce)
 
-    const contentHash = createHash('sha256').update(ciphertext).digest('hex')
-    const sizeBytes = ciphertext.length
+      const contentHash = this.computeContentHash(ciphertext, encryptedKey, keyNonce, dataNonce)
+      const sizeBytes = ciphertext.length
 
-    const signaturePayload: SignaturePayloadV1 = {
-      id: itemId,
-      type: itemType,
-      operation: options.operation,
-      cryptoVersion: CRYPTO_VERSION,
-      encryptedKey,
-      keyNonce,
-      encryptedData,
-      dataNonce,
-      metadata: {
-        clock: options.clock,
-        stateVector: options.stateVector
+      const signaturePayload: SignaturePayloadV1 = {
+        id: itemId,
+        type: itemType,
+        operation: options.operation,
+        cryptoVersion: CRYPTO_VERSION,
+        encryptedKey,
+        keyNonce,
+        encryptedData,
+        dataNonce,
+        metadata: {
+          clock: options.clock,
+          stateVector: options.stateVector
+        }
       }
-    }
 
-    const signature = await signPayloadBase64(
-      signaturePayload,
-      deviceKeyPair.privateKey,
-      deviceKeyPair.deviceId
-    )
+      const signature = await signPayloadBase64(
+        signaturePayload,
+        deviceKeyPair.privateKey,
+        deviceKeyPair.deviceId
+      )
 
-    return {
-      itemType,
-      itemId,
-      encryptedData,
-      encryptedKey,
-      keyNonce,
-      dataNonce,
-      clock: options.clock,
-      stateVector: options.stateVector,
-      deleted: options.deleted ?? false,
-      cryptoVersion: CRYPTO_VERSION,
-      sizeBytes,
-      contentHash,
-      signerDeviceId: deviceKeyPair.deviceId,
-      signature
+      return {
+        itemType,
+        itemId,
+        encryptedData,
+        encryptedKey,
+        keyNonce,
+        dataNonce,
+        clock: options.clock,
+        stateVector: options.stateVector,
+        deleted: options.deleted ?? false,
+        cryptoVersion: CRYPTO_VERSION,
+        sizeBytes,
+        contentHash,
+        signerDeviceId: deviceKeyPair.deviceId,
+        signature
+      }
+    } finally {
+      await secureZero(fileKey)
     }
   }
 
+  /**
+   * Re-sign an already encrypted item with this device's key.
+   *
+   * @param encryptedItem - The encrypted item to sign
+   * @returns The item with updated signature and signerDeviceId
+   */
   async signItem(encryptedItem: EncryptedSyncItem): Promise<EncryptedSyncItem> {
     const deviceKeyPair = await retrieveDeviceKeyPair()
 
@@ -379,6 +455,14 @@ export class SyncEngine extends EventEmitter {
     }
   }
 
+  /**
+   * Verify signature and decrypt an item received from the server.
+   *
+   * @param item - The encrypted item from the server
+   * @param signerPublicKey - The public key of the signing device
+   * @returns Decrypted item with metadata
+   * @throws Error if signature verification fails
+   */
   async decryptItem(item: SyncItemResponse, signerPublicKey: string): Promise<DecryptedSyncItem> {
     const signaturePayload: SignaturePayloadV1 = {
       id: item.itemId,
@@ -406,24 +490,28 @@ export class SyncEngine extends EventEmitter {
 
     const vaultKey = await this.getVaultKey()
     const fileKey = await unwrapFileKey(item.encryptedKey, item.keyNonce, vaultKey)
-    const ciphertext = base64ToUint8Array(item.encryptedData)
-    const nonce = base64ToUint8Array(item.dataNonce)
-    const plaintext = await decrypt(ciphertext, nonce, fileKey)
+    try {
+      const ciphertext = base64ToUint8Array(item.encryptedData)
+      const nonce = base64ToUint8Array(item.dataNonce)
+      const plaintext = await decrypt(ciphertext, nonce, fileKey)
 
-    const jsonData = new TextDecoder().decode(plaintext)
-    const data = JSON.parse(jsonData)
+      const jsonData = new TextDecoder().decode(plaintext)
+      const data = JSON.parse(jsonData)
 
-    return {
-      itemType: item.itemType,
-      itemId: item.itemId,
-      data,
-      clock: item.clock,
-      stateVector: item.stateVector,
-      deleted: item.deleted,
-      signerDeviceId: item.signerDeviceId,
-      serverCursor: item.serverCursor,
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt
+      return {
+        itemType: item.itemType,
+        itemId: item.itemId,
+        data,
+        clock: item.clock,
+        stateVector: item.stateVector,
+        deleted: item.deleted,
+        signerDeviceId: item.signerDeviceId,
+        serverCursor: item.serverCursor,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt
+      }
+    } finally {
+      await secureZero(fileKey)
     }
   }
 
@@ -470,8 +558,14 @@ export class SyncEngine extends EventEmitter {
       return uint8ArrayToBase64(deviceKeyPair.publicKey)
     }
 
-    // TODO: Look up other device public keys from devices table
-    return null
+    const db = getDatabase()
+    const rows = await db
+      .select({ authPublicKey: devices.authPublicKey })
+      .from(devices)
+      .where(eq(devices.id, deviceId))
+      .limit(1)
+
+    return rows[0]?.authPublicKey ?? null
   }
 
   private async getCursor(): Promise<number> {
@@ -552,7 +646,8 @@ export class SyncEngine extends EventEmitter {
   private async logSyncHistory(
     type: 'push' | 'pull' | 'error',
     itemCount: number,
-    direction: 'upload' | 'download' | null
+    direction: 'upload' | 'download' | null,
+    errorMessage?: string
   ): Promise<void> {
     const db = getDatabase()
     await db.insert(syncHistory).values({
@@ -560,6 +655,7 @@ export class SyncEngine extends EventEmitter {
       type,
       itemCount,
       direction,
+      details: errorMessage ? { error: errorMessage } : null,
       createdAt: new Date().toISOString()
     })
   }
@@ -587,6 +683,42 @@ export class SyncEngine extends EventEmitter {
         window.webContents.send(channel, data)
       }
     }
+  }
+
+  private chunkArray<T>(array: T[], chunkSize: number): T[][] {
+    const chunks: T[][] = []
+    for (let i = 0; i < array.length; i += chunkSize) {
+      chunks.push(array.slice(i, i + chunkSize))
+    }
+    return chunks
+  }
+
+  private computeContentHash(
+    ciphertext: Uint8Array,
+    encryptedKey: string,
+    keyNonce: string,
+    dataNonce: string
+  ): string {
+    return createHash('sha256')
+      .update(ciphertext)
+      .update(encryptedKey)
+      .update(keyNonce)
+      .update(dataNonce)
+      .digest('hex')
+  }
+
+  private isAuthError(error: unknown): boolean {
+    if (error instanceof SyncApiError) {
+      return error.status === 401 || error.status === 403
+    }
+    return false
+  }
+
+  private shouldRetryWithAuthCheck(error: Error): boolean {
+    if (this.isAuthError(error)) {
+      return false
+    }
+    return isRetryableError(error)
   }
 }
 

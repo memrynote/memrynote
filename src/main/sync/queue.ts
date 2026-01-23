@@ -7,9 +7,9 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
-import { EventEmitter } from 'events'
 import { BrowserWindow } from 'electron'
 import { eq, asc } from 'drizzle-orm'
+import { TypedEmitter } from './typed-emitter'
 import { getDatabase } from '../database/client'
 import { syncQueue } from '@shared/db/schema/sync-schema'
 import type { NewSyncQueueItem } from '@shared/db/schema/sync-schema'
@@ -28,14 +28,14 @@ export interface QueueItem {
   createdAt: string
 }
 
-export interface QueueEvents {
+export interface QueueEvents extends Record<string, unknown[]> {
   'sync:queue-changed': [count: number]
   'sync:item-added': [item: QueueItem]
   'sync:item-removed': [id: string]
   'sync:item-updated': [item: QueueItem]
 }
 
-export class SyncQueue extends EventEmitter {
+export class SyncQueue extends TypedEmitter<QueueEvents> {
   private items: Map<string, QueueItem> = new Map()
   private initialized = false
 
@@ -68,6 +68,18 @@ export class SyncQueue extends EventEmitter {
     }
   }
 
+  /**
+   * Add an item to the queue or update if it already exists.
+   * Deduplicates by (type, itemId) - if an item with the same type and itemId exists,
+   * it will be updated with the new payload and operation.
+   *
+   * @param type - The sync item type
+   * @param itemId - The unique ID of the item
+   * @param operation - The sync operation (create, update, delete)
+   * @param payload - JSON stringified payload data
+   * @param priority - Queue priority (higher = processed first)
+   * @returns The queue item (new or updated)
+   */
   async add(
     type: SyncItemType,
     itemId: string,
@@ -75,6 +87,31 @@ export class SyncQueue extends EventEmitter {
     payload: string,
     priority: number = 0
   ): Promise<QueueItem> {
+    const existingItems = this.getByItemId(itemId)
+    const existing = existingItems.find((i) => i.type === type)
+
+    if (existing) {
+      existing.operation = operation
+      existing.payload = payload
+      existing.priority = Math.max(existing.priority, priority)
+      existing.errorMessage = null
+
+      const db = getDatabase()
+      await db
+        .update(syncQueue)
+        .set({
+          operation,
+          payload,
+          priority: existing.priority,
+          errorMessage: null
+        })
+        .where(eq(syncQueue.id, existing.id))
+
+      this.emit('sync:item-updated', existing)
+      this.broadcastToWindows('sync:item-updated', existing)
+      return existing
+    }
+
     const id = uuidv4()
     const createdAt = new Date().toISOString()
 
@@ -115,6 +152,12 @@ export class SyncQueue extends EventEmitter {
     return item
   }
 
+  /**
+   * Remove an item from the queue.
+   *
+   * @param id - The queue item ID to remove
+   * @returns true if item was removed, false if not found
+   */
   async remove(id: string): Promise<boolean> {
     if (!this.items.has(id)) {
       return false
@@ -131,6 +174,13 @@ export class SyncQueue extends EventEmitter {
     return true
   }
 
+  /**
+   * Update attempt count and error message for a queue item.
+   *
+   * @param id - The queue item ID
+   * @param errorMessage - Optional error message from the last attempt
+   * @returns The updated item or null if not found
+   */
   async updateAttempt(
     id: string,
     errorMessage: string | null = null
@@ -159,6 +209,9 @@ export class SyncQueue extends EventEmitter {
     return item
   }
 
+  /**
+   * Get the highest priority item without removing it.
+   */
   peek(): QueueItem | null {
     if (this.items.size === 0) return null
 
@@ -166,26 +219,44 @@ export class SyncQueue extends EventEmitter {
     return sorted[0] ?? null
   }
 
+  /**
+   * Get all items sorted by priority (descending) then createdAt (ascending).
+   */
   getAll(): QueueItem[] {
     return this.getSorted()
   }
 
+  /**
+   * Get all queue items for a specific item ID.
+   */
   getByItemId(itemId: string): QueueItem[] {
     return Array.from(this.items.values()).filter((item) => item.itemId === itemId)
   }
 
+  /**
+   * Get a specific queue item by its ID.
+   */
   get(id: string): QueueItem | null {
     return this.items.get(id) ?? null
   }
 
+  /**
+   * Get the number of items in the queue.
+   */
   size(): number {
     return this.items.size
   }
 
+  /**
+   * Check if the queue is empty.
+   */
   isEmpty(): boolean {
     return this.items.size === 0
   }
 
+  /**
+   * Remove all items from the queue.
+   */
   async clear(): Promise<void> {
     const db = getDatabase()
     await db.delete(syncQueue)
