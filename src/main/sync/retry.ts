@@ -53,7 +53,12 @@ export function calculateBackoff(
   attempt: number,
   config: RetryConfig = DEFAULT_RETRY_CONFIG
 ): number {
-  const { baseDelayMs, maxDelayMs, backoffMultiplier, jitterFactor = DEFAULT_JITTER_FACTOR } = config
+  const {
+    baseDelayMs,
+    maxDelayMs,
+    backoffMultiplier,
+    jitterFactor = DEFAULT_JITTER_FACTOR
+  } = config
 
   const exponentialDelay = baseDelayMs * Math.pow(backoffMultiplier, attempt)
   const cappedDelay = Math.min(exponentialDelay, maxDelayMs)
@@ -138,13 +143,7 @@ export function isRetryableError(error: Error): boolean {
   }
 
   const message = error.message.toLowerCase()
-  const nonRetryablePatterns = [
-    'invalid',
-    'unauthorized',
-    'forbidden',
-    'not found',
-    'bad request'
-  ]
+  const nonRetryablePatterns = ['invalid', 'unauthorized', 'forbidden', 'not found', 'bad request']
 
   return !nonRetryablePatterns.some((pattern) => message.includes(pattern))
 }

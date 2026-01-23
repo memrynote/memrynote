@@ -230,7 +230,9 @@ export class OAuthServer extends EventEmitter {
       this.emit('error', errorObj)
       res.writeHead(200, { 'Content-Type': 'text/html' })
       res.end(ERROR_HTML(errorDescription ?? error))
-      this.rejectCode?.(new Error(`OAuth error: ${error} - ${errorDescription ?? 'No description'}`))
+      this.rejectCode?.(
+        new Error(`OAuth error: ${error} - ${errorDescription ?? 'No description'}`)
+      )
       this.close()
       return
     }

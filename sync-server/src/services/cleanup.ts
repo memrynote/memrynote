@@ -146,14 +146,14 @@ export const runCleanupJobs = async (db: D1Database): Promise<CleanupResult> => 
     linkingSessions,
     completedLinkingSessions,
     refreshTokens,
-    rateLimits,
+    rateLimits
   ] = await Promise.all([
     cleanupExpiredOtpCodes(db),
     cleanupUsedOtpCodes(db),
     cleanupExpiredLinkingSessions(db),
     cleanupCompletedLinkingSessions(db),
     cleanupRefreshTokens(db),
-    cleanupRateLimits(db),
+    cleanupRateLimits(db)
   ])
 
   const durationMs = Date.now() - startTime
@@ -173,7 +173,7 @@ export const runCleanupJobs = async (db: D1Database): Promise<CleanupResult> => 
     refreshTokens,
     rateLimits,
     totalCleaned,
-    durationMs,
+    durationMs
   }
 }
 

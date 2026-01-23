@@ -172,7 +172,10 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
       this.emit('sync:ws-message', message)
       this.broadcastToWindows('sync:ws-message', message)
     } catch (error) {
-      this.emit('sync:ws-error', error instanceof Error ? error : new Error('Malformed WebSocket message'))
+      this.emit(
+        'sync:ws-error',
+        error instanceof Error ? error : new Error('Malformed WebSocket message')
+      )
     }
   }
 
@@ -199,18 +202,18 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
     this.setState('reconnecting')
 
     try {
-      await withRetry(
-        () => this.establishConnection(),
-        {
-          ...this.reconnectConfig,
-          onRetry: (_error, attempt) => {
-            this.emit('sync:ws-reconnecting', attempt)
-            this.broadcastToWindows('sync:ws-reconnecting', attempt)
-          }
+      await withRetry(() => this.establishConnection(), {
+        ...this.reconnectConfig,
+        onRetry: (_error, attempt) => {
+          this.emit('sync:ws-reconnecting', attempt)
+          this.broadcastToWindows('sync:ws-reconnecting', attempt)
         }
-      )
+      })
     } catch (error) {
-      this.emit('sync:ws-error', error instanceof Error ? error : new Error('WebSocket reconnection failed'))
+      this.emit(
+        'sync:ws-error',
+        error instanceof Error ? error : new Error('WebSocket reconnection failed')
+      )
       this.setState('disconnected')
     } finally {
       this.reconnecting = false
@@ -261,7 +264,10 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
       this.ws.send(JSON.stringify(message))
       return true
     } catch (error) {
-      this.emit('sync:ws-error', error instanceof Error ? error : new Error('WebSocket send failed'))
+      this.emit(
+        'sync:ws-error',
+        error instanceof Error ? error : new Error('WebSocket send failed')
+      )
       return false
     }
   }

@@ -282,8 +282,7 @@ export function registerAuthHandlers(): void {
           })
 
           const deviceId =
-            tokenResponse.device?.id ??
-            decodeDeviceIdFromAccessToken(tokenResponse.accessToken)
+            tokenResponse.device?.id ?? decodeDeviceIdFromAccessToken(tokenResponse.accessToken)
 
           if (!deviceId) {
             activeOAuthServer?.close()

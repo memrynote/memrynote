@@ -67,10 +67,7 @@ const constantTimeCompare = (a: string, b: string): boolean => {
  * Called before creating a new OTP to ensure only one active code exists.
  */
 export const invalidateExistingOtps = async (db: D1Database, email: string): Promise<void> => {
-  await db
-    .prepare(`UPDATE otp_codes SET used = 1 WHERE email = ? AND used = 0`)
-    .bind(email)
-    .run()
+  await db.prepare(`UPDATE otp_codes SET used = 1 WHERE email = ? AND used = 0`).bind(email).run()
 }
 
 /**
@@ -220,10 +217,7 @@ export const cleanupExpiredOtps = async (db: D1Database): Promise<number> => {
   const now = Date.now()
   const cutoff = now - OTP_SECURITY.expiryMs * 2 // Keep for 2x expiry for audit
 
-  const result = await db
-    .prepare(`DELETE FROM otp_codes WHERE expires_at < ?`)
-    .bind(cutoff)
-    .run()
+  const result = await db.prepare(`DELETE FROM otp_codes WHERE expires_at < ?`).bind(cutoff).run()
 
   return result.meta.changes ?? 0
 }

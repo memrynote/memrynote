@@ -181,10 +181,7 @@ export class SyncQueue extends TypedEmitter<QueueEvents> {
    * @param errorMessage - Optional error message from the last attempt
    * @returns The updated item or null if not found
    */
-  async updateAttempt(
-    id: string,
-    errorMessage: string | null = null
-  ): Promise<QueueItem | null> {
+  async updateAttempt(id: string, errorMessage: string | null = null): Promise<QueueItem | null> {
     const item = this.items.get(id)
     if (!item) return null
 

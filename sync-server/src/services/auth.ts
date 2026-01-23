@@ -11,7 +11,7 @@ import {
   ErrorCode,
   refreshTokenInvalid,
   refreshTokenExpired,
-  refreshTokenRevoked,
+  refreshTokenRevoked
 } from '../lib/errors'
 
 /**
@@ -203,7 +203,7 @@ export const rotateRefreshToken = async (
       accessToken,
       refreshToken: oldToken,
       accessTokenExpiresAt,
-      refreshTokenExpiresAt: record.expires_at,
+      refreshTokenExpiresAt: record.expires_at
     }
   }
 
@@ -225,7 +225,7 @@ export const rotateRefreshToken = async (
     accessToken,
     refreshToken: newRefreshToken,
     accessTokenExpiresAt,
-    refreshTokenExpiresAt,
+    refreshTokenExpiresAt
   }
 }
 
@@ -237,10 +237,7 @@ export const rotateRefreshToken = async (
  * @param deviceId - Device ID to revoke tokens for
  * @returns Number of tokens revoked
  */
-export const revokeDeviceTokens = async (
-  db: D1Database,
-  deviceId: string
-): Promise<number> => {
+export const revokeDeviceTokens = async (db: D1Database, deviceId: string): Promise<number> => {
   const now = Date.now()
 
   const result = await db
@@ -265,10 +262,7 @@ export const revokeDeviceTokens = async (
  * @param userId - User ID to revoke tokens for
  * @returns Number of tokens revoked
  */
-export const revokeUserTokens = async (
-  db: D1Database,
-  userId: string
-): Promise<number> => {
+export const revokeUserTokens = async (db: D1Database, userId: string): Promise<number> => {
   const now = Date.now()
 
   const result = await db
@@ -292,10 +286,7 @@ export const revokeUserTokens = async (
  * @param token - The refresh token to revoke
  * @returns True if token was found and revoked
  */
-export const revokeRefreshToken = async (
-  db: D1Database,
-  token: string
-): Promise<boolean> => {
+export const revokeRefreshToken = async (db: D1Database, token: string): Promise<boolean> => {
   const tokenHash = await hashToken(token)
   const now = Date.now()
 
@@ -345,15 +336,12 @@ export const cleanupRefreshTokens = async (db: D1Database): Promise<number> => {
  * @param secret - JWT signing secret
  * @returns Decoded payload
  */
-export const verifyAccessToken = async (
-  token: string,
-  secret: string
-): Promise<JWTPayload> => {
+export const verifyAccessToken = async (token: string, secret: string): Promise<JWTPayload> => {
   const secretKey = new TextEncoder().encode(secret)
 
   try {
     const { payload } = await jose.jwtVerify(token, secretKey, {
-      algorithms: [JWT_ALGORITHM],
+      algorithms: [JWT_ALGORITHM]
     })
 
     if (!payload.sub || !payload.deviceId) {
@@ -364,7 +352,7 @@ export const verifyAccessToken = async (
       sub: payload.sub,
       deviceId: payload.deviceId as string,
       iat: payload.iat ?? 0,
-      exp: payload.exp ?? 0,
+      exp: payload.exp ?? 0
     }
   } catch (error) {
     if (error instanceof jose.errors.JWTExpired) {
@@ -405,6 +393,6 @@ export const issueTokenPair = async (
     accessToken,
     refreshToken,
     accessTokenExpiresAt,
-    refreshTokenExpiresAt,
+    refreshTokenExpiresAt
   }
 }

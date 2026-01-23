@@ -189,15 +189,12 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
         const apiClient = getSyncApiClient()
 
         try {
-          const response = await withRetry(
-            () => apiClient.pushItems(encryptedItems, deviceClock),
-            {
-              shouldRetry: (error) => this.shouldRetryWithAuthCheck(error),
-              onRetry: (error, attempt) => {
-                this.emit('sync:error', error, `push retry ${attempt}`)
-              }
+          const response = await withRetry(() => apiClient.pushItems(encryptedItems, deviceClock), {
+            shouldRetry: (error) => this.shouldRetryWithAuthCheck(error),
+            onRetry: (error, attempt) => {
+              this.emit('sync:error', error, `push retry ${attempt}`)
             }
-          )
+          })
 
           for (const itemId of response.accepted) {
             const queueItem = items.find((i) => i.itemId === itemId)
@@ -228,7 +225,11 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
 
       if (lastResponse) {
         await this.logSyncHistory('push', allItems.length, 'upload')
-        this.emit('sync:push-complete', lastResponse.accepted, lastResponse.rejected.map((r) => r.itemId))
+        this.emit(
+          'sync:push-complete',
+          lastResponse.accepted,
+          lastResponse.rejected.map((r) => r.itemId)
+        )
       }
       this.setStatus('idle')
 
@@ -266,15 +267,12 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
 
       let response: PullSyncResponse
       try {
-        response = await withRetry(
-          () => apiClient.pullItems(cursor),
-          {
-            shouldRetry: (error) => this.shouldRetryWithAuthCheck(error),
-            onRetry: (error, attempt) => {
-              this.emit('sync:error', error, `pull retry ${attempt}`)
-            }
+        response = await withRetry(() => apiClient.pullItems(cursor), {
+          shouldRetry: (error) => this.shouldRetryWithAuthCheck(error),
+          onRetry: (error, attempt) => {
+            this.emit('sync:error', error, `pull retry ${attempt}`)
           }
-        )
+        })
       } catch (error) {
         if (this.isAuthError(error)) {
           this.emit('sync:session-expired')
@@ -532,14 +530,9 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
   private async encryptAndSignItem(queueItem: QueueItem): Promise<SyncItemPush> {
     const data = JSON.parse(queueItem.payload)
 
-    const encrypted = await this.encryptItem(
-      queueItem.type,
-      queueItem.itemId,
-      data,
-      {
-        operation: queueItem.operation as 'create' | 'update' | 'delete'
-      }
-    )
+    const encrypted = await this.encryptItem(queueItem.type, queueItem.itemId, data, {
+      operation: queueItem.operation as 'create' | 'update' | 'delete'
+    })
 
     return encrypted
   }
@@ -677,7 +670,9 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
   private handleOnline(): void {
     if (this._status === 'offline') {
       this.setStatus('idle')
-      this.sync().catch((err) => this.emit('sync:error', err instanceof Error ? err : new Error(String(err)), 'handleOnline'))
+      this.sync().catch((err) =>
+        this.emit('sync:error', err instanceof Error ? err : new Error(String(err)), 'handleOnline')
+      )
     }
   }
 
@@ -687,7 +682,13 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
 
   private handleSyncNotification(): void {
     if (this._status === 'idle') {
-      this.pull().catch((err) => this.emit('sync:error', err instanceof Error ? err : new Error(String(err)), 'handleSyncNotification'))
+      this.pull().catch((err) =>
+        this.emit(
+          'sync:error',
+          err instanceof Error ? err : new Error(String(err)),
+          'handleSyncNotification'
+        )
+      )
     }
   }
 

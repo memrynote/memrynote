@@ -62,7 +62,7 @@ const recordToUser = (record: UserRecord): User => ({
   storageUsed: record.storage_used,
   storageLimit: record.storage_limit,
   createdAt: record.created_at,
-  updatedAt: record.updated_at,
+  updatedAt: record.updated_at
 })
 
 const userToPublic = (user: User): UserPublic => ({
@@ -74,7 +74,7 @@ const userToPublic = (user: User): UserPublic => ({
   storageUsed: user.storageUsed,
   storageLimit: user.storageLimit,
   createdAt: user.createdAt,
-  updatedAt: user.updatedAt,
+  updatedAt: user.updatedAt
 })
 
 /**
@@ -125,10 +125,7 @@ export const createUser = async (db: D1Database, params: CreateUserParams): Prom
  * @returns User or null if not found
  */
 export const getUserById = async (db: D1Database, id: string): Promise<User | null> => {
-  const record = await db
-    .prepare(`SELECT * FROM users WHERE id = ?`)
-    .bind(id)
-    .first<UserRecord>()
+  const record = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(id).first<UserRecord>()
 
   return record ? recordToUser(record) : null
 }
@@ -280,7 +277,7 @@ export const findOrCreateUserByEmail = async (
     authMethod,
     authProvider: provider,
     authProviderId: providerId,
-    emailVerified: authMethod === 'oauth',
+    emailVerified: authMethod === 'oauth'
   })
 
   if (provider && providerId) {
@@ -359,7 +356,7 @@ export const getLinkedIdentities = async (
   return results.results.map((r) => ({
     provider: r.provider,
     email: r.email,
-    createdAt: r.created_at,
+    createdAt: r.created_at
   }))
 }
 
@@ -374,7 +371,7 @@ export const deleteUser = async (db: D1Database, userId: string): Promise<void> 
     db.prepare(`DELETE FROM user_identities WHERE user_id = ?`).bind(userId),
     db.prepare(`DELETE FROM refresh_tokens WHERE user_id = ?`).bind(userId),
     db.prepare(`DELETE FROM devices WHERE user_id = ?`).bind(userId),
-    db.prepare(`DELETE FROM users WHERE id = ?`).bind(userId),
+    db.prepare(`DELETE FROM users WHERE id = ?`).bind(userId)
   ])
 }
 
