@@ -345,6 +345,34 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
   }
 
   /**
+   * Get the current server cursor position.
+   */
+  async getServerCursor(): Promise<number> {
+    return this.getCursor()
+  }
+
+  /**
+   * Get the timestamp of the last successful sync.
+   */
+  async getLastSyncAt(): Promise<number | undefined> {
+    const db = getDatabase()
+    const row = await db
+      .select()
+      .from(syncState)
+      .where(eq(syncState.key, SYNC_STATE_KEYS.LAST_SYNC))
+      .limit(1)
+
+    return row[0] ? parseInt(row[0].value, 10) : undefined
+  }
+
+  /**
+   * Get the current device clock for vector clock synchronization.
+   */
+  async getDeviceClockPublic(): Promise<VectorClock> {
+    return this.getDeviceClock()
+  }
+
+  /**
    * Encrypt and sign an item for sync.
    *
    * @param itemType - The type of sync item
@@ -657,14 +685,33 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
     errorMessage?: string
   ): Promise<void> {
     const db = getDatabase()
+    const now = new Date().toISOString()
+
     await db.insert(syncHistory).values({
       id: uuidv4(),
       type,
       itemCount,
       direction,
       details: errorMessage ? { error: errorMessage } : null,
-      createdAt: new Date().toISOString()
+      createdAt: now
     })
+
+    if (type !== 'error') {
+      await db
+        .insert(syncState)
+        .values({
+          key: SYNC_STATE_KEYS.LAST_SYNC,
+          value: Date.now().toString(),
+          updatedAt: now
+        })
+        .onConflictDoUpdate({
+          target: syncState.key,
+          set: {
+            value: Date.now().toString(),
+            updatedAt: now
+          }
+        })
+    }
   }
 
   private handleOnline(): void {

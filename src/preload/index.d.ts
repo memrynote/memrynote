@@ -2100,6 +2100,11 @@ export interface TriggerSyncResponse {
   errors?: string[]
 }
 
+export interface GetQueueSizeResponse {
+  size: number
+  isEmpty: boolean
+}
+
 export interface SetupFirstDeviceResponse {
   recoveryPhrase: string[]
   device: Device
@@ -2342,6 +2347,7 @@ export interface SyncClientAPI {
   resume(): Promise<{ success: boolean; error?: string }>
   getHistory(): Promise<{ history: unknown[] }>
   clearQueue(): Promise<{ success: boolean; error?: string }>
+  getQueueSize(): Promise<GetQueueSizeResponse>
   setupFirstDevice(request: {
     deviceName: string
     platform: 'macos' | 'windows' | 'linux'
