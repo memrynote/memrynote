@@ -3,10 +3,6 @@
 **Input**: Design documents from `/specs/001-sync-e2ee-2/`
 **Prerequisites**: plan.md (required), spec.md (required), research.md, data-model.md, contracts/
 
-**Tests**: Tests are NOT included by default. Add test tasks explicitly when needed (see T193a for example).
-
-**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
-
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
@@ -348,16 +344,16 @@ All D1 tables include explicit PKs, FKs, indexes, and constraints.
 
 ### Sync Engine Core for US2
 
-- [ ] T074 [US2] Implement sync queue manager in src/main/sync/queue.ts
-- [ ] T075 [US2] Implement sync queue persistence to SQLite in src/main/sync/queue.ts
-- [ ] T076 [US2] Implement sync engine class in src/main/sync/engine.ts
-- [ ] T077 [US2] Implement WebSocket connection manager in src/main/sync/websocket.ts
-- [ ] T078 [US2] Implement network status monitoring in src/main/sync/network.ts
-- [ ] T079 [US2] Implement retry logic with exponential backoff in src/main/sync/retry.ts
-- [ ] T080 [US2] Implement item encryption before sync (generate file key, wrap with vault key, encrypt data, create EncryptedItem with encryptedKey/keyNonce/encryptedData/dataNonce) in src/main/sync/engine.ts
-- [ ] T080b [US2] Compute content_hash (SHA-256 of encrypted_data) and size_bytes before sync push in src/main/sync/engine.ts
-- [ ] T080a [US2] Sign items with device Ed25519 key over canonical CBOR and attach signer_device_id metadata before sync push in src/main/sync/engine.ts
-- [ ] T081 [US2] Implement item decryption after sync in src/main/sync/engine.ts
+- [x] T074 [US2] Implement sync queue manager in src/main/sync/queue.ts
+- [x] T075 [US2] Implement sync queue persistence to SQLite in src/main/sync/queue.ts
+- [x] T076 [US2] Implement sync engine class in src/main/sync/engine.ts
+- [x] T077 [US2] Implement WebSocket connection manager in src/main/sync/websocket.ts
+- [x] T078 [US2] Implement network status monitoring in src/main/sync/network.ts
+- [x] T079 [US2] Implement retry logic with exponential backoff in src/main/sync/retry.ts
+- [x] T080 [US2] Implement item encryption before sync (generate file key, wrap with vault key, encrypt data, create EncryptedItem with encryptedKey/keyNonce/encryptedData/dataNonce) in src/main/sync/engine.ts
+- [x] T080b [US2] Compute content_hash (SHA-256 of encrypted_data) and size_bytes before sync push in src/main/sync/engine.ts
+- [x] T080a [US2] Sign items with device Ed25519 key over canonical CBOR and attach signer_device_id metadata before sync push in src/main/sync/engine.ts
+- [x] T081 [US2] Implement item decryption after sync in src/main/sync/engine.ts
 
 ### Server Sync Endpoints for US2
 
