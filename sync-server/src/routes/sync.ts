@@ -25,7 +25,7 @@ import {
   pushSyncItems,
   softDeleteSyncItem,
   getSyncStatus,
-  updateDeviceCursorState,
+  updateDeviceCursorState
 } from '../services/sync'
 import {
   SYNC_ITEM_TYPES,
@@ -33,12 +33,16 @@ import {
   type SyncStatusResponse,
   type PullSyncResponse,
   type PushSyncResponse,
-  PushSyncRequestSchema,
+  PushSyncRequestSchema
 } from '../contracts/sync-api'
 
 interface SyncVariables {
   auth: AuthContext
 }
+
+// Internal DO routing URL - Durable Objects use pathname-based routing
+// and the host/scheme are ignored for internal fetch calls
+const DO_BROADCAST_URL = 'http://internal/broadcast'
 
 const syncRoutes = new Hono<{ Bindings: Env; Variables: SyncVariables }>()
 
@@ -52,8 +56,10 @@ const ManifestQuerySchema = z.object({
     .optional()
     .transform((val) => {
       if (!val) return undefined
-      return val.split(',').filter((t) => SYNC_ITEM_TYPES.includes(t as SyncItemType)) as SyncItemType[]
-    }),
+      return val
+        .split(',')
+        .filter((t) => SYNC_ITEM_TYPES.includes(t as SyncItemType)) as SyncItemType[]
+    })
 })
 
 const ChangesQuerySchema = z.object({
@@ -64,12 +70,14 @@ const ChangesQuerySchema = z.object({
     .optional()
     .transform((val) => {
       if (!val) return undefined
-      return val.split(',').filter((t) => SYNC_ITEM_TYPES.includes(t as SyncItemType)) as SyncItemType[]
-    }),
+      return val
+        .split(',')
+        .filter((t) => SYNC_ITEM_TYPES.includes(t as SyncItemType)) as SyncItemType[]
+    })
 })
 
 const PullRequestSchema = z.object({
-  itemIds: z.array(z.string().uuid()).max(100),
+  itemIds: z.array(z.string().uuid()).max(100)
 })
 
 // =============================================================================
@@ -87,7 +95,7 @@ syncRoutes.get('/status', async (c) => {
     pendingItems: status.pendingItems,
     lastSyncAt: status.lastSyncAt ?? undefined,
     storageUsed: status.storageUsed,
-    storageLimit: status.storageLimit,
+    storageLimit: status.storageLimit
   }
 
   return c.json(response)
@@ -134,7 +142,7 @@ syncRoutes.get('/changes', async (c) => {
     items: result.items,
     hasMore: result.hasMore,
     nextCursor: result.nextCursor,
-    serverTime: result.serverTime,
+    serverTime: result.serverTime
   }
 
   c.header('X-Server-Cursor', String(result.nextCursor))
@@ -177,16 +185,18 @@ syncRoutes.post('/push', async (c) => {
     const stub = c.env.USER_SYNC_STATE.get(doId)
 
     c.executionCtx.waitUntil(
-      stub.fetch(new Request('http://internal/broadcast', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'changes',
-          cursor: result.serverCursor,
-          count: result.accepted.length,
-          excludeDeviceId: auth.deviceId,
-        }),
-      }))
+      stub.fetch(
+        new Request(DO_BROADCAST_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'changes',
+            cursor: result.serverCursor,
+            count: result.accepted.length,
+            excludeDeviceId: auth.deviceId
+          })
+        })
+      )
     )
   }
 
@@ -194,7 +204,7 @@ syncRoutes.post('/push', async (c) => {
     accepted: result.accepted,
     rejected: result.rejected,
     conflicts: result.conflicts,
-    serverCursor: result.serverCursor,
+    serverCursor: result.serverCursor
   }
 
   c.header('X-Server-Cursor', String(result.serverCursor))
