@@ -129,9 +129,9 @@ export function registerAuthHandlers(): void {
             return { success: false, error: 'Missing device identifier from auth response' }
           }
 
-          let needsSetup = false
+          let isFirstDevice = false
           try {
-            needsSetup = await determineNeedsSetup(client, response.accessToken)
+            isFirstDevice = await determineNeedsSetup(client, response.accessToken)
           } catch (setupError) {
             const message = isSyncApiError(setupError)
               ? setupError.message
@@ -153,8 +153,8 @@ export function registerAuthHandlers(): void {
 
           return {
             success: true,
-            isNewUser: needsSetup,
-            needsSetup
+            isNewUser: isFirstDevice,
+            needsSetup: true
           }
         } catch (error) {
           console.error('[Auth] VERIFY_OTP error:', error)
@@ -291,9 +291,9 @@ export function registerAuthHandlers(): void {
             return { success: false, error: 'Missing device identifier from auth response' }
           }
 
-          let needsSetup = false
+          let isFirstDevice = false
           try {
-            needsSetup = await determineNeedsSetup(client, tokenResponse.accessToken)
+            isFirstDevice = await determineNeedsSetup(client, tokenResponse.accessToken)
           } catch (setupError) {
             const message = isSyncApiError(setupError)
               ? setupError.message
@@ -317,7 +317,7 @@ export function registerAuthHandlers(): void {
 
           activeOAuthServer = null
 
-          return { success: true, isNewUser: tokenResponse.isNewUser, needsSetup }
+          return { success: true, isNewUser: isFirstDevice, needsSetup: true }
         } catch (error) {
           console.error('[Auth] START_OAUTH error:', error)
           activeOAuthServer?.close()

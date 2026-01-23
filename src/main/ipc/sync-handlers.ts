@@ -27,13 +27,16 @@ import type {
   ResolveConflictResponse,
   SetupFirstDeviceResponse,
   SetupFirstDeviceRequest,
-  VerifyRecoveryPhraseResponse
+  VerifyRecoveryPhraseResponse,
+  RegisterExistingDeviceRequest,
+  RegisterExistingDeviceResponse
 } from '@shared/contracts/ipc-sync'
 import type { Device, UserPublic, SyncState, DevicePlatform } from '@shared/contracts/sync-api'
 import {
   TriggerSyncRequestSchema,
   SetupFirstDeviceRequestSchema,
   VerifyRecoveryPhraseRequestSchema,
+  RegisterExistingDeviceRequestSchema,
   ScanLinkingQRRequestSchema,
   RenameDeviceRequestSchema,
   RevokeDeviceRequestSchema,
@@ -364,6 +367,123 @@ export function registerSyncHandlers(): void {
   ipcMain.handle(
     SyncChannels.invoke.GET_RECOVERY_PHRASE,
     createHandler(() => ({ phrase: [] as string[] }))
+  )
+
+  ipcMain.handle(
+    SyncChannels.invoke.REGISTER_EXISTING_DEVICE,
+    createValidatedHandler(
+      RegisterExistingDeviceRequestSchema,
+      async (input: RegisterExistingDeviceRequest): Promise<RegisterExistingDeviceResponse> => {
+        let entropy: Uint8Array | null = null
+        let masterKey: Uint8Array | null = null
+        let derivedKeys: Awaited<ReturnType<typeof deriveAllKeys>> | null = null
+
+        try {
+          if (!validateRecoveryPhrase(input.recoveryPhrase)) {
+            return { success: false, error: 'Invalid recovery phrase format' }
+          }
+
+          const storedTokens = await retrieveAuthTokens()
+          if (!storedTokens?.accessToken) {
+            return { success: false, error: 'Not authenticated' }
+          }
+
+          const client = getSyncApiClient()
+          let recoveryInfo: { kdfSalt: string; keyVerifier: string }
+          try {
+            recoveryInfo = await client.getRecoveryInfo(storedTokens.accessToken)
+          } catch (error) {
+            console.error('[Sync] Failed to get recovery info:', error)
+            return { success: false, error: 'Failed to get recovery info from server' }
+          }
+
+          entropy = phraseToEntropy(input.recoveryPhrase)
+          const kdfSaltBuffer = base64ToUint8Array(recoveryInfo.kdfSalt)
+          masterKey = deriveMasterKey(entropy, kdfSaltBuffer)
+
+          const computedVerifier = await generateKeyVerifier(masterKey)
+          const storedVerifier = base64ToUint8Array(recoveryInfo.keyVerifier)
+          if (!constantTimeEqual(computedVerifier, storedVerifier)) {
+            return { success: false, error: 'Invalid recovery phrase - does not match account' }
+          }
+
+          derivedKeys = await deriveAllKeys(masterKey)
+
+          const deviceIdFromToken =
+            storedTokens.deviceId ?? decodeDeviceIdFromAccessToken(storedTokens.accessToken)
+          if (!deviceIdFromToken) {
+            return { success: false, error: 'Missing device identifier' }
+          }
+
+          const deviceKeyPair = await generateDeviceSigningKeyPair(deviceIdFromToken)
+          await storeDeviceKeyPair(deviceKeyPair)
+
+          await storeSigningKeyPair({
+            publicKey: uint8ArrayToBase64(derivedKeys.signingKeyPair.publicKey),
+            privateKey: uint8ArrayToBase64(derivedKeys.signingKeyPair.privateKey)
+          })
+
+          const authPublicKey = uint8ArrayToBase64(deviceKeyPair.publicKey)
+
+          try {
+            const challengeNonce = await generateNonce()
+            const signature = await sign(challengeNonce, deviceKeyPair.privateKey)
+            await client.registerDevice(storedTokens.accessToken, {
+              name: input.deviceName,
+              platform: input.platform,
+              osVersion: input.osVersion,
+              appVersion: input.appVersion,
+              authPublicKey,
+              challengeNonce: uint8ArrayToBase64(challengeNonce),
+              challengeSignature: uint8ArrayToBase64(signature)
+            })
+          } catch (deviceError) {
+            console.error('[Sync] Device registration failed:', deviceError)
+            return { success: false, error: 'Failed to register device with server' }
+          }
+
+          await storeKeyMaterial({
+            masterKey: uint8ArrayToBase64(masterKey),
+            kdfSalt: recoveryInfo.kdfSalt,
+            deviceSigningKey: uint8ArrayToBase64(deviceKeyPair.privateKey),
+            devicePublicKey: uint8ArrayToBase64(deviceKeyPair.publicKey),
+            deviceId: deviceIdFromToken,
+            userId: storedTokens.userId
+          })
+
+          const now = Date.now()
+          const device: Device = {
+            id: deviceIdFromToken,
+            name: input.deviceName,
+            platform: input.platform as DevicePlatform,
+            osVersion: input.osVersion,
+            appVersion: input.appVersion,
+            authPublicKey,
+            linkedAt: now,
+            isCurrentDevice: true
+          }
+
+          return { success: true, device }
+        } catch (error) {
+          console.error('[Sync] REGISTER_EXISTING_DEVICE error:', error)
+          const message = isCryptoError(error)
+            ? error.message
+            : isSyncApiError(error)
+              ? error.message
+              : 'Device registration failed'
+          return { success: false, error: message }
+        } finally {
+          if (entropy) await secureZero(entropy)
+          if (masterKey) await secureZero(masterKey)
+          if (derivedKeys) {
+            await secureZero(derivedKeys.vaultKey)
+            await secureZero(derivedKeys.signingKeyPair.publicKey)
+            await secureZero(derivedKeys.signingKeyPair.privateKey)
+            await secureZero(derivedKeys.verifyKey)
+          }
+        }
+      }
+    )
   )
 
   // ============================================================================
