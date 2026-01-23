@@ -7,12 +7,12 @@
  */
 
 import WebSocket from 'ws'
-import { EventEmitter } from 'events'
 import { BrowserWindow } from 'electron'
+import { TypedEmitter } from './typed-emitter'
 import { withRetry, DEFAULT_RETRY_CONFIG } from './retry'
 import type { RetryConfig } from './retry'
 
-export interface WebSocketEvents {
+export interface WebSocketEvents extends Record<string, unknown[]> {
   'sync:ws-connected': []
   'sync:ws-disconnected': [code: number, reason: string]
   'sync:ws-message': [data: WebSocketMessage]
@@ -38,7 +38,7 @@ export interface WebSocketConfig {
 const DEFAULT_PING_INTERVAL_MS = 30000
 const DEFAULT_PONG_TIMEOUT_MS = 10000
 
-export class WebSocketManager extends EventEmitter {
+export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
   private ws: WebSocket | null = null
   private _state: WebSocketState = 'disconnected'
   private serverUrl: string
@@ -85,7 +85,8 @@ export class WebSocketManager extends EventEmitter {
   private async establishConnection(): Promise<void> {
     this.setState('connecting')
 
-    const wsUrl = this.serverUrl.replace(/^http/, 'ws') + '/sync/ws'
+    const baseUrl = this.serverUrl.replace(/\/$/, '')
+    const wsUrl = baseUrl.replace(/^http/, 'ws') + '/sync/ws'
 
     try {
       this.ws = new WebSocket(wsUrl, {

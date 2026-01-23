@@ -20,6 +20,7 @@ export const devices = sqliteTable('devices', {
   platform: text('platform').notNull(),
   osVersion: text('os_version'),
   appVersion: text('app_version').notNull(),
+  authPublicKey: text('auth_public_key'),
   linkedAt: text('linked_at').notNull(),
   lastSyncAt: text('last_sync_at'),
   isCurrentDevice: integer('is_current_device', { mode: 'boolean' }).default(false)

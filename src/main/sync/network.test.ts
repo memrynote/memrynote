@@ -31,24 +31,24 @@ describe('NetworkMonitor', () => {
   })
 
   describe('isOnline', () => {
-    it('should return initial online status', () => {
+    it('should return initial online status (default true)', () => {
       // #given
-      vi.mocked(net.isOnline).mockReturnValue(true)
       const newMonitor = new NetworkMonitor()
 
       // #when
       const status = newMonitor.isOnline()
 
-      // #then
+      // #then - defaults to true before start() is called
       expect(status).toBe(true)
     })
 
-    it('should return offline when network is down', () => {
+    it('should return offline when network is down after start', () => {
       // #given
       vi.mocked(net.isOnline).mockReturnValue(false)
       const newMonitor = new NetworkMonitor()
 
       // #when
+      newMonitor.start()
       const status = newMonitor.isOnline()
 
       // #then
@@ -77,6 +77,7 @@ describe('NetworkMonitor', () => {
       // #given
       vi.mocked(net.isOnline).mockReturnValue(false)
       const newMonitor = new NetworkMonitor()
+      newMonitor.start()
       const onOnline = vi.fn()
       newMonitor.on('sync:online', onOnline)
 

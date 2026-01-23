@@ -27,8 +27,9 @@ vi.mock('../database/client', () => ({
   getDatabase: () => mockDb
 }))
 
+let uuidCounter = 0
 vi.mock('uuid', () => ({
-  v4: () => 'test-uuid-1234'
+  v4: () => `test-uuid-${++uuidCounter}`
 }))
 
 describe('SyncQueue', () => {
@@ -36,6 +37,7 @@ describe('SyncQueue', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    uuidCounter = 0
     mockDb.orderBy.mockResolvedValue([])
     queue = new SyncQueue()
   })
@@ -77,7 +79,7 @@ describe('SyncQueue', () => {
       const item = await queue.add('task', 'task-123', 'create', '{"title":"Test"}')
 
       // #then
-      expect(item.id).toBe('test-uuid-1234')
+      expect(item.id).toMatch(/^test-uuid-\d+$/)
       expect(item.type).toBe('task')
       expect(item.itemId).toBe('task-123')
       expect(item.operation).toBe('create')
@@ -116,11 +118,11 @@ describe('SyncQueue', () => {
     it('should remove item from queue and database', async () => {
       // #given
       await queue.initialize()
-      await queue.add('task', 'task-123', 'create', '{}')
+      const item = await queue.add('task', 'task-123', 'create', '{}')
       mockDb.where.mockResolvedValue(undefined)
 
       // #when
-      const result = await queue.remove('test-uuid-1234')
+      const result = await queue.remove(item.id)
 
       // #then
       expect(result).toBe(true)
@@ -142,15 +144,15 @@ describe('SyncQueue', () => {
     it('should emit sync:item-removed event', async () => {
       // #given
       await queue.initialize()
-      await queue.add('task', 'task-123', 'create', '{}')
+      const item = await queue.add('task', 'task-123', 'create', '{}')
       const onItemRemoved = vi.fn()
       queue.on('sync:item-removed', onItemRemoved)
 
       // #when
-      await queue.remove('test-uuid-1234')
+      await queue.remove(item.id)
 
       // #then
-      expect(onItemRemoved).toHaveBeenCalledWith('test-uuid-1234')
+      expect(onItemRemoved).toHaveBeenCalledWith(item.id)
     })
   })
 
@@ -158,10 +160,10 @@ describe('SyncQueue', () => {
     it('should increment attempts and update lastAttempt', async () => {
       // #given
       await queue.initialize()
-      await queue.add('task', 'task-123', 'create', '{}')
+      const originalItem = await queue.add('task', 'task-123', 'create', '{}')
 
       // #when
-      const item = await queue.updateAttempt('test-uuid-1234', 'Network error')
+      const item = await queue.updateAttempt(originalItem.id, 'Network error')
 
       // #then
       expect(item?.attempts).toBe(1)
@@ -312,6 +314,84 @@ describe('SyncQueue', () => {
       // #then
       expect(queue.size()).toBe(0)
       expect(queue.isEmpty()).toBe(true)
+    })
+  })
+
+  describe('deduplication', () => {
+    it('should update existing item instead of adding duplicate', async () => {
+      // #given
+      await queue.initialize()
+      await queue.add('task', 'task-123', 'create', '{"title":"Original"}')
+
+      // #when
+      const updated = await queue.add('task', 'task-123', 'update', '{"title":"Updated"}')
+
+      // #then
+      expect(queue.size()).toBe(1)
+      expect(updated.operation).toBe('update')
+      expect(updated.payload).toBe('{"title":"Updated"}')
+    })
+
+    it('should keep higher priority when deduplicating', async () => {
+      // #given
+      await queue.initialize()
+      await queue.add('task', 'task-123', 'create', '{}', 5)
+
+      // #when
+      const updated = await queue.add('task', 'task-123', 'update', '{}', 10)
+
+      // #then
+      expect(updated.priority).toBe(10)
+    })
+
+    it('should not downgrade priority when deduplicating', async () => {
+      // #given
+      await queue.initialize()
+      await queue.add('task', 'task-123', 'create', '{}', 10)
+
+      // #when
+      const updated = await queue.add('task', 'task-123', 'update', '{}', 5)
+
+      // #then
+      expect(updated.priority).toBe(10)
+    })
+
+    it('should clear error message when deduplicating', async () => {
+      // #given
+      await queue.initialize()
+      const original = await queue.add('task', 'task-123', 'create', '{}')
+      await queue.updateAttempt(original.id, 'Network error')
+
+      // #when
+      const updated = await queue.add('task', 'task-123', 'update', '{}')
+
+      // #then
+      expect(updated.errorMessage).toBeNull()
+    })
+
+    it('should emit sync:item-updated when deduplicating', async () => {
+      // #given
+      await queue.initialize()
+      await queue.add('task', 'task-123', 'create', '{}')
+
+      const onItemUpdated = vi.fn()
+      queue.on('sync:item-updated', onItemUpdated)
+
+      // #when
+      await queue.add('task', 'task-123', 'update', '{}')
+
+      // #then
+      expect(onItemUpdated).toHaveBeenCalledWith(expect.objectContaining({ operation: 'update' }))
+    })
+
+    it('should allow different types with same itemId', async () => {
+      // #given
+      await queue.initialize()
+      await queue.add('task', 'item-123', 'create', '{}')
+      await queue.add('note', 'item-123', 'create', '{}')
+
+      // #then
+      expect(queue.size()).toBe(2)
     })
   })
 })
