@@ -26,6 +26,7 @@ export const SyncChannels = {
     RESUME_SYNC: 'sync:resume',
     GET_SYNC_HISTORY: 'sync:get-history',
     CLEAR_SYNC_QUEUE: 'sync:clear-queue',
+    GET_QUEUE_SIZE: 'sync:get-queue-size',
 
     // First Device Setup
     SETUP_FIRST_DEVICE: 'sync:setup-first-device',
@@ -186,6 +187,11 @@ export interface TriggerSyncResponse {
   success: boolean
   itemsSynced: number
   errors?: string[]
+}
+
+export interface GetQueueSizeResponse {
+  size: number
+  isEmpty: boolean
 }
 
 // --- First Device Setup ---

@@ -1338,6 +1338,7 @@ const api = {
     resume: () => ipcRenderer.invoke(SyncChannels.invoke.RESUME_SYNC),
     getHistory: () => ipcRenderer.invoke(SyncChannels.invoke.GET_SYNC_HISTORY),
     clearQueue: () => ipcRenderer.invoke(SyncChannels.invoke.CLEAR_SYNC_QUEUE),
+    getQueueSize: () => ipcRenderer.invoke(SyncChannels.invoke.GET_QUEUE_SIZE),
     setupFirstDevice: (request: {
       deviceName: string
       platform: 'macos' | 'windows' | 'linux'

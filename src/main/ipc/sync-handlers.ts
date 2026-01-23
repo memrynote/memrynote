@@ -15,6 +15,7 @@ import { SyncChannels } from '@shared/contracts/ipc-sync'
 import type {
   GetSyncStatusResponse,
   TriggerSyncResponse,
+  GetQueueSizeResponse,
   GetDevicesResponse,
   CreateLinkingSessionResponse,
   ScanLinkingQRResponse,
@@ -69,6 +70,9 @@ import {
   constantTimeEqual
 } from '../crypto'
 import { getSyncApiClient, isSyncApiError } from '../sync/api-client'
+import { getSyncEngine } from '../sync/engine'
+import { getSyncQueue } from '../sync/queue'
+import { getNetworkMonitor } from '../sync/network'
 
 function emitSyncEvent(channel: string, data: unknown): void {
   BrowserWindow.getAllWindows().forEach((win) => {
@@ -114,34 +118,128 @@ export function registerSyncHandlers(): void {
 
   ipcMain.handle(
     SyncChannels.invoke.GET_SYNC_STATUS,
-    createHandler(
-      (): GetSyncStatusResponse => ({
-        state: getDefaultSyncState(),
-        isOnline: false
-      })
-    )
+    createHandler(async (): Promise<GetSyncStatusResponse> => {
+      const engine = getSyncEngine()
+      const queue = getSyncQueue()
+      const networkMonitor = getNetworkMonitor()
+
+      if (!engine) {
+        return {
+          state: getDefaultSyncState(),
+          isOnline: networkMonitor.isOnline()
+        }
+      }
+
+      const [serverCursor, lastSyncAt, deviceClock] = await Promise.all([
+        engine.getServerCursor(),
+        engine.getLastSyncAt(),
+        engine.getDeviceClockPublic()
+      ])
+
+      return {
+        state: {
+          syncStatus: engine.status,
+          pendingCount: queue.size(),
+          serverCursor,
+          deviceClock,
+          lastSyncAt
+        },
+        isOnline: networkMonitor.isOnline()
+      }
+    })
   )
 
   ipcMain.handle(
     SyncChannels.invoke.TRIGGER_SYNC,
     createValidatedHandler(
       TriggerSyncRequestSchema.optional(),
-      (): TriggerSyncResponse => ({
-        success: false,
-        itemsSynced: 0,
-        errors: ['Sync not yet implemented']
-      })
+      async (): Promise<TriggerSyncResponse> => {
+        const engine = getSyncEngine()
+        const networkMonitor = getNetworkMonitor()
+
+        if (!engine) {
+          return {
+            success: false,
+            itemsSynced: 0,
+            errors: ['Sync engine not initialized']
+          }
+        }
+
+        if (!networkMonitor.isOnline()) {
+          return {
+            success: false,
+            itemsSynced: 0,
+            errors: ['Device is offline']
+          }
+        }
+
+        if (engine.isSyncing) {
+          return {
+            success: false,
+            itemsSynced: 0,
+            errors: ['Sync already in progress']
+          }
+        }
+
+        if (engine.status === 'paused') {
+          return {
+            success: false,
+            itemsSynced: 0,
+            errors: ['Sync is paused']
+          }
+        }
+
+        try {
+          const queue = getSyncQueue()
+          const pendingBefore = queue.size()
+
+          await engine.sync()
+
+          const pendingAfter = queue.size()
+          const itemsSynced = pendingBefore - pendingAfter
+
+          return {
+            success: true,
+            itemsSynced: Math.max(0, itemsSynced)
+          }
+        } catch (error) {
+          console.error('[Sync] TRIGGER_SYNC error:', error)
+          return {
+            success: false,
+            itemsSynced: 0,
+            errors: [error instanceof Error ? error.message : 'Sync failed']
+          }
+        }
+      }
     )
   )
 
   ipcMain.handle(
     SyncChannels.invoke.PAUSE_SYNC,
-    createHandler(() => createNotImplementedResponse())
+    createHandler(async (): Promise<{ success: boolean; error?: string }> => {
+      const engine = getSyncEngine()
+
+      if (!engine) {
+        return { success: false, error: 'Sync engine not initialized' }
+      }
+
+      engine.pause()
+      return { success: true }
+    })
   )
 
   ipcMain.handle(
     SyncChannels.invoke.RESUME_SYNC,
-    createHandler(() => createNotImplementedResponse())
+    createHandler(async (): Promise<{ success: boolean; error?: string }> => {
+      const engine = getSyncEngine()
+
+      if (!engine) {
+        return { success: false, error: 'Sync engine not initialized' }
+      }
+
+      engine.resume()
+      return { success: true }
+    })
   )
 
   ipcMain.handle(
@@ -152,6 +250,18 @@ export function registerSyncHandlers(): void {
   ipcMain.handle(
     SyncChannels.invoke.CLEAR_SYNC_QUEUE,
     createHandler(() => createNotImplementedResponse())
+  )
+
+  ipcMain.handle(
+    SyncChannels.invoke.GET_QUEUE_SIZE,
+    createHandler((): GetQueueSizeResponse => {
+      const queue = getSyncQueue()
+      const size = queue.size()
+      return {
+        size,
+        isEmpty: size === 0
+      }
+    })
   )
 
   // ============================================================================
