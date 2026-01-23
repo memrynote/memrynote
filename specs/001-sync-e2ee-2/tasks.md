@@ -312,29 +312,29 @@ All D1 tables include explicit PKs, FKs, indexes, and constraints.
 
 ### UI Components for US1
 
-- [ ] T063 [P] [US1] Create AuthProvider context in src/renderer/src/contexts/auth-context.tsx
-- [ ] T064 [P] [US1] Create email entry form component in src/renderer/src/components/sync/email-entry-form.tsx
-- [ ] T065 [P] [US1] Create OTP code input component (6-digit boxes) in src/renderer/src/components/sync/otp-input.tsx
-- [ ] T065a [P] [US1] Implement OTP countdown timer (resend available after 60s) in src/renderer/src/components/sync/otp-input.tsx
-- [ ] T065b [US1] Implement OTP verification screen in src/renderer/src/components/sync/otp-verification.tsx
-- [ ] T066 [P] [US1] Create OAuth buttons component in src/renderer/src/components/sync/oauth-buttons.tsx
-- [ ] T067 [US1] Create recovery phrase display component in src/renderer/src/components/sync/recovery-phrase-display.tsx
-- [ ] T068 [US1] Create recovery phrase confirmation component in src/renderer/src/components/sync/recovery-phrase-confirm.tsx
-- [ ] T069 [US1] Create first device setup wizard page in src/renderer/src/pages/settings/setup-wizard.tsx
-- [ ] T069a [US1] Wire AuthProvider into renderer root in src/renderer/src/main.tsx
-- [ ] T069b [US1] Wire setup wizard entry point into Settings UI in src/renderer/src/pages/settings.tsx
-- [ ] T069c [US1] Bind email/OTP/OAuth/recovery components to auth service + IPC in src/renderer/src/pages/settings/setup-wizard.tsx
+- [x] T063 [P] [US1] Create AuthProvider context in src/renderer/src/contexts/auth-context.tsx
+- [x] T064 [P] [US1] Create email entry form component in src/renderer/src/components/sync/email-entry-form.tsx
+- [x] T065 [P] [US1] Create OTP code input component (6-digit boxes) in src/renderer/src/components/sync/otp-input.tsx
+- [x] T065a [P] [US1] Implement OTP countdown timer (resend available after 60s) in src/renderer/src/components/sync/otp-input.tsx
+- [x] T065b [US1] Implement OTP verification screen in src/renderer/src/components/sync/otp-verification.tsx
+- [x] T066 [P] [US1] Create OAuth buttons component in src/renderer/src/components/sync/oauth-buttons.tsx
+- [x] T067 [US1] Create recovery phrase display component in src/renderer/src/components/sync/recovery-phrase-display.tsx
+- [x] T068 [US1] Create recovery phrase confirmation component in src/renderer/src/components/sync/recovery-phrase-confirm.tsx
+- [x] T069 [US1] Create first device setup wizard page in src/renderer/src/pages/settings/setup-wizard.tsx
+- [x] T069a [US1] Wire AuthProvider into renderer root in src/renderer/src/main.tsx
+- [x] T069b [US1] Wire setup wizard entry point into Settings UI in src/renderer/src/pages/settings.tsx
+- [x] T069c [US1] Bind email/OTP/OAuth/recovery components to auth service + IPC in src/renderer/src/pages/settings/setup-wizard.tsx
 
 ### Services for US1
 
-- [ ] T070 [US1] Create auth service for renderer in src/renderer/src/services/auth-service.ts
-- [ ] T071 [US1] Create useAuth hook in src/renderer/src/hooks/use-auth.ts
-- [ ] T072 [US1] Implement PKCE code_verifier and code_challenge generation in src/main/ipc/sync-handlers.ts
-- [ ] T073 [US1] Implement automatic access token refresh with retry logic in src/main/ipc/sync-handlers.ts
-- [ ] T073a [US1] Emit auth:session-expired event when token refresh fails in src/main/ipc/sync-handlers.ts
-- [ ] T073b [US1] Store OAuth tokens separately from master key in keychain in src/main/crypto/keychain.ts
-- [ ] T073c [US1] Implement refresh-token IPC call from renderer in src/renderer/src/services/auth-service.ts
-- [ ] T073d [US1] Ensure renderer does not refresh tokens directly (delegate to main IPC only) in src/renderer/src/services/auth-service.ts
+- [x] T070 [US1] Create auth service for renderer in src/renderer/src/services/auth-service.ts
+- [x] T071 [US1] Create useAuth hook in src/renderer/src/hooks/use-auth.ts
+- [x] T072 [US1] Implement PKCE code_verifier and code_challenge generation in src/main/ipc/sync-handlers.ts
+- [x] T073 [US1] Implement automatic access token refresh with retry logic in src/main/ipc/sync-handlers.ts
+- [x] T073a [US1] Emit auth:session-expired event when token refresh fails in src/main/ipc/sync-handlers.ts
+- [x] T073b [US1] Store OAuth tokens separately from master key in keychain in src/main/crypto/keychain.ts
+- [x] T073c [US1] Implement refresh-token IPC call from renderer in src/renderer/src/services/auth-service.ts
+- [x] T073d [US1] Ensure renderer does not refresh tokens directly (delegate to main IPC only) in src/renderer/src/services/auth-service.ts
 
 **Checkpoint**: User Story 1 complete - users can create accounts and set up encryption
 
