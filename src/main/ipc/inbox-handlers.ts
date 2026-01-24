@@ -85,6 +85,8 @@ import {
 } from '../inbox/stats'
 import { snoozeItem, unsnoozeItem, getSnoozedItems, bulkSnoozeItems } from '../inbox/snooze'
 import type { SnoozeInput, SnoozedItem } from '../inbox/snooze'
+import { getSyncQueue } from '../sync/queue'
+import { retrieveDeviceKeyPair } from '../crypto/keychain'
 
 // ============================================================================
 // Constants
@@ -414,6 +416,30 @@ function isStale(createdAt: string): boolean {
   return checkIsStale(createdAt)
 }
 
+async function getCurrentDeviceId(): Promise<string | null> {
+  try {
+    const keyPair = await retrieveDeviceKeyPair()
+    return keyPair?.deviceId ?? null
+  } catch {
+    return null
+  }
+}
+
+async function queueInboxForSync(
+  item: typeof inboxItems.$inferSelect,
+  operation: 'create' | 'update' | 'delete'
+): Promise<void> {
+  try {
+    const deviceId = await getCurrentDeviceId()
+    if (!deviceId) return
+
+    const queue = getSyncQueue()
+    await queue.add('inbox', item.id, operation, JSON.stringify(item), 0)
+  } catch (error) {
+    console.warn('[InboxHandlers] Failed to queue inbox for sync:', error)
+  }
+}
+
 /**
  * Get tags for an inbox item
  */
@@ -547,6 +573,8 @@ async function handleCaptureText(input: unknown): Promise<CaptureResponse> {
     // Emit event
     emitInboxEvent(InboxChannels.events.CAPTURED, { item: toListItem(created, tags) })
 
+    await queueInboxForSync(created, 'create')
+
     return { success: true, item }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
@@ -630,6 +658,8 @@ async function handleCaptureLink(input: unknown): Promise<CaptureResponse> {
 
     // Emit captured event immediately (UI shows pending state)
     emitInboxEvent(InboxChannels.events.CAPTURED, { item: toListItem(created, tags) })
+
+    await queueInboxForSync(created, 'create')
 
     // Trigger background metadata fetch (don't await - non-blocking)
     // Use specialized social extraction for social posts
@@ -772,6 +802,8 @@ async function handleUpdate(input: unknown): Promise<CaptureResponse> {
 
     emitInboxEvent(InboxChannels.events.UPDATED, { id: parsed.id, changes: updates })
 
+    await queueInboxForSync(updated, 'update')
+
     return { success: true, item }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
@@ -792,8 +824,9 @@ async function handleArchive(id: string): Promise<{ success: boolean; error?: st
     }
 
     // Set archivedAt timestamp (soft delete - keep attachments and tags)
+    const now = new Date().toISOString()
     db.update(inboxItems)
-      .set({ archivedAt: new Date().toISOString() })
+      .set({ archivedAt: now })
       .where(eq(inboxItems.id, id))
       .run()
 
@@ -801,6 +834,11 @@ async function handleArchive(id: string): Promise<{ success: boolean; error?: st
     incrementArchivedCount()
 
     emitInboxEvent(InboxChannels.events.ARCHIVED, { id })
+
+    const archived = db.select().from(inboxItems).where(eq(inboxItems.id, id)).get()
+    if (archived) {
+      await queueInboxForSync(archived, 'update')
+    }
 
     return { success: true }
   } catch (error) {
@@ -1186,6 +1224,8 @@ async function handleCaptureImage(input: unknown): Promise<CaptureResponse> {
 
     // Emit captured event
     emitInboxEvent(InboxChannels.events.CAPTURED, { item: toListItem(created, tags) })
+
+    await queueInboxForSync(created, 'create')
 
     console.log(
       `[Attachment] Captured ${inboxType}: ${parsed.filename} (${fileBuffer.length} bytes)`
@@ -1778,6 +1818,11 @@ async function handleUnarchive(id: string): Promise<{ success: boolean; error?: 
 
     emitInboxEvent(InboxChannels.events.UPDATED, { id, changes: { archivedAt: null } })
 
+    const unarchived = db.select().from(inboxItems).where(eq(inboxItems.id, id)).get()
+    if (unarchived) {
+      await queueInboxForSync(unarchived, 'update')
+    }
+
     return { success: true }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
@@ -1793,6 +1838,8 @@ async function handleDeletePermanent(id: string): Promise<{ success: boolean; er
     if (!existing) {
       return { success: false, error: 'Item not found' }
     }
+
+    await queueInboxForSync(existing, 'delete')
 
     await deleteInboxAttachments(id)
 

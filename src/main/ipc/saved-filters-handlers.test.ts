@@ -43,7 +43,18 @@ vi.mock('@shared/db/queries/settings', () => ({
   savedFilterExists: vi.fn(),
   updateSavedFilter: vi.fn(),
   deleteSavedFilter: vi.fn(),
-  reorderSavedFilters: vi.fn()
+  reorderSavedFilters: vi.fn(),
+  getSavedFilterById: vi.fn()
+}))
+
+vi.mock('../sync/queue', () => ({
+  getSyncQueue: vi.fn(() => ({
+    add: vi.fn()
+  }))
+}))
+
+vi.mock('../crypto/keychain', () => ({
+  retrieveDeviceKeyPair: vi.fn(() => Promise.resolve(null))
 }))
 
 import {
@@ -86,15 +97,17 @@ describe('saved-filters-handlers', () => {
 
   it('creates, updates, deletes, and reorders saved filters', async () => {
     registerSavedFiltersHandlers()
-    ;(settingsQueries.getNextSavedFilterPosition as Mock).mockReturnValue(1)
-    ;(settingsQueries.insertSavedFilter as Mock).mockReturnValue({
+    const mockFilter = {
       id: 'sf-2',
       name: 'Inbox',
       config: { filters: {}, sort: undefined },
       position: 1,
       createdAt: 'now'
-    })
+    }
+    ;(settingsQueries.getNextSavedFilterPosition as Mock).mockReturnValue(1)
+    ;(settingsQueries.insertSavedFilter as Mock).mockReturnValue(mockFilter)
     ;(settingsQueries.savedFilterExists as Mock).mockReturnValue(true)
+    ;(settingsQueries.getSavedFilterById as Mock).mockReturnValue(mockFilter)
     ;(settingsQueries.updateSavedFilter as Mock).mockReturnValue({
       id: 'sf-2',
       name: 'Inbox Updated',
@@ -142,6 +155,7 @@ describe('saved-filters-handlers', () => {
   it('returns errors for missing saved filters', async () => {
     registerSavedFiltersHandlers()
     ;(settingsQueries.savedFilterExists as Mock).mockReturnValue(false)
+    ;(settingsQueries.getSavedFilterById as Mock).mockReturnValue(null)
 
     const updateResult = await invokeHandler(SavedFiltersChannels.invoke.UPDATE, {
       id: 'missing',
