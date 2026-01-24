@@ -24,6 +24,8 @@ import {
 } from '@shared/contracts/inbox-api'
 import { storeInboxAttachment, resolveAttachmentUrl } from './attachments'
 import { transcribeAudio, isTranscriptionAvailable } from './transcription'
+import { getSyncQueue } from '../sync/queue'
+import { retrieveDeviceKeyPair } from '../crypto/keychain'
 
 // ============================================================================
 // Types
@@ -77,6 +79,30 @@ function isStale(createdAt: string, thresholdDays = 7): boolean {
   const now = new Date()
   const diffDays = (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24)
   return diffDays > thresholdDays
+}
+
+async function getCurrentDeviceId(): Promise<string | null> {
+  try {
+    const keyPair = await retrieveDeviceKeyPair()
+    return keyPair?.deviceId ?? null
+  } catch {
+    return null
+  }
+}
+
+async function queueInboxForSync(
+  item: typeof inboxItems.$inferSelect,
+  operation: 'create' | 'update' | 'delete'
+): Promise<void> {
+  try {
+    const deviceId = await getCurrentDeviceId()
+    if (!deviceId) return
+
+    const queue = getSyncQueue()
+    await queue.add('inbox', item.id, operation, JSON.stringify(item), 0)
+  } catch (error) {
+    console.warn('[Capture] Failed to queue inbox for sync:', error)
+  }
 }
 
 /**
@@ -265,6 +291,8 @@ export async function captureVoice(input: CaptureVoiceInput): Promise<CaptureRes
 
     // Emit captured event
     emitInboxEvent(InboxChannels.events.CAPTURED, { item: toListItem(created, tags) })
+
+    await queueInboxForSync(created, 'create')
 
     // Trigger async transcription if enabled and available
     if (shouldTranscribe && storageResult.path) {

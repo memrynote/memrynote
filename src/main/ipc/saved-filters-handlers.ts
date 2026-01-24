@@ -18,6 +18,9 @@ import { createValidatedHandler, createHandler } from './validate'
 import { getDatabase } from '../database'
 import { generateId } from '../lib/id'
 import * as settingsQueries from '@shared/db/queries/settings'
+import { getSyncQueue } from '../sync/queue'
+import { retrieveDeviceKeyPair } from '../crypto/keychain'
+import type { SavedFilter as SavedFilterDB } from '@shared/db/schema/settings'
 
 /**
  * Emit saved filter event to all windows
@@ -36,6 +39,30 @@ function requireDatabase(): ReturnType<typeof getDatabase> {
     return getDatabase()
   } catch {
     throw new Error('No vault is open. Please open a vault first.')
+  }
+}
+
+async function getCurrentDeviceId(): Promise<string | null> {
+  try {
+    const keyPair = await retrieveDeviceKeyPair()
+    return keyPair?.deviceId ?? null
+  } catch {
+    return null
+  }
+}
+
+async function queueFilterForSync(
+  filter: SavedFilterDB,
+  operation: 'create' | 'update' | 'delete'
+): Promise<void> {
+  try {
+    const deviceId = await getCurrentDeviceId()
+    if (!deviceId) return
+
+    const queue = getSyncQueue()
+    await queue.add('filter', filter.id, operation, JSON.stringify(filter), 0)
+  } catch (error) {
+    console.warn('[SavedFiltersHandlers] Failed to queue filter for sync:', error)
   }
 }
 
@@ -79,7 +106,7 @@ export function registerSavedFiltersHandlers(): void {
   // saved-filters:create - Create a new saved filter
   ipcMain.handle(
     SavedFiltersChannels.invoke.CREATE,
-    createValidatedHandler(SavedFilterCreateSchema, (input) => {
+    createValidatedHandler(SavedFilterCreateSchema, async (input) => {
       const db = requireDatabase()
       const id = generateId()
       const position = settingsQueries.getNextSavedFilterPosition(db)
@@ -94,6 +121,10 @@ export function registerSavedFiltersHandlers(): void {
       const apiFilter = toApiFilter(filter)!
       emitSavedFilterEvent(SavedFiltersChannels.events.CREATED, { savedFilter: apiFilter })
 
+      if (filter) {
+        await queueFilterForSync(filter, 'create')
+      }
+
       return { success: true, savedFilter: apiFilter }
     })
   )
@@ -101,7 +132,7 @@ export function registerSavedFiltersHandlers(): void {
   // saved-filters:update - Update a saved filter
   ipcMain.handle(
     SavedFiltersChannels.invoke.UPDATE,
-    createValidatedHandler(SavedFilterUpdateSchema, (input) => {
+    createValidatedHandler(SavedFilterUpdateSchema, async (input) => {
       const db = requireDatabase()
 
       // Check if filter exists
@@ -122,6 +153,10 @@ export function registerSavedFiltersHandlers(): void {
         savedFilter: apiFilter
       })
 
+      if (filter) {
+        await queueFilterForSync(filter, 'update')
+      }
+
       return { success: true, savedFilter: apiFilter }
     })
   )
@@ -129,13 +164,16 @@ export function registerSavedFiltersHandlers(): void {
   // saved-filters:delete - Delete a saved filter
   ipcMain.handle(
     SavedFiltersChannels.invoke.DELETE,
-    createValidatedHandler(SavedFilterDeleteSchema, (input) => {
+    createValidatedHandler(SavedFilterDeleteSchema, async (input) => {
       const db = requireDatabase()
 
-      // Check if filter exists
-      if (!settingsQueries.savedFilterExists(db, input.id)) {
+      // Fetch filter before deletion for sync
+      const filter = settingsQueries.getSavedFilterById(db, input.id)
+      if (!filter) {
         return { success: false, error: 'Saved filter not found' }
       }
+
+      await queueFilterForSync(filter, 'delete')
 
       settingsQueries.deleteSavedFilter(db, input.id)
       emitSavedFilterEvent(SavedFiltersChannels.events.DELETED, { id: input.id })

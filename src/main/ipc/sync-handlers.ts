@@ -12,7 +12,7 @@
 import { ipcMain, BrowserWindow, app } from 'electron'
 import os from 'node:os'
 import { SyncChannels } from '@shared/contracts/ipc-sync'
-import { InboxChannels, SavedFiltersChannels, SettingsChannels } from '@shared/ipc-channels'
+import { InboxChannels, SavedFiltersChannels, SettingsChannels, TasksChannels } from '@shared/ipc-channels'
 import type {
   GetSyncStatusResponse,
   TriggerSyncResponse,
@@ -79,6 +79,7 @@ import { getNetworkMonitor } from '../sync/network'
 import { getDatabase } from '../database/client'
 import { inboxItems } from '@shared/db/schema/inbox'
 import { savedFilters } from '@shared/db/schema/settings'
+import { tasks } from '@shared/db/schema/tasks'
 
 function emitSyncEvent(channel: string, data: unknown): void {
   BrowserWindow.getAllWindows().forEach((win) => {
@@ -166,6 +167,32 @@ async function handleDecryptedSyncItem(item: DecryptedSyncItem): Promise<void> {
         .run()
 
       emitSyncEvent(SavedFiltersChannels.events.UPDATED, { id: item.itemId, savedFilter: payload })
+      return
+    }
+
+    if (item.itemType === 'task') {
+      const db = getDatabase()
+      if (item.deleted) {
+        db.delete(tasks).where(eq(tasks.id, item.itemId)).run()
+        emitSyncEvent(TasksChannels.events.DELETED, { id: item.itemId })
+        return
+      }
+
+      const payload = {
+        ...(item.data as Record<string, unknown>),
+        id: item.itemId,
+        clock: item.clock ? JSON.stringify(item.clock) : null
+      } as typeof tasks.$inferInsert
+
+      db.insert(tasks)
+        .values(payload)
+        .onConflictDoUpdate({
+          target: tasks.id,
+          set: payload
+        })
+        .run()
+
+      emitSyncEvent(TasksChannels.events.UPDATED, { id: item.itemId, task: payload })
       return
     }
 

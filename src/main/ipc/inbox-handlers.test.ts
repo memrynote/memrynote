@@ -109,6 +109,16 @@ vi.mock('../inbox/snooze', () => ({
   bulkSnoozeItems: vi.fn()
 }))
 
+vi.mock('../sync/queue', () => ({
+  getSyncQueue: vi.fn(() => ({
+    add: vi.fn()
+  }))
+}))
+
+vi.mock('../crypto/keychain', () => ({
+  retrieveDeviceKeyPair: vi.fn(() => Promise.resolve(null))
+}))
+
 // Import after mocking
 import { registerInboxHandlers, unregisterInboxHandlers } from './inbox-handlers'
 import { getDatabase } from '../database'
