@@ -18,6 +18,9 @@ export const RATE_LIMITS = {
   sync_push: { requests: 100, windowMs: 60 * 1000 }, // 100 per min
   sync_pull: { requests: 200, windowMs: 60 * 1000 }, // 200 per min
   blob_upload: { requests: 50, windowMs: 60 * 1000 }, // 50 per min
+  linking_operation: { requests: 5, windowMs: 5 * 60 * 1000 }, // 5 per 5 min per user
+  linking_scan: { requests: 3, windowMs: 60 * 1000 }, // 3 per min per session
+  linking_complete: { requests: 3, windowMs: 60 * 1000 }, // 3 per min per session
   default: { requests: 1000, windowMs: 60 * 1000 } // 1000 per min
 } as const
 

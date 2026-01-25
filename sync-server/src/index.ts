@@ -288,23 +288,4 @@ export default {
 // =============================================================================
 
 export { UserSyncState } from './durable-objects/user-state'
-
-/**
- * Linking session Durable Object.
- * Manages device linking flow state.
- */
-export class LinkingSession {
-  private state: DurableObjectState
-
-  constructor(state: DurableObjectState) {
-    this.state = state
-  }
-
-  async fetch(request: Request): Promise<Response> {
-    void request
-    // Placeholder - to be implemented in Phase 2
-    return new Response(JSON.stringify({ status: 'not_implemented' }), {
-      headers: { 'Content-Type': 'application/json' }
-    })
-  }
-}
+export { LinkingSession } from './durable-objects/linking-session'
