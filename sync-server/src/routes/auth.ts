@@ -71,7 +71,6 @@ import {
   type LinkingCompleteResponse
 } from '../contracts/linking-api'
 import {
-  generateEphemeralKeypair,
   generateLinkingToken,
   encodeQRPayload,
   isSessionExpired,
@@ -686,7 +685,7 @@ authRoutes.post('/linking/initiate', authMiddleware(), async (c) => {
     throw validationError('Invalid request', { issues: parsed.error.issues })
   }
 
-  const { deviceId } = parsed.data
+  const { deviceId, ephemeralPublicKey } = parsed.data
 
   const rateKey = `linking_operation:${auth.userId}`
   const rateCheck = await checkRateLimit(
@@ -706,8 +705,6 @@ authRoutes.post('/linking/initiate', authMiddleware(), async (c) => {
   if (!ownsDevice) {
     throw linkingDeviceNotOwned()
   }
-
-  const { publicKey: ephemeralPublicKey } = await generateEphemeralKeypair()
   const linkingToken = generateLinkingToken()
   const linkingTokenHash = await hashLinkingToken(linkingToken)
   const sessionId = crypto.randomUUID()

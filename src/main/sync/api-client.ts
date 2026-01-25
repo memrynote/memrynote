@@ -131,7 +131,7 @@ export interface SyncApiClient {
   pushItems(items: SyncItemPush[], deviceClock: VectorClock): Promise<PushSyncResponse>
   pullItems(cursor: number, limit?: number): Promise<PullSyncResponse>
   getSyncStatus(): Promise<SyncStatusResponse>
-  initiateLinking(token: string, deviceId: string): Promise<LinkingInitiateResponse>
+  initiateLinking(token: string, deviceId: string, ephemeralPublicKey: string): Promise<LinkingInitiateResponse>
   scanLinking(request: LinkingScanRequest): Promise<LinkingScanResponse>
   approveLinking(token: string, request: LinkingApproveRequest): Promise<LinkingApproveResponse>
   completeLinking(request: LinkingCompleteRequest): Promise<LinkingCompleteResponse>
@@ -325,8 +325,12 @@ function createApiClient(): SyncApiClient {
       return handleResponse<SyncStatusResponse>(response)
     },
 
-    async initiateLinking(token: string, deviceId: string): Promise<LinkingInitiateResponse> {
-      const request: LinkingInitiateRequest = { deviceId }
+    async initiateLinking(
+      token: string,
+      deviceId: string,
+      ephemeralPublicKey: string
+    ): Promise<LinkingInitiateResponse> {
+      const request: LinkingInitiateRequest = { deviceId, ephemeralPublicKey }
       const response = await fetch(`${baseUrl}/api/v1/auth/linking/initiate`, {
         method: 'POST',
         headers: {
@@ -338,6 +342,14 @@ function createApiClient(): SyncApiClient {
       return handleResponse<LinkingInitiateResponse>(response)
     },
 
+    /**
+     * Submit QR scan from new device.
+     *
+     * This endpoint intentionally does not require an Authorization header
+     * because the new device doesn't have tokens yet. Authentication is provided by:
+     * 1. The `token` field from the QR code (single-use, time-limited)
+     * 2. The `newDeviceConfirm` HMAC proof (proves possession of derived keys)
+     */
     async scanLinking(request: LinkingScanRequest): Promise<LinkingScanResponse> {
       const response = await fetch(`${baseUrl}/api/v1/auth/linking/scan`, {
         method: 'POST',

@@ -254,6 +254,8 @@ export interface CreateLinkingSessionResponse {
   qrCodeDataUrl: string
   /** Expiration timestamp */
   expiresAt: number
+  /** Error message if session creation failed */
+  error?: string
 }
 
 export interface ScanLinkingQRRequest {

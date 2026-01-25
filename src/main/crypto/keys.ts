@@ -420,7 +420,9 @@ export function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
  * @returns LinkingKeyPair with Base64-encoded public and private keys
  * @throws CryptoError if key generation fails
  */
-export function generateLinkingKeyPair(): LinkingKeyPair {
+export async function generateLinkingKeyPair(): Promise<LinkingKeyPair> {
+  await ensureSodiumReady()
+
   try {
     const publicKey = Buffer.alloc(sodium.crypto_kx_PUBLICKEYBYTES)
     const privateKey = Buffer.alloc(sodium.crypto_kx_SECRETKEYBYTES)
@@ -480,9 +482,10 @@ export async function deriveLinkingKeys(
     )
   }
 
+  const sharedSecret = Buffer.alloc(sodium.crypto_scalarmult_BYTES)
+
   try {
     // Step 1: Compute ECDH shared secret using X25519 scalar multiplication
-    const sharedSecret = Buffer.alloc(sodium.crypto_scalarmult_BYTES)
     sodium.crypto_scalarmult(
       sharedSecret,
       Buffer.from(myPrivateKey),
@@ -503,9 +506,6 @@ export async function deriveLinkingKeys(
       32
     )
 
-    // Step 4: Zero the shared secret from memory
-    sodium.sodium_memzero(sharedSecret)
-
     return {
       encryptionKey,
       macKey
@@ -519,6 +519,9 @@ export async function deriveLinkingKeys(
       CryptoErrorCode.KEY_DERIVATION_FAILED,
       error
     )
+  } finally {
+    // Always zero the shared secret, even on error
+    sodium.sodium_memzero(sharedSecret)
   }
 }
 
@@ -569,7 +572,16 @@ export function computeLinkingProof(
     }
 
     // Step 2: Encode to canonical CBOR
-    const cborData = cborg.encode(orderedPayload, { float64: true })
+    let cborData: Uint8Array
+    try {
+      cborData = cborg.encode(orderedPayload, { float64: true })
+    } catch (cborError) {
+      throw new CryptoError(
+        'Failed to encode linking proof payload as CBOR',
+        CryptoErrorCode.ENCODING_FAILED,
+        cborError
+      )
+    }
 
     // Step 3: Compute keyed BLAKE2b-256 hash (HMAC-like construction)
     const proof = Buffer.alloc(32)
