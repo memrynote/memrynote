@@ -20,7 +20,7 @@ import { getNetworkMonitor } from './network'
 import { getWebSocketManager, type WebSocketMessage } from './websocket'
 import { withRetry, isRetryableError } from './retry'
 import { getSyncApiClient, SyncApiError } from './api-client'
-import { compareClock, mergeClock } from './vector-clock'
+import { compareClock, mergeClock, emptyClock } from './vector-clock'
 import {
   generateFileKey,
   wrapFileKey,
@@ -29,6 +29,8 @@ import {
   decrypt,
   uint8ArrayToBase64,
   base64ToUint8Array,
+  storeAuthTokens,
+  retrieveAuthTokens,
   retrieveKeyMaterial,
   retrieveDeviceKeyPair,
   deriveVaultKey,
@@ -63,6 +65,8 @@ export interface SyncEngineEvents extends Record<string, unknown[]> {
 }
 
 const MAX_BATCH_SIZE = 100
+const LOG_PREFIX = '[SyncEngine]'
+const TOKEN_REFRESH_COOLDOWN_MS = 5000
 
 export interface EncryptedSyncItem {
   itemType: SyncItemType
@@ -120,6 +124,8 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
   private _status: SyncStatus = 'idle'
   private initialized = false
   private syncLock = false
+  private refreshPromise: Promise<boolean> | null = null
+  private lastRefreshAttempt = 0
   private onlineHandler = (): void => this.handleOnline()
   private offlineHandler = (): void => this.handleOffline()
   private messageHandler = (message: WebSocketMessage): void => {
@@ -181,14 +187,21 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
    * @returns Push response from server or null if skipped
    */
   async push(): Promise<PushSyncResponse | null> {
-    if (this.syncLock) return null
+    if (this.syncLock) {
+      console.info(`${LOG_PREFIX} Push skipped: sync already in progress`)
+      return null
+    }
     if (!getNetworkMonitor().isOnline()) {
       this.setStatus('offline')
+      console.info(`${LOG_PREFIX} Push skipped: offline`)
       return null
     }
 
     const queue = getSyncQueue()
-    if (queue.isEmpty()) return null
+    if (queue.isEmpty()) {
+      console.info(`${LOG_PREFIX} Push skipped: queue empty`)
+      return null
+    }
 
     this.syncLock = true
     this.setStatus('syncing')
@@ -196,12 +209,21 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
     try {
       const allItems = queue.getAll()
       const itemBatches = this.chunkArray(allItems, MAX_BATCH_SIZE)
+      console.info(`${LOG_PREFIX} Push starting`, {
+        itemCount: allItems.length,
+        batchCount: itemBatches.length
+      })
       let lastResponse: PushSyncResponse | null = null
       const accepted: string[] = []
       const rejected: Array<{ itemId: string; reason: string }> = []
       const batchErrors: Error[] = []
 
-      for (const items of itemBatches) {
+      for (const [batchIndex, items] of itemBatches.entries()) {
+        console.info(`${LOG_PREFIX} Push batch`, {
+          batch: batchIndex + 1,
+          batchCount: itemBatches.length,
+          itemCount: items.length
+        })
         const encryptedItems: SyncItemPush[] = []
 
         for (const queueItem of items) {
@@ -212,6 +234,11 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
             const err = error instanceof Error ? error : new Error(String(error))
             await queue.updateAttempt(queueItem.id, err.message)
             this.emit('sync:error', err, `encrypt item ${queueItem.itemId}`)
+            console.warn(`${LOG_PREFIX} Failed to encrypt item`, {
+              itemId: queueItem.itemId,
+              itemType: queueItem.type,
+              error: err.message
+            })
           }
         }
 
@@ -221,12 +248,30 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
         const apiClient = getSyncApiClient()
 
         try {
-          const response = await withRetry(() => apiClient.pushItems(encryptedItems, deviceClock), {
-            shouldRetry: (error) => this.shouldRetryWithAuthCheck(error),
-            onRetry: (error, attempt) => {
-              this.emit('sync:error', error, `push retry ${attempt}`)
+          const response = await withRetry(
+            () => this.withAuthRefresh(() => apiClient.pushItems(encryptedItems, deviceClock)),
+            {
+              shouldRetry: (error) => this.shouldRetryWithAuthCheck(error),
+              onRetry: (error, attempt) => {
+                this.emit('sync:error', error, `push retry ${attempt}`)
+              }
             }
+          )
+
+          console.info(`${LOG_PREFIX} Push batch result`, {
+            accepted: response.accepted.length,
+            rejected: response.rejected.length,
+            conflicts: response.conflicts.length,
+            serverCursor: response.serverCursor
           })
+          if (response.rejected.length > 0) {
+            console.warn(`${LOG_PREFIX} Push rejected items`, response.rejected)
+          }
+          if (response.conflicts.length > 0) {
+            console.warn(`${LOG_PREFIX} Push conflicts`, {
+              conflictCount: response.conflicts.length
+            })
+          }
 
           accepted.push(...response.accepted)
           rejected.push(...response.rejected)
@@ -257,6 +302,7 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
           const err = error instanceof Error ? error : new Error(String(error))
           batchErrors.push(err)
           this.emit('sync:error', err, 'push batch failed')
+          console.warn(`${LOG_PREFIX} Push batch failed`, err)
           continue
         }
       }
@@ -268,6 +314,11 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
           accepted,
           rejected.map((r) => r.itemId)
         )
+        console.info(`${LOG_PREFIX} Push complete`, {
+          accepted: accepted.length,
+          rejected: rejected.length,
+          total: allItems.length
+        })
       } else if (batchErrors.length > 0) {
         await this.logSyncHistory('error', 0, null, batchErrors[0]?.message)
         this.setStatus('error')
@@ -280,6 +331,7 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
       const err = error instanceof Error ? error : new Error(String(error))
       this.emit('sync:error', err, 'push')
       await this.logSyncHistory('error', 0, null, err.message)
+      console.warn(`${LOG_PREFIX} Push failed`, err)
       this.setStatus('error')
       return null
     } finally {
@@ -294,9 +346,13 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
    * @returns Pull response from server or null if skipped
    */
   async pull(): Promise<PullSyncResponse | null> {
-    if (this.syncLock) return null
+    if (this.syncLock) {
+      console.info(`${LOG_PREFIX} Pull skipped: sync already in progress`)
+      return null
+    }
     if (!getNetworkMonitor().isOnline()) {
       this.setStatus('offline')
+      console.info(`${LOG_PREFIX} Pull skipped: offline`)
       return null
     }
 
@@ -306,6 +362,7 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
     try {
       const apiClient = getSyncApiClient()
       let cursor = await this.getCursor()
+      console.info(`${LOG_PREFIX} Pull starting`, { cursor })
       let hasMore = true
       let lastResponse: PullSyncResponse | null = null
       let totalItems = 0
@@ -313,12 +370,15 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
       while (hasMore) {
         let response: PullSyncResponse
         try {
-          response = await withRetry(() => apiClient.pullItems(cursor, MAX_BATCH_SIZE), {
-            shouldRetry: (error) => this.shouldRetryWithAuthCheck(error),
-            onRetry: (error, attempt) => {
-              this.emit('sync:error', error, `pull retry ${attempt}`)
+          response = await withRetry(
+            () => this.withAuthRefresh(() => apiClient.pullItems(cursor, MAX_BATCH_SIZE)),
+            {
+              shouldRetry: (error) => this.shouldRetryWithAuthCheck(error),
+              onRetry: (error, attempt) => {
+                this.emit('sync:error', error, `pull retry ${attempt}`)
+              }
             }
-          })
+          )
         } catch (error) {
           if (this.isAuthError(error)) {
             this.emit('sync:session-expired')
@@ -329,6 +389,11 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
         }
 
         this.checkServerClockSkew(response.serverTime)
+        console.info(`${LOG_PREFIX} Pull batch`, {
+          itemCount: response.items.length,
+          hasMore: response.hasMore,
+          nextCursor: response.nextCursor
+        })
 
         for (const item of response.items) {
           try {
@@ -339,6 +404,11 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
           } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error))
             this.emit('sync:error', err, `decrypt item ${item.itemId}`)
+            console.warn(`${LOG_PREFIX} Failed to decrypt item`, {
+              itemId: item.itemId,
+              itemType: item.itemType,
+              error: err.message
+            })
           }
         }
 
@@ -356,6 +426,7 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
         await this.updateCursor(lastResponse.nextCursor)
         await this.logSyncHistory('pull', totalItems, 'download')
         this.emit('sync:pull-complete', lastResponse.items)
+        console.info(`${LOG_PREFIX} Pull complete`, { itemCount: totalItems })
       }
 
       this.setStatus('idle')
@@ -365,6 +436,7 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
       const err = error instanceof Error ? error : new Error(String(error))
       this.emit('sync:error', err, 'pull')
       await this.logSyncHistory('error', 0, null, err.message)
+      console.warn(`${LOG_PREFIX} Pull failed`, err)
       this.setStatus('error')
       return null
     } finally {
@@ -437,7 +509,7 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
    * @param itemType - The type of sync item
    * @param itemId - The unique identifier of the item
    * @param data - The plaintext data to encrypt
-   * @param options - Additional options (operation, clock, stateVector, deleted)
+   * @param options - Additional options (clock, stateVector, deleted)
    * @returns Encrypted and signed sync item
    */
   async encryptItem(
@@ -445,7 +517,6 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
     itemId: string,
     data: unknown,
     options: {
-      operation?: 'create' | 'update' | 'delete'
       clock?: VectorClock
       fieldClocks?: FieldClocks
       stateVector?: string
@@ -476,7 +547,6 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
       const signaturePayload: SignaturePayloadV1 = {
         id: itemId,
         type: itemType,
-        operation: options.operation,
         cryptoVersion: CRYPTO_VERSION,
         encryptedKey,
         keyNonce,
@@ -627,14 +697,27 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
     let fieldClocks: FieldClocks | undefined
 
     if (rawData && typeof rawData === 'object') {
-      const maybeClock = (rawData as { clock?: VectorClock }).clock
-      if (maybeClock) {
-        clock = maybeClock
+      const maybeClock = (rawData as { clock?: VectorClock | string | null }).clock
+      if (typeof maybeClock === 'string') {
+        try {
+          clock = JSON.parse(maybeClock) as VectorClock
+        } catch {
+          clock = undefined
+        }
+      } else if (maybeClock && typeof maybeClock === 'object') {
+        clock = maybeClock as VectorClock
       }
 
-      const maybeFieldClocks = (rawData as { fieldClocks?: FieldClocks }).fieldClocks
-      if (maybeFieldClocks) {
-        fieldClocks = maybeFieldClocks
+      const maybeFieldClocks = (rawData as { fieldClocks?: FieldClocks | string | null })
+        .fieldClocks
+      if (typeof maybeFieldClocks === 'string') {
+        try {
+          fieldClocks = JSON.parse(maybeFieldClocks) as FieldClocks
+        } catch {
+          fieldClocks = undefined
+        }
+      } else if (maybeFieldClocks && typeof maybeFieldClocks === 'object') {
+        fieldClocks = maybeFieldClocks as FieldClocks
       }
     }
 
@@ -647,8 +730,7 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
     }
 
     const encrypted = await this.encryptItem(queueItem.type, queueItem.itemId, data, {
-      operation: queueItem.operation as 'create' | 'update' | 'delete',
-      clock,
+      clock: clock ?? emptyClock(),
       fieldClocks
     })
 
@@ -1040,6 +1122,63 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
       return false
     }
     return isRetryableError(error)
+  }
+
+  private async withAuthRefresh<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation()
+    } catch (error) {
+      if (!this.isAuthError(error)) {
+        throw error
+      }
+      const refreshed = await this.tryRefreshSession()
+      if (!refreshed) {
+        throw error
+      }
+      return operation()
+    }
+  }
+
+  private async tryRefreshSession(): Promise<boolean> {
+    if (this.refreshPromise) {
+      return this.refreshPromise
+    }
+
+    const now = Date.now()
+    if (now - this.lastRefreshAttempt < TOKEN_REFRESH_COOLDOWN_MS) {
+      console.info(`${LOG_PREFIX} Token refresh skipped: within cooldown period`)
+      return false
+    }
+
+    this.lastRefreshAttempt = now
+
+    const refreshOperation = (async () => {
+      const tokens = await retrieveAuthTokens()
+      if (!tokens?.refreshToken) {
+        return false
+      }
+
+      try {
+        const client = getSyncApiClient()
+        const response = await client.refreshToken(tokens.refreshToken)
+        await storeAuthTokens({
+          ...tokens,
+          accessToken: response.accessToken,
+          refreshToken: response.refreshToken
+        })
+        return true
+      } catch (error) {
+        console.warn(`${LOG_PREFIX} Token refresh failed`, error)
+        return false
+      }
+    })()
+
+    this.refreshPromise = refreshOperation
+    try {
+      return await refreshOperation
+    } finally {
+      this.refreshPromise = null
+    }
   }
 }
 

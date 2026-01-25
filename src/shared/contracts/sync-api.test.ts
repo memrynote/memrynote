@@ -126,8 +126,8 @@ describe('Sync API Contracts', () => {
       expect(() => SyncItemSchema.parse(invalid)).toThrow()
     })
 
-    it('should reject invalid UUID', () => {
-      const invalid = { ...validItem, item_id: 'not-a-uuid' }
+    it('should reject invalid item id', () => {
+      const invalid = { ...validItem, item_id: '' }
       expect(() => SyncItemSchema.parse(invalid)).toThrow()
     })
 
@@ -145,7 +145,7 @@ describe('Sync API Contracts', () => {
   describe('SyncItemPushSchema', () => {
     const validPushItem = {
       itemType: 'note' as const,
-      itemId: '123e4567-e89b-12d3-a456-426614174000',
+      itemId: 'note-1',
       encryptedData: 'SGVsbG8gV29ybGQ=',
       encryptedKey: 'SGVsbG8gV29ybGQ=',
       keyNonce: 'SGVsbG8gV29ybGQ=',
@@ -178,7 +178,7 @@ describe('Sync API Contracts', () => {
   describe('SyncItemResponseSchema', () => {
     const validResponseItem = {
       itemType: 'note' as const,
-      itemId: '123e4567-e89b-12d3-a456-426614174000',
+      itemId: 'note-1',
       userId: '123e4567-e89b-12d3-a456-426614174001',
       encryptedData: 'SGVsbG8gV29ybGQ=',
       encryptedKey: 'SGVsbG8gV29ybGQ=',
@@ -274,7 +274,7 @@ describe('Sync API Contracts', () => {
   describe('Validation Functions', () => {
     const validResponseItem = {
       itemType: 'note' as const,
-      itemId: '123e4567-e89b-12d3-a456-426614174000',
+      itemId: 'note-1',
       userId: '123e4567-e89b-12d3-a456-426614174001',
       encryptedData: 'SGVsbG8gV29ybGQ=',
       encryptedKey: 'SGVsbG8gV29ybGQ=',
@@ -293,7 +293,7 @@ describe('Sync API Contracts', () => {
 
     const validPushItem = {
       itemType: 'note' as const,
-      itemId: '123e4567-e89b-12d3-a456-426614174000',
+      itemId: 'note-1',
       encryptedData: 'SGVsbG8gV29ybGQ=',
       encryptedKey: 'SGVsbG8gV29ybGQ=',
       keyNonce: 'SGVsbG8gV29ybGQ=',
@@ -398,7 +398,7 @@ describe('Sync API Contracts', () => {
         items: [
           {
             itemType: 'note' as const,
-            itemId: '123e4567-e89b-12d3-a456-426614174000',
+            itemId: 'note-1',
             encryptedData: 'SGVsbG8gV29ybGQ=',
             encryptedKey: 'SGVsbG8gV29ybGQ=',
             keyNonce: 'SGVsbG8gV29ybGQ=',

@@ -20,6 +20,7 @@ import { getDatabase } from '../database'
 import { getStatus } from '../vault'
 import { inboxItems } from '@shared/db/schema/inbox'
 import { InboxChannels } from '@shared/ipc-channels'
+import { queueInboxItemById } from './sync'
 
 // ============================================================================
 // Types
@@ -134,6 +135,7 @@ export async function transcribeAudio(
     })
     .where(eq(inboxItems.id, itemId))
     .run()
+  await queueInboxItemById(db, itemId, 'update')
 
   try {
     // Check if API key is available
@@ -151,6 +153,7 @@ export async function transcribeAudio(
         })
         .where(eq(inboxItems.id, itemId))
         .run()
+      await queueInboxItemById(db, itemId, 'update')
 
       emitTranscriptionEvent(InboxChannels.events.PROCESSING_ERROR, {
         id: itemId,
@@ -174,6 +177,7 @@ export async function transcribeAudio(
         })
         .where(eq(inboxItems.id, itemId))
         .run()
+      await queueInboxItemById(db, itemId, 'update')
 
       emitTranscriptionEvent(InboxChannels.events.PROCESSING_ERROR, {
         id: itemId,
@@ -197,6 +201,7 @@ export async function transcribeAudio(
         })
         .where(eq(inboxItems.id, itemId))
         .run()
+      await queueInboxItemById(db, itemId, 'update')
 
       emitTranscriptionEvent(InboxChannels.events.PROCESSING_ERROR, {
         id: itemId,
@@ -223,6 +228,7 @@ export async function transcribeAudio(
         })
         .where(eq(inboxItems.id, itemId))
         .run()
+      await queueInboxItemById(db, itemId, 'update')
 
       emitTranscriptionEvent(InboxChannels.events.PROCESSING_ERROR, {
         id: itemId,
@@ -262,6 +268,7 @@ export async function transcribeAudio(
       })
       .where(eq(inboxItems.id, itemId))
       .run()
+    await queueInboxItemById(db, itemId, 'update')
 
     // Emit success event
     emitTranscriptionEvent(InboxChannels.events.TRANSCRIPTION_COMPLETE, {
@@ -293,6 +300,7 @@ export async function transcribeAudio(
       })
       .where(eq(inboxItems.id, itemId))
       .run()
+    await queueInboxItemById(db, itemId, 'update')
 
     // Emit error event
     emitTranscriptionEvent(InboxChannels.events.PROCESSING_ERROR, {
@@ -336,6 +344,7 @@ export async function retryTranscription(itemId: string): Promise<TranscriptionR
     })
     .where(eq(inboxItems.id, itemId))
     .run()
+  await queueInboxItemById(db, itemId, 'update')
 
   // Start transcription (async, don't await here for non-blocking behavior)
   // The caller can await if they want to wait for completion

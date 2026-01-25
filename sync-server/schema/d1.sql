@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS sync_items (
   key_nonce BLOB NOT NULL,
   data_nonce BLOB NOT NULL,
   clock TEXT NOT NULL,
+  state_vector TEXT,
   deleted INTEGER DEFAULT 0,
   crypto_version INTEGER DEFAULT 1,
   size_bytes INTEGER NOT NULL,

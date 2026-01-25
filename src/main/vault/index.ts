@@ -48,6 +48,7 @@ import { indexVault, rebuildIndex } from './indexer'
 import { initEmbeddingModel, isModelLoaded, isModelLoading } from '../lib/embeddings'
 import { flushFtsUpdates, hasPendingFtsUpdates } from '../database'
 import { clearEmbeddingQueue, hasPendingEmbeddings } from '../inbox/embedding-queue'
+import { initSyncSubsystem } from '../sync/orchestrator'
 
 /**
  * Current vault status
@@ -260,6 +261,12 @@ async function openVault(vaultPath: string): Promise<void> {
     path: vaultPath,
     error: null
   })
+
+  try {
+    await initSyncSubsystem()
+  } catch (error) {
+    console.warn('[Sync] Failed to initialize sync subsystem:', error)
+  }
 
   // Start loading embedding model in background (non-blocking)
   // This ensures the model is ready when user needs AI suggestions

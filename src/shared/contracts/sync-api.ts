@@ -64,10 +64,13 @@ const Base64Schema = z.string().regex(/^[A-Za-z0-9+/]*={0,2}$/, 'Invalid Base64 
 // UUID validation
 const UuidSchema = z.string().uuid()
 
+// Sync item ID validation (allows nanoid, note IDs, etc.)
+const SyncItemIdSchema = z.string().min(1).max(128)
+
 // Sync Item Schema (canonical fields for server storage)
 export const SyncItemSchema = z.object({
   item_type: z.enum(SYNC_ITEM_TYPES),
-  item_id: UuidSchema,
+  item_id: SyncItemIdSchema,
   user_id: UuidSchema,
   encrypted_data: z.instanceof(Uint8Array).or(Base64Schema),
   encrypted_key: z.instanceof(Uint8Array).or(Base64Schema),
@@ -94,7 +97,7 @@ export type SyncItem = z.infer<typeof SyncItemSchema>
 // Used when clients push items to the server
 export const SyncItemPushSchema = z.object({
   itemType: z.enum(SYNC_ITEM_TYPES),
-  itemId: UuidSchema,
+  itemId: SyncItemIdSchema,
   encryptedData: Base64Schema,
   encryptedKey: Base64Schema,
   keyNonce: Base64Schema,
@@ -119,7 +122,7 @@ export type SyncItemPush = z.infer<typeof SyncItemPushSchema>
 // Used when server returns items to clients
 export const SyncItemResponseSchema = z.object({
   itemType: z.enum(SYNC_ITEM_TYPES),
-  itemId: UuidSchema,
+  itemId: SyncItemIdSchema,
   userId: UuidSchema,
   encryptedData: Base64Schema,
   encryptedKey: Base64Schema,
@@ -243,7 +246,7 @@ export const SyncQueueItemSchema = z.object({
     'filter',
     'journal'
   ]),
-  itemId: UuidSchema,
+  itemId: SyncItemIdSchema,
   operation: z.enum(SYNC_OPERATIONS),
   payload: z.string(), // Encrypted JSON (Base64)
   priority: z.number().int().default(0),
@@ -319,16 +322,16 @@ export const PushSyncRequestSchema = z.object({
 export type PushSyncRequest = z.infer<typeof PushSyncRequestSchema>
 
 export const PushSyncResponseSchema = z.object({
-  accepted: z.array(UuidSchema),
+  accepted: z.array(SyncItemIdSchema),
   rejected: z.array(
     z.object({
-      itemId: UuidSchema,
+      itemId: SyncItemIdSchema,
       reason: z.string()
     })
   ),
   conflicts: z.array(
     z.object({
-      itemId: UuidSchema,
+      itemId: SyncItemIdSchema,
       serverItem: SyncItemResponseSchema
     })
   ),

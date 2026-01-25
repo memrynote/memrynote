@@ -17,6 +17,7 @@ import { getStatus } from '../vault'
 import { inboxItems, inboxItemTags } from '@shared/db/schema/inbox'
 import { InboxChannels } from '@shared/ipc-channels'
 import type { InboxItem, InboxItemListItem } from '@shared/contracts/inbox-api'
+import { queueInboxItemById } from './sync'
 
 // ============================================================================
 // Types
@@ -218,6 +219,7 @@ export function snoozeItem(input: SnoozeInput): SnoozeResult {
       })
       .where(eq(inboxItems.id, itemId))
       .run()
+    void queueInboxItemById(db, itemId, 'update')
 
     // Fetch updated item
     const updated = db.select().from(inboxItems).where(eq(inboxItems.id, itemId)).get()
@@ -274,6 +276,7 @@ export function unsnoozeItem(itemId: string): SnoozeResult {
       })
       .where(eq(inboxItems.id, itemId))
       .run()
+    void queueInboxItemById(db, itemId, 'update')
 
     // Fetch updated item
     const updated = db.select().from(inboxItems).where(eq(inboxItems.id, itemId)).get()
@@ -407,6 +410,7 @@ function processDueItems(): void {
         })
         .where(eq(inboxItems.id, item.id))
         .run()
+      void queueInboxItemById(db, item.id, 'update')
     }
 
     // Emit SNOOZE_DUE event with all surfaced items
