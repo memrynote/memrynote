@@ -52,9 +52,12 @@ export const LINKING_CONSTANTS = {
  *
  * Called by the existing device to create a linking session
  * and generate the QR code payload for the new device.
+ * The client generates the ephemeral keypair and sends the public key
+ * to ensure ECDH shared secrets match on both devices.
  */
 export const LinkingInitiateRequestSchema = z.object({
-  deviceId: UuidSchema
+  deviceId: UuidSchema,
+  ephemeralPublicKey: Base64Schema
 })
 export type LinkingInitiateRequest = z.infer<typeof LinkingInitiateRequestSchema>
 

@@ -68,6 +68,7 @@ import {
   retrieveAuthTokens,
   sign,
   secureZero,
+  secureZeroSync,
   isCryptoError,
   constantTimeEqual,
   generateLinkingKeyPair,
@@ -79,7 +80,7 @@ import {
   LINKING_NEW_DEVICE_CONFIRM_FIELD_ORDER,
   LINKING_KEY_CONFIRM_FIELD_ORDER
 } from '@shared/contracts/cbor-ordering'
-import { validateLinkingQRPayload } from '@shared/contracts/linking-api'
+import { validateLinkingQRPayload, LINKING_CONSTANTS } from '@shared/contracts/linking-api'
 import type { LinkingQRPayload } from '@shared/contracts/linking-api'
 import type { ScanLinkingQRRequest } from '@shared/contracts/ipc-sync'
 import QRCode from 'qrcode'
@@ -120,17 +121,18 @@ interface LinkingSessionState {
 }
 
 const linkingSessions = new Map<string, LinkingSessionState>()
+const MAX_LINKING_SESSIONS = 10
 
 function cleanupExpiredSessions(): void {
   const now = Date.now()
   for (const [sessionId, session] of linkingSessions) {
     if (session.expiresAt < now) {
       if (session.privateKey) {
-        session.privateKey.fill(0)
+        secureZeroSync(session.privateKey)
       }
       if (session.derivedKeys) {
-        session.derivedKeys.encryptionKey.fill(0)
-        session.derivedKeys.macKey.fill(0)
+        secureZeroSync(session.derivedKeys.encryptionKey)
+        secureZeroSync(session.derivedKeys.macKey)
       }
       linkingSessions.delete(sessionId)
     }
@@ -138,6 +140,15 @@ function cleanupExpiredSessions(): void {
 }
 
 function storeLinkingSession(session: LinkingSessionState): void {
+  cleanupExpiredSessions()
+
+  if (linkingSessions.size >= MAX_LINKING_SESSIONS) {
+    const oldestKey = linkingSessions.keys().next().value
+    if (oldestKey) {
+      deleteLinkingSession(oldestKey)
+    }
+  }
+
   linkingSessions.set(session.sessionId, session)
 }
 
@@ -150,11 +161,11 @@ function deleteLinkingSession(sessionId: string): void {
   const session = linkingSessions.get(sessionId)
   if (session) {
     if (session.privateKey) {
-      session.privateKey.fill(0)
+      secureZeroSync(session.privateKey)
     }
     if (session.derivedKeys) {
-      session.derivedKeys.encryptionKey.fill(0)
-      session.derivedKeys.macKey.fill(0)
+      secureZeroSync(session.derivedKeys.encryptionKey)
+      secureZeroSync(session.derivedKeys.macKey)
     }
     linkingSessions.delete(sessionId)
   }
@@ -804,12 +815,13 @@ export function registerSyncHandlers(): void {
           throw new Error('Device not registered')
         }
 
-        const linkingKeyPair = generateLinkingKeyPair()
+        const linkingKeyPair = await generateLinkingKeyPair()
 
         const client = getSyncApiClient()
         const response = await client.initiateLinking(
           storedTokens.accessToken,
-          deviceKeyPair.deviceId
+          deviceKeyPair.deviceId,
+          linkingKeyPair.publicKey
         )
 
         const qrCodeDataUrl = await QRCode.toDataURL(response.qrPayload, {
@@ -822,7 +834,6 @@ export function registerSyncHandlers(): void {
           sessionId: response.sessionId,
           privateKey: base64ToUint8Array(linkingKeyPair.privateKey),
           publicKey: linkingKeyPair.publicKey,
-          serverPublicKey: response.ephemeralPublicKey,
           createdAt: Date.now(),
           expiresAt: response.expiresAt
         })
@@ -834,7 +845,12 @@ export function registerSyncHandlers(): void {
         }
       } catch (error) {
         console.error('[Sync] CREATE_LINKING_SESSION error:', error)
-        throw error
+        return {
+          sessionId: '',
+          qrCodeDataUrl: '',
+          expiresAt: 0,
+          error: error instanceof Error ? error.message : 'Failed to create linking session'
+        }
       }
     })
   )
@@ -859,8 +875,9 @@ export function registerSyncHandlers(): void {
             return { success: false, error: 'Invalid QR code format' }
           }
 
-          const linkingKeyPair = generateLinkingKeyPair()
+          const linkingKeyPair = await generateLinkingKeyPair()
           const myPrivateKey = base64ToUint8Array(linkingKeyPair.privateKey)
+          const myPrivateKeyCopy = new Uint8Array(myPrivateKey)
           const serverPublicKey = base64ToUint8Array(qrPayload.ephemeralPublicKey)
 
           derivedKeys = await deriveLinkingKeys(myPrivateKey, serverPublicKey)
@@ -886,7 +903,7 @@ export function registerSyncHandlers(): void {
 
           storeLinkingSession({
             sessionId: qrPayload.sessionId,
-            privateKey: myPrivateKey,
+            privateKey: myPrivateKeyCopy,
             publicKey: linkingKeyPair.publicKey,
             serverPublicKey: qrPayload.ephemeralPublicKey,
             derivedKeys: {
@@ -894,9 +911,10 @@ export function registerSyncHandlers(): void {
               macKey: derivedKeys.macKey
             },
             createdAt: Date.now(),
-            expiresAt: Date.now() + 10 * 60 * 1000
+            expiresAt: Date.now() + LINKING_CONSTANTS.SESSION_EXPIRY_MS
           })
 
+          await secureZero(myPrivateKey)
           derivedKeys = null
 
           return {

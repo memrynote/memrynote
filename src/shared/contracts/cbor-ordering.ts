@@ -65,6 +65,12 @@ export const ENCRYPTED_UPDATE_PAYLOAD_FIELD_ORDER = [
 /**
  * Field order for new device confirmation proof (SCAN_LINKING_QR).
  * The new device computes HMAC over this payload to prove possession of derived keys.
+ *
+ * Field order rationale:
+ * - Order is chosen for semantic grouping (identifiers first, then data)
+ * - RFC 8949 deterministic encoding is achieved by consistent application of
+ *   this order on both client and server, not alphabetical sorting
+ * - Both devices must use identical field ordering to produce matching HMACs
  */
 export const LINKING_NEW_DEVICE_CONFIRM_FIELD_ORDER = [
   'sessionId',

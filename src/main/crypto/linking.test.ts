@@ -19,9 +19,9 @@ import {
 
 describe('Device Linking Crypto', () => {
   describe('T109: generateLinkingKeyPair', () => {
-    it('should generate a valid X25519 keypair with Base64-encoded keys', () => {
+    it('should generate a valid X25519 keypair with Base64-encoded keys', async () => {
       // #when
-      const keyPair = generateLinkingKeyPair()
+      const keyPair = await generateLinkingKeyPair()
 
       // #then
       expect(keyPair.publicKey).toBeDefined()
@@ -34,10 +34,10 @@ describe('Device Linking Crypto', () => {
       expect(privateKeyBytes.length).toBe(32)
     })
 
-    it('should generate unique keypairs each time', () => {
+    it('should generate unique keypairs each time', async () => {
       // #when
-      const keyPair1 = generateLinkingKeyPair()
-      const keyPair2 = generateLinkingKeyPair()
+      const keyPair1 = await generateLinkingKeyPair()
+      const keyPair2 = await generateLinkingKeyPair()
 
       // #then
       expect(keyPair1.publicKey).not.toBe(keyPair2.publicKey)
@@ -48,8 +48,8 @@ describe('Device Linking Crypto', () => {
   describe('T110: deriveLinkingKeys', () => {
     it('should derive matching keys from ECDH between two parties', async () => {
       // #given
-      const aliceKeyPair = generateLinkingKeyPair()
-      const bobKeyPair = generateLinkingKeyPair()
+      const aliceKeyPair = await generateLinkingKeyPair()
+      const bobKeyPair = await generateLinkingKeyPair()
 
       const alicePrivate = base64ToUint8Array(aliceKeyPair.privateKey)
       const alicePublic = base64ToUint8Array(aliceKeyPair.publicKey)
@@ -88,7 +88,7 @@ describe('Device Linking Crypto', () => {
   describe('T110a: computeLinkingProof / verifyLinkingProof', () => {
     it('should compute deterministic proofs for newDeviceConfirm', async () => {
       // #given
-      const keyPair = generateLinkingKeyPair()
+      const keyPair = await generateLinkingKeyPair()
       const macKey = new Uint8Array(32)
       for (let i = 0; i < 32; i++) macKey[i] = i
 
@@ -220,8 +220,8 @@ describe('Device Linking Crypto', () => {
 
     it('should work with ECDH-derived keys', async () => {
       // #given
-      const aliceKeyPair = generateLinkingKeyPair()
-      const bobKeyPair = generateLinkingKeyPair()
+      const aliceKeyPair = await generateLinkingKeyPair()
+      const bobKeyPair = await generateLinkingKeyPair()
 
       const alicePrivate = base64ToUint8Array(aliceKeyPair.privateKey)
       const bobPrivate = base64ToUint8Array(bobKeyPair.privateKey)
@@ -255,8 +255,8 @@ describe('Device Linking Crypto', () => {
       // Simulate the full flow: existing device (Alice) links new device (Bob)
 
       // #given - Both devices generate their keypairs
-      const aliceKeyPair = generateLinkingKeyPair()
-      const bobKeyPair = generateLinkingKeyPair()
+      const aliceKeyPair = await generateLinkingKeyPair()
+      const bobKeyPair = await generateLinkingKeyPair()
 
       const alicePrivate = base64ToUint8Array(aliceKeyPair.privateKey)
       const bobPrivate = base64ToUint8Array(bobKeyPair.privateKey)
