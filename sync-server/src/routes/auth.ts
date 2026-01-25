@@ -11,6 +11,10 @@
  * - T050, T050a, T050b: POST /auth/devices
  * - T051: POST /auth/setup
  * - T052b: POST /auth/refresh
+ * - T104: POST /auth/linking/initiate
+ * - T105: POST /auth/linking/scan
+ * - T106: POST /auth/linking/approve
+ * - T107: POST /auth/linking/complete
  */
 
 import { Hono } from 'hono'
@@ -49,8 +53,36 @@ import {
   SyncError,
   ErrorCode,
   notFound,
-  unauthorized
+  linkingSessionNotFound,
+  linkingSessionExpired,
+  linkingInvalidState,
+  linkingDeviceNotOwned,
+  linkingConfirmMismatch
 } from '../lib/errors'
+import {
+  LinkingInitiateRequestSchema,
+  LinkingScanRequestSchema,
+  LinkingApproveRequestSchema,
+  LinkingCompleteRequestSchema,
+  type LinkingInitiateResponse,
+  type LinkingScanResponse,
+  type LinkingApproveResponse,
+  type LinkingCompleteResponse
+} from '../contracts/linking-api'
+import {
+  generateEphemeralKeypair,
+  generateLinkingToken,
+  encodeQRPayload,
+  isSessionExpired,
+  calculateSessionExpiry,
+  validateStateTransition,
+  getLinkingSession,
+  createLinkingSession,
+  updateSessionToScanned,
+  updateSessionToApproved,
+  updateSessionToCompleted,
+  verifyDeviceOwnership
+} from '../services/linking'
 
 interface AuthVariables {
   auth: {
@@ -629,6 +661,280 @@ authRoutes.post('/logout', authMiddleware(), async (c) => {
 
   const response: LogoutResponse = {
     success: true
+  }
+
+  return c.json(response)
+})
+
+// =============================================================================
+// Device Linking Endpoints
+// =============================================================================
+
+/**
+ * T104: POST /auth/linking/initiate
+ * Start device linking from existing device.
+ * Creates a linking session and returns QR payload for the new device.
+ */
+authRoutes.post('/linking/initiate', authMiddleware(), async (c) => {
+  const auth = getAuth(c)
+  const body = await c.req.json()
+  const parsed = LinkingInitiateRequestSchema.safeParse(body)
+
+  if (!parsed.success) {
+    throw validationError('Invalid request', { issues: parsed.error.issues })
+  }
+
+  const { deviceId } = parsed.data
+
+  const rateKey = `linking_operation:${auth.userId}`
+  const rateCheck = await checkRateLimit(
+    c.env.DB,
+    rateKey,
+    RATE_LIMITS.linking_operation.requests,
+    RATE_LIMITS.linking_operation.windowMs
+  )
+
+  if (!rateCheck.allowed) {
+    const retryAfter = Math.ceil((rateCheck.resetAt - Date.now()) / 1000)
+    c.header('Retry-After', String(retryAfter))
+    throw new SyncError('Too many linking requests', ErrorCode.AUTH_RATE_LIMITED, 429, { retryAfter })
+  }
+
+  const ownsDevice = await verifyDeviceOwnership(c.env.DB, deviceId, auth.userId)
+  if (!ownsDevice) {
+    throw linkingDeviceNotOwned()
+  }
+
+  const { publicKey: ephemeralPublicKey } = await generateEphemeralKeypair()
+  const linkingToken = generateLinkingToken()
+  const sessionId = crypto.randomUUID()
+  const expiresAt = calculateSessionExpiry()
+
+  await createLinkingSession(c.env.DB, {
+    id: sessionId,
+    userId: auth.userId,
+    initiatorDeviceId: deviceId,
+    ephemeralPublicKey,
+    expiresAt
+  })
+
+  const serverUrl = new URL(c.req.url).origin
+  const qrPayload = encodeQRPayload({
+    sessionId,
+    token: linkingToken,
+    ephemeralPublicKey,
+    serverUrl
+  })
+
+  const doId = c.env.LINKING_SESSION.idFromName(sessionId)
+  const stub = c.env.LINKING_SESSION.get(doId)
+  await stub.fetch(new Request('https://internal/init', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId,
+      userId: auth.userId,
+      expiresAt
+    })
+  }))
+
+  const response: LinkingInitiateResponse = {
+    sessionId,
+    ephemeralPublicKey,
+    qrPayload,
+    expiresAt
+  }
+
+  return c.json(response)
+})
+
+/**
+ * T105: POST /auth/linking/scan
+ * New device scans QR code and submits its public key.
+ * No auth required - new device doesn't have tokens yet.
+ */
+authRoutes.post('/linking/scan', async (c) => {
+  const body = await c.req.json()
+  const parsed = LinkingScanRequestSchema.safeParse(body)
+
+  if (!parsed.success) {
+    throw validationError('Invalid request', { issues: parsed.error.issues })
+  }
+
+  const { sessionId, newDevicePublicKey, newDeviceConfirm } = parsed.data
+
+  const rateKey = `linking_scan:${sessionId}`
+  const rateCheck = await checkRateLimit(
+    c.env.DB,
+    rateKey,
+    RATE_LIMITS.linking_scan.requests,
+    RATE_LIMITS.linking_scan.windowMs
+  )
+
+  if (!rateCheck.allowed) {
+    const retryAfter = Math.ceil((rateCheck.resetAt - Date.now()) / 1000)
+    c.header('Retry-After', String(retryAfter))
+    throw new SyncError('Too many scan attempts', ErrorCode.AUTH_RATE_LIMITED, 429, { retryAfter })
+  }
+
+  const session = await getLinkingSession(c.env.DB, sessionId)
+  if (!session) {
+    throw linkingSessionNotFound()
+  }
+
+  if (isSessionExpired(session.expires_at)) {
+    throw linkingSessionExpired()
+  }
+
+  if (!validateStateTransition(session.status, 'pending')) {
+    throw linkingInvalidState('pending', session.status)
+  }
+
+  await updateSessionToScanned(c.env.DB, sessionId, newDevicePublicKey, newDeviceConfirm)
+
+  const doId = c.env.LINKING_SESSION.idFromName(sessionId)
+  const stub = c.env.LINKING_SESSION.get(doId)
+  await stub.fetch(new Request('https://internal/broadcast', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'scanned' })
+  }))
+
+  const response: LinkingScanResponse = {
+    status: 'scanned'
+  }
+
+  return c.json(response)
+})
+
+/**
+ * T106: POST /auth/linking/approve
+ * Existing device approves and transfers encrypted master key.
+ */
+authRoutes.post('/linking/approve', authMiddleware(), async (c) => {
+  const auth = getAuth(c)
+  const body = await c.req.json()
+  const parsed = LinkingApproveRequestSchema.safeParse(body)
+
+  if (!parsed.success) {
+    throw validationError('Invalid request', { issues: parsed.error.issues })
+  }
+
+  const { sessionId, encryptedMasterKey, encryptedKeyNonce, keyConfirm } = parsed.data
+
+  const session = await getLinkingSession(c.env.DB, sessionId)
+  if (!session) {
+    throw linkingSessionNotFound()
+  }
+
+  if (session.user_id !== auth.userId) {
+    throw linkingDeviceNotOwned()
+  }
+
+  if (isSessionExpired(session.expires_at)) {
+    throw linkingSessionExpired()
+  }
+
+  if (!validateStateTransition(session.status, 'scanned')) {
+    throw linkingInvalidState('scanned', session.status)
+  }
+
+  await updateSessionToApproved(c.env.DB, sessionId, encryptedMasterKey, encryptedKeyNonce, keyConfirm)
+
+  const doId = c.env.LINKING_SESSION.idFromName(sessionId)
+  const stub = c.env.LINKING_SESSION.get(doId)
+  await stub.fetch(new Request('https://internal/broadcast', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'approved' })
+  }))
+
+  const response: LinkingApproveResponse = {
+    status: 'approved'
+  }
+
+  return c.json(response)
+})
+
+/**
+ * T107: POST /auth/linking/complete
+ * New device completes linking and retrieves encrypted master key.
+ * No auth required - new device doesn't have tokens yet.
+ */
+authRoutes.post('/linking/complete', async (c) => {
+  const body = await c.req.json()
+  const parsed = LinkingCompleteRequestSchema.safeParse(body)
+
+  if (!parsed.success) {
+    throw validationError('Invalid request', { issues: parsed.error.issues })
+  }
+
+  const { sessionId, newDeviceConfirm } = parsed.data
+
+  const rateKey = `linking_complete:${sessionId}`
+  const rateCheck = await checkRateLimit(
+    c.env.DB,
+    rateKey,
+    RATE_LIMITS.linking_complete.requests,
+    RATE_LIMITS.linking_complete.windowMs
+  )
+
+  if (!rateCheck.allowed) {
+    const retryAfter = Math.ceil((rateCheck.resetAt - Date.now()) / 1000)
+    c.header('Retry-After', String(retryAfter))
+    throw new SyncError('Too many complete attempts', ErrorCode.AUTH_RATE_LIMITED, 429, { retryAfter })
+  }
+
+  const session = await getLinkingSession(c.env.DB, sessionId)
+  if (!session) {
+    throw linkingSessionNotFound()
+  }
+
+  if (isSessionExpired(session.expires_at)) {
+    throw linkingSessionExpired()
+  }
+
+  if (!validateStateTransition(session.status, 'approved')) {
+    throw linkingInvalidState('approved', session.status)
+  }
+
+  if (session.new_device_confirm !== newDeviceConfirm) {
+    throw linkingConfirmMismatch()
+  }
+
+  const now = Date.now()
+  const deviceId = crypto.randomUUID()
+
+  await c.env.DB.prepare(
+    `INSERT INTO devices (id, user_id, name, platform, os_version, app_version, auth_public_key, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+    .bind(deviceId, session.user_id, 'Linked Device', 'macos', null, '0.0.0', '', now, now)
+    .run()
+
+  await updateSessionToCompleted(c.env.DB, sessionId)
+
+  const doId = c.env.LINKING_SESSION.idFromName(sessionId)
+  const stub = c.env.LINKING_SESSION.get(doId)
+  await stub.fetch(new Request('https://internal/broadcast', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'completed' })
+  }))
+
+  const response: LinkingCompleteResponse = {
+    encryptedMasterKey: session.encrypted_master_key!,
+    encryptedKeyNonce: session.encrypted_key_nonce!,
+    keyConfirm: session.key_confirm!,
+    device: {
+      id: deviceId,
+      userId: session.user_id,
+      name: 'Linked Device',
+      platform: 'macos',
+      appVersion: '0.0.0',
+      authPublicKey: '',
+      linkedAt: now
+    }
   }
 
   return c.json(response)

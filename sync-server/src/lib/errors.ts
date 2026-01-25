@@ -42,7 +42,14 @@ export const ErrorCode = {
   // Server errors
   SERVER_INTERNAL_ERROR: 'SERVER_INTERNAL_ERROR',
   SERVER_DATABASE_ERROR: 'SERVER_DATABASE_ERROR',
-  SERVER_VALIDATION_ERROR: 'SERVER_VALIDATION_ERROR'
+  SERVER_VALIDATION_ERROR: 'SERVER_VALIDATION_ERROR',
+
+  // Linking errors
+  LINKING_SESSION_NOT_FOUND: 'LINKING_SESSION_NOT_FOUND',
+  LINKING_SESSION_EXPIRED: 'LINKING_SESSION_EXPIRED',
+  LINKING_INVALID_STATE: 'LINKING_INVALID_STATE',
+  LINKING_DEVICE_NOT_OWNED: 'LINKING_DEVICE_NOT_OWNED',
+  LINKING_CONFIRM_MISMATCH: 'LINKING_CONFIRM_MISMATCH'
 } as const
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode]
@@ -126,6 +133,32 @@ export const refreshTokenExpired = (): SyncError =>
 
 export const refreshTokenRevoked = (): SyncError =>
   new SyncError('Refresh token has been revoked', ErrorCode.AUTH_REFRESH_TOKEN_REVOKED, 401)
+
+// Linking error factory functions
+
+export const linkingSessionNotFound = (): SyncError =>
+  new SyncError('Linking session not found', ErrorCode.LINKING_SESSION_NOT_FOUND, 404)
+
+export const linkingSessionExpired = (): SyncError =>
+  new SyncError('Linking session has expired', ErrorCode.LINKING_SESSION_EXPIRED, 410)
+
+export const linkingInvalidState = (expected: string, actual: string): SyncError =>
+  new SyncError(
+    `Invalid session state: expected '${expected}', got '${actual}'`,
+    ErrorCode.LINKING_INVALID_STATE,
+    409,
+    { expected, actual }
+  )
+
+export const linkingDeviceNotOwned = (): SyncError =>
+  new SyncError(
+    'Device does not belong to authenticated user',
+    ErrorCode.LINKING_DEVICE_NOT_OWNED,
+    403
+  )
+
+export const linkingConfirmMismatch = (): SyncError =>
+  new SyncError('Device confirmation does not match', ErrorCode.LINKING_CONFIRM_MISMATCH, 400)
 
 /**
  * Type guard to check if an error is a SyncError.
