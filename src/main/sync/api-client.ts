@@ -259,6 +259,8 @@ function createApiClient(): SyncApiClient {
         throw new SyncApiError('Not authenticated', 401, 'UNAUTHORIZED')
       }
 
+      console.info('[SyncApi] Push request:', { itemCount: items.length })
+
       const response = await fetch(`${baseUrl}/api/v1/sync/push`, {
         method: 'POST',
         headers: {
@@ -281,7 +283,9 @@ function createApiClient(): SyncApiClient {
         params.set('limit', limit.toString())
       }
 
-      const response = await fetch(`${baseUrl}/api/v1/sync/pull?${params}`, {
+      console.info('[SyncApi] Pull request:', { cursor, limit })
+
+      const response = await fetch(`${baseUrl}/api/v1/sync/changes?${params}`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${tokens.accessToken}`

@@ -19,6 +19,7 @@ import { generateId } from '../lib/id'
 import { eq } from 'drizzle-orm'
 import { InboxChannels } from '@shared/ipc-channels'
 import { resolveAttachmentUrl, deleteInboxAttachments } from './attachments'
+import { queueInboxItemById } from './sync'
 
 // ============================================================================
 // Types
@@ -323,6 +324,7 @@ function markItemAsFiled(
     })
     .where(eq(inboxItems.id, itemId))
     .run()
+  void queueInboxItemById(db, itemId, 'update')
 
   // Emit filed event
   emitInboxEvent(InboxChannels.events.FILED, {

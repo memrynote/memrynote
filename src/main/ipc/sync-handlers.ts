@@ -73,6 +73,7 @@ import {
 } from '../crypto'
 import { getSyncApiClient, isSyncApiError } from '../sync/api-client'
 import { getSyncEngine } from '../sync/engine'
+import { bootstrapSyncData } from '../sync/bootstrap'
 import type { DecryptedSyncItem } from '../sync/engine'
 import { getSyncQueue } from '../sync/queue'
 import { getNetworkMonitor } from '../sync/network'
@@ -501,6 +502,8 @@ export function registerSyncHandlers(): void {
             createdAt: now,
             updatedAt: now
           }
+
+          void bootstrapSyncData()
 
           return {
             recoveryPhrase,

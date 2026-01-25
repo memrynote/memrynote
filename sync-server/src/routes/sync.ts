@@ -44,6 +44,7 @@ interface SyncVariables {
 // Internal DO routing URL - Durable Objects use pathname-based routing
 // and the host/scheme are ignored for internal fetch calls
 const DO_BROADCAST_URL = 'http://internal/broadcast'
+const LOG_PREFIX = '[SyncServer]'
 
 const syncRoutes = new Hono<{ Bindings: Env; Variables: SyncVariables }>()
 
@@ -78,7 +79,7 @@ const ChangesQuerySchema = z.object({
 })
 
 const PullRequestSchema = z.object({
-  itemIds: z.array(z.string().uuid()).max(100)
+  itemIds: z.array(z.string().min(1).max(128)).max(100)
 })
 
 // =============================================================================
@@ -133,6 +134,7 @@ syncRoutes.get('/changes', async (c) => {
   }
 
   const { cursor, limit, types } = parsed.data
+  console.log(`${LOG_PREFIX} GET /sync/changes`, { cursor, limit, types })
   const result = await getSyncChanges(c.env.DB, auth.userId, cursor, limit, types)
 
   await updateDeviceCursorState(c.env.DB, auth.userId, auth.deviceId, result.nextCursor)
@@ -146,6 +148,11 @@ syncRoutes.get('/changes', async (c) => {
   }
 
   c.header('X-Server-Cursor', String(result.nextCursor))
+  console.log(`${LOG_PREFIX} GET /sync/changes response`, {
+    itemCount: result.items.length,
+    hasMore: result.hasMore,
+    nextCursor: result.nextCursor
+  })
   return c.json(response)
 })
 
@@ -178,6 +185,7 @@ syncRoutes.post('/push', async (c) => {
     throw badRequest('Maximum 100 items per push')
   }
 
+  console.log(`${LOG_PREFIX} POST /sync/push`, { itemCount: items.length })
   const result = await pushSyncItems(c.env.DB, auth.userId, items)
   await updateDeviceLastSyncAt(c.env.DB, auth.deviceId)
 
@@ -209,6 +217,15 @@ syncRoutes.post('/push', async (c) => {
   }
 
   c.header('X-Server-Cursor', String(result.serverCursor))
+  console.log(`${LOG_PREFIX} POST /sync/push response`, {
+    accepted: result.accepted.length,
+    rejected: result.rejected.length,
+    conflicts: result.conflicts.length,
+    serverCursor: result.serverCursor
+  })
+  if (result.rejected.length > 0) {
+    console.warn(`${LOG_PREFIX} POST /sync/push rejected items`, result.rejected)
+  }
   return c.json(response)
 })
 
@@ -237,8 +254,10 @@ syncRoutes.post('/pull', async (c) => {
     return c.json({ items: [] })
   }
 
+  console.log(`${LOG_PREFIX} POST /sync/pull`, { itemCount: itemIds.length })
   const items = await getSyncItems(c.env.DB, auth.userId, itemIds)
 
+  console.log(`${LOG_PREFIX} POST /sync/pull response`, { itemCount: items.length })
   return c.json({ items })
 })
 
@@ -250,7 +269,7 @@ syncRoutes.get('/items/:id', async (c) => {
   const auth = getAuth(c)
   const itemId = c.req.param('id')
 
-  if (!itemId || !isValidUuid(itemId)) {
+  if (!itemId || !isValidSyncItemId(itemId)) {
     throw badRequest('Invalid item ID')
   }
 
@@ -271,7 +290,7 @@ syncRoutes.delete('/items/:id', async (c) => {
   const auth = getAuth(c)
   const itemId = c.req.param('id')
 
-  if (!itemId || !isValidUuid(itemId)) {
+  if (!itemId || !isValidSyncItemId(itemId)) {
     throw badRequest('Invalid item ID')
   }
 
@@ -288,9 +307,8 @@ syncRoutes.delete('/items/:id', async (c) => {
 // Helper Functions
 // =============================================================================
 
-function isValidUuid(str: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-  return uuidRegex.test(str)
+function isValidSyncItemId(str: string): boolean {
+  return str.length > 0 && str.length <= 128
 }
 
 export { syncRoutes }

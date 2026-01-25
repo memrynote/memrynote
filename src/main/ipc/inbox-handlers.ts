@@ -85,8 +85,7 @@ import {
 } from '../inbox/stats'
 import { snoozeItem, unsnoozeItem, getSnoozedItems, bulkSnoozeItems } from '../inbox/snooze'
 import type { SnoozeInput, SnoozedItem } from '../inbox/snooze'
-import { getSyncQueue } from '../sync/queue'
-import { retrieveDeviceKeyPair } from '../crypto/keychain'
+import { queueInboxItemForSync, queueInboxItemById } from '../inbox/sync'
 
 // ============================================================================
 // Constants
@@ -125,6 +124,7 @@ async function fetchAndUpdateMetadata(itemId: string, url: string, retryCount = 
       })
       .where(eq(inboxItems.id, itemId))
       .run()
+    await queueInboxItemById(db, itemId, 'update')
 
     // Fetch metadata
     console.log(`[Metadata] Fetching metadata for ${url}`)
@@ -161,6 +161,7 @@ async function fetchAndUpdateMetadata(itemId: string, url: string, retryCount = 
       })
       .where(eq(inboxItems.id, itemId))
       .run()
+    await queueInboxItemById(db, itemId, 'update')
 
     // Emit success event
     emitInboxEvent(InboxChannels.events.METADATA_COMPLETE, {
@@ -202,6 +203,7 @@ async function fetchAndUpdateMetadata(itemId: string, url: string, retryCount = 
         })
         .where(eq(inboxItems.id, itemId))
         .run()
+      await queueInboxItemById(db, itemId, 'update')
 
       // Emit error event
       emitInboxEvent(InboxChannels.events.PROCESSING_ERROR, {
@@ -292,6 +294,7 @@ async function fetchAndUpdateSocialMetadata(
         })
         .where(eq(inboxItems.id, itemId))
         .run()
+      await queueInboxItemById(db, itemId, 'update')
 
       // Emit success event
       emitInboxEvent(InboxChannels.events.METADATA_COMPLETE, {
@@ -332,6 +335,7 @@ async function fetchAndUpdateSocialMetadata(
           })
           .where(eq(inboxItems.id, itemId))
           .run()
+        await queueInboxItemById(db, itemId, 'update')
 
         emitInboxEvent(InboxChannels.events.METADATA_COMPLETE, {
           id: itemId,
@@ -371,6 +375,7 @@ async function fetchAndUpdateSocialMetadata(
         })
         .where(eq(inboxItems.id, itemId))
         .run()
+      await queueInboxItemById(db, itemId, 'update')
 
       // Emit error event
       emitInboxEvent(InboxChannels.events.PROCESSING_ERROR, {
@@ -414,30 +419,6 @@ function requireDatabase(): DrizzleDb {
  */
 function isStale(createdAt: string): boolean {
   return checkIsStale(createdAt)
-}
-
-async function getCurrentDeviceId(): Promise<string | null> {
-  try {
-    const keyPair = await retrieveDeviceKeyPair()
-    return keyPair?.deviceId ?? null
-  } catch {
-    return null
-  }
-}
-
-async function queueInboxForSync(
-  item: typeof inboxItems.$inferSelect,
-  operation: 'create' | 'update' | 'delete'
-): Promise<void> {
-  try {
-    const deviceId = await getCurrentDeviceId()
-    if (!deviceId) return
-
-    const queue = getSyncQueue()
-    await queue.add('inbox', item.id, operation, JSON.stringify(item), 0)
-  } catch (error) {
-    console.warn('[InboxHandlers] Failed to queue inbox for sync:', error)
-  }
 }
 
 /**
@@ -573,7 +554,7 @@ async function handleCaptureText(input: unknown): Promise<CaptureResponse> {
     // Emit event
     emitInboxEvent(InboxChannels.events.CAPTURED, { item: toListItem(created, tags) })
 
-    await queueInboxForSync(created, 'create')
+    await queueInboxItemForSync(created, 'create', db)
 
     return { success: true, item }
   } catch (error) {
@@ -659,7 +640,7 @@ async function handleCaptureLink(input: unknown): Promise<CaptureResponse> {
     // Emit captured event immediately (UI shows pending state)
     emitInboxEvent(InboxChannels.events.CAPTURED, { item: toListItem(created, tags) })
 
-    await queueInboxForSync(created, 'create')
+    await queueInboxItemForSync(created, 'create', db)
 
     // Trigger background metadata fetch (don't await - non-blocking)
     // Use specialized social extraction for social posts
@@ -802,7 +783,7 @@ async function handleUpdate(input: unknown): Promise<CaptureResponse> {
 
     emitInboxEvent(InboxChannels.events.UPDATED, { id: parsed.id, changes: updates })
 
-    await queueInboxForSync(updated, 'update')
+    await queueInboxItemForSync(updated, 'update', db)
 
     return { success: true, item }
   } catch (error) {
@@ -837,7 +818,7 @@ async function handleArchive(id: string): Promise<{ success: boolean; error?: st
 
     const archived = db.select().from(inboxItems).where(eq(inboxItems.id, id)).get()
     if (archived) {
-      await queueInboxForSync(archived, 'update')
+      await queueInboxItemForSync(archived, 'update', db)
     }
 
     return { success: true }
@@ -1225,7 +1206,7 @@ async function handleCaptureImage(input: unknown): Promise<CaptureResponse> {
     // Emit captured event
     emitInboxEvent(InboxChannels.events.CAPTURED, { item: toListItem(created, tags) })
 
-    await queueInboxForSync(created, 'create')
+    await queueInboxItemForSync(created, 'create', db)
 
     console.log(
       `[Attachment] Captured ${inboxType}: ${parsed.filename} (${fileBuffer.length} bytes)`
@@ -1484,6 +1465,7 @@ async function handleMarkViewed(itemId: string): Promise<{ success: boolean; err
       })
       .where(eq(inboxItems.id, itemId))
       .run()
+    await queueInboxItemById(db, itemId, 'update')
 
     // Emit updated event
     emitInboxEvent(InboxChannels.events.UPDATED, {
@@ -1738,6 +1720,7 @@ async function handleRetryMetadata(itemId: string): Promise<{ success: boolean; 
       })
       .where(eq(inboxItems.id, itemId))
       .run()
+    await queueInboxItemById(db, itemId, 'update')
 
     // Trigger background fetch (start fresh with retryCount = 0)
     setImmediate(() => {
@@ -1820,7 +1803,7 @@ async function handleUnarchive(id: string): Promise<{ success: boolean; error?: 
 
     const unarchived = db.select().from(inboxItems).where(eq(inboxItems.id, id)).get()
     if (unarchived) {
-      await queueInboxForSync(unarchived, 'update')
+      await queueInboxItemForSync(unarchived, 'update', db)
     }
 
     return { success: true }
@@ -1839,7 +1822,7 @@ async function handleDeletePermanent(id: string): Promise<{ success: boolean; er
       return { success: false, error: 'Item not found' }
     }
 
-    await queueInboxForSync(existing, 'delete')
+    await queueInboxItemForSync(existing, 'delete', db)
 
     await deleteInboxAttachments(id)
 
