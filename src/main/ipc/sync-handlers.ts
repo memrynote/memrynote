@@ -66,6 +66,7 @@ import {
   retrieveKeyMaterial,
   storeSigningKeyPair,
   retrieveAuthTokens,
+  storeAuthTokens,
   sign,
   secureZero,
   secureZeroSync,
@@ -74,7 +75,8 @@ import {
   generateLinkingKeyPair,
   deriveLinkingKeys,
   computeLinkingProof,
-  encryptMasterKeyForLinking
+  encryptMasterKeyForLinking,
+  decryptMasterKeyFromLinking
 } from '../crypto'
 import {
   LINKING_NEW_DEVICE_CONFIRM_FIELD_ORDER,
@@ -84,7 +86,7 @@ import { validateLinkingQRPayload, LINKING_CONSTANTS } from '@shared/contracts/l
 import type { LinkingQRPayload } from '@shared/contracts/linking-api'
 import type { ScanLinkingQRRequest } from '@shared/contracts/ipc-sync'
 import QRCode from 'qrcode'
-import { getSyncApiClient, isSyncApiError } from '../sync/api-client'
+import { getSyncApiClient, createApiClientWithUrl, isSyncApiError } from '../sync/api-client'
 import { getSyncEngine } from '../sync/engine'
 import { bootstrapSyncData } from '../sync/bootstrap'
 import { triggerPostSetupSync } from '../sync/auth-bridge'
@@ -116,6 +118,8 @@ interface LinkingSessionState {
     macKey: Uint8Array
   }
   newDevicePublicKey?: string
+  serverUrl?: string
+  linkingToken?: string
   createdAt: number
   expiresAt: number
 }
@@ -893,7 +897,7 @@ export function registerSyncHandlers(): void {
             LINKING_NEW_DEVICE_CONFIRM_FIELD_ORDER
           )
 
-          const client = getSyncApiClient()
+          const client = createApiClientWithUrl(qrPayload.serverUrl)
           await client.scanLinking({
             sessionId: qrPayload.sessionId,
             token: qrPayload.token,
@@ -910,6 +914,8 @@ export function registerSyncHandlers(): void {
               encryptionKey: derivedKeys.encryptionKey,
               macKey: derivedKeys.macKey
             },
+            serverUrl: qrPayload.serverUrl,
+            linkingToken: qrPayload.token,
             createdAt: Date.now(),
             expiresAt: Date.now() + LINKING_CONSTANTS.SESSION_EXPIRY_MS
           })
@@ -1025,7 +1031,101 @@ export function registerSyncHandlers(): void {
     SyncChannels.invoke.COMPLETE_LINKING,
     createValidatedHandler(
       z.object({ sessionId: z.string().uuid() }),
-      (): CompleteLinkingResponse => createNotImplementedResponse()
+      async ({ sessionId }): Promise<CompleteLinkingResponse> => {
+        let masterKey: Uint8Array | null = null
+        let derivedKeys: Awaited<ReturnType<typeof deriveAllKeys>> | null = null
+
+        try {
+          const session = getLinkingSessionState(sessionId)
+          if (!session) {
+            return { success: false, error: 'Linking session not found or expired' }
+          }
+
+          if (!session.derivedKeys || !session.linkingToken || !session.serverUrl) {
+            return { success: false, error: 'Incomplete linking session state' }
+          }
+
+          const proofPayload = {
+            sessionId,
+            token: session.linkingToken,
+            newDevicePublicKey: session.publicKey
+          }
+          const newDeviceConfirm = computeLinkingProof(
+            session.derivedKeys.macKey,
+            proofPayload,
+            LINKING_NEW_DEVICE_CONFIRM_FIELD_ORDER
+          )
+
+          const client = createApiClientWithUrl(session.serverUrl)
+          const response = await client.completeLinking({
+            sessionId,
+            token: session.linkingToken,
+            newDeviceConfirm: uint8ArrayToBase64(newDeviceConfirm)
+          })
+
+          const encryptedMasterKey = base64ToUint8Array(response.encryptedMasterKey)
+          const encryptedKeyNonce = base64ToUint8Array(response.encryptedKeyNonce)
+          masterKey = await decryptMasterKeyFromLinking(
+            encryptedMasterKey,
+            encryptedKeyNonce,
+            session.derivedKeys.encryptionKey
+          )
+
+          derivedKeys = await deriveAllKeys(masterKey)
+
+          const deviceId = response.device.id
+          const deviceKeyPair = await generateDeviceSigningKeyPair(deviceId)
+          await storeDeviceKeyPair(deviceKeyPair)
+
+          await storeSigningKeyPair({
+            publicKey: uint8ArrayToBase64(derivedKeys.signingKeyPair.publicKey),
+            privateKey: uint8ArrayToBase64(derivedKeys.signingKeyPair.privateKey)
+          })
+
+          await storeAuthTokens({
+            accessToken: response.accessToken,
+            refreshToken: response.refreshToken,
+            userId: response.device.userId ?? '',
+            email: '',
+            deviceId
+          })
+
+          await storeKeyMaterial({
+            masterKey: uint8ArrayToBase64(masterKey),
+            kdfSalt: '',
+            deviceSigningKey: uint8ArrayToBase64(deviceKeyPair.privateKey),
+            devicePublicKey: uint8ArrayToBase64(deviceKeyPair.publicKey),
+            deviceId,
+            userId: response.device.userId ?? ''
+          })
+
+          deleteLinkingSession(sessionId)
+
+          void triggerPostSetupSync()
+
+          return {
+            success: true,
+            device: {
+              ...response.device,
+              isCurrentDevice: true
+            }
+          }
+        } catch (error) {
+          console.error('[Sync] COMPLETE_LINKING error:', error)
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Linking completion failed'
+          }
+        } finally {
+          if (masterKey) await secureZero(masterKey)
+          if (derivedKeys) {
+            await secureZero(derivedKeys.vaultKey)
+            await secureZero(derivedKeys.signingKeyPair.publicKey)
+            await secureZero(derivedKeys.signingKeyPair.privateKey)
+            await secureZero(derivedKeys.verifyKey)
+          }
+        }
+      }
     )
   )
 
@@ -1044,6 +1144,26 @@ export function registerSyncHandlers(): void {
       async ({ sessionId }): Promise<GetLinkingStatusResponse> => {
         try {
           const storedTokens = await retrieveAuthTokens()
+          const linkingSession = getLinkingSessionState(sessionId)
+
+          if (linkingSession?.serverUrl && linkingSession?.linkingToken) {
+            const client = createApiClientWithUrl(linkingSession.serverUrl)
+            const response = await client.getLinkingStatusWithToken(sessionId, linkingSession.linkingToken)
+            return {
+              session: {
+                id: response.id,
+                userId: '',
+                initiatorDeviceId: response.initiatorDeviceId,
+                ephemeralPublicKey: response.ephemeralPublicKey,
+                newDevicePublicKey: response.newDevicePublicKey,
+                status: response.status,
+                createdAt: response.createdAt,
+                expiresAt: response.expiresAt,
+                completedAt: response.completedAt
+              }
+            }
+          }
+
           if (!storedTokens?.accessToken) {
             return { session: null }
           }
