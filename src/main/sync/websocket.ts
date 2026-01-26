@@ -18,12 +18,45 @@ export interface WebSocketEvents extends Record<string, unknown[]> {
   'sync:ws-message': [data: WebSocketMessage]
   'sync:ws-error': [error: Error]
   'sync:ws-reconnecting': [attempt: number]
+  'sync:linking-scanned': [sessionId: string]
+  'sync:linking-approved': [payload: LinkingApprovedPayload]
+  'sync:linking-completed': [payload: LinkingCompletedPayload]
+  'sync:linking-expired': [sessionId: string]
 }
 
 export interface WebSocketMessage {
-  type: 'sync' | 'ping' | 'pong' | 'notification' | 'error'
+  type: 'sync' | 'ping' | 'pong' | 'notification' | 'error' | 'linking'
   payload?: unknown
   timestamp: number
+}
+
+export interface LinkingApprovedPayload {
+  sessionId: string
+  encryptedMasterKey: string
+  encryptedKeyNonce: string
+  keyConfirm: string
+}
+
+export interface LinkingCompletedPayload {
+  sessionId: string
+  device: {
+    id: string
+    name: string
+    platform: string
+  }
+}
+
+export interface LinkingEventPayload {
+  event: 'scanned' | 'approved' | 'completed' | 'expired'
+  sessionId: string
+  encryptedMasterKey?: string
+  encryptedKeyNonce?: string
+  keyConfirm?: string
+  device?: {
+    id: string
+    name: string
+    platform: string
+  }
 }
 
 export type WebSocketState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
@@ -169,6 +202,11 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
         return
       }
 
+      if (message.type === 'linking') {
+        this.handleLinkingMessage(message.payload as LinkingEventPayload)
+        return
+      }
+
       this.emit('sync:ws-message', message)
       this.broadcastToWindows('sync:ws-message', message)
     } catch (error) {
@@ -176,6 +214,56 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
         'sync:ws-error',
         error instanceof Error ? error : new Error('Malformed WebSocket message')
       )
+    }
+  }
+
+  private handleLinkingMessage(payload: LinkingEventPayload): void {
+    if (!payload?.event || !payload?.sessionId) {
+      this.emit('sync:ws-error', new Error('Invalid linking message payload'))
+      return
+    }
+
+    switch (payload.event) {
+      case 'scanned':
+        this.emit('sync:linking-scanned', payload.sessionId)
+        this.broadcastToWindows('sync:linking-scanned', payload.sessionId)
+        break
+
+      case 'approved':
+        if (payload.encryptedMasterKey && payload.encryptedKeyNonce && payload.keyConfirm) {
+          const approvedPayload: LinkingApprovedPayload = {
+            sessionId: payload.sessionId,
+            encryptedMasterKey: payload.encryptedMasterKey,
+            encryptedKeyNonce: payload.encryptedKeyNonce,
+            keyConfirm: payload.keyConfirm
+          }
+          this.emit('sync:linking-approved', approvedPayload)
+          this.broadcastToWindows('sync:linking-approved', approvedPayload)
+        } else {
+          this.emit('sync:ws-error', new Error('Missing required fields in linking_approved payload'))
+        }
+        break
+
+      case 'completed':
+        if (payload.device) {
+          const completedPayload: LinkingCompletedPayload = {
+            sessionId: payload.sessionId,
+            device: payload.device
+          }
+          this.emit('sync:linking-completed', completedPayload)
+          this.broadcastToWindows('sync:linking-completed', completedPayload)
+        } else {
+          this.emit('sync:ws-error', new Error('Missing device in linking_completed payload'))
+        }
+        break
+
+      case 'expired':
+        this.emit('sync:linking-expired', payload.sessionId)
+        this.broadcastToWindows('sync:linking-expired', payload.sessionId)
+        break
+
+      default:
+        this.emit('sync:ws-error', new Error(`Unknown linking event: ${payload.event}`))
     }
   }
 

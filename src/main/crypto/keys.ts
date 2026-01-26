@@ -526,8 +526,36 @@ export async function deriveLinkingKeys(
 }
 
 // =============================================================================
-// T110a: Linking HMAC Proofs
+// T110a/T121b: Linking HMAC Proofs with Canonical CBOR Encoding
 // =============================================================================
+
+/**
+ * HMAC Proof Field Ordering for Device Linking
+ *
+ * Device linking uses HMAC proofs to verify that both parties derived the same
+ * keys from the ECDH shared secret. These proofs must be computed over a
+ * deterministic encoding of the payload to ensure reproducibility.
+ *
+ * Field ordering is defined in: src/shared/contracts/cbor-ordering.ts
+ *
+ * Two proof types are used:
+ *
+ * 1. new_device_confirm (LINKING_NEW_DEVICE_CONFIRM_FIELD_ORDER)
+ *    - Fields: ['sessionId', 'token', 'newDevicePublicKey']
+ *    - Purpose: New device proves it derived keys from QR code data
+ *    - Used in: POST /auth/linking/scan and POST /auth/linking/complete
+ *
+ * 2. key_confirm (LINKING_KEY_CONFIRM_FIELD_ORDER)
+ *    - Fields: ['sessionId', 'encryptedMasterKey', 'encryptedKeyNonce']
+ *    - Purpose: Existing device proves the encrypted master key is authentic
+ *    - Used in: POST /auth/linking/approve response validation
+ *
+ * Security Notes:
+ * - Field order MUST match exactly on both devices for proof verification
+ * - The order is semantic (identifiers → data), not alphabetical
+ * - RFC 8949 deterministic encoding achieved via consistent field ordering
+ * - BLAKE2b-256 keyed hash provides 256-bit security margin
+ */
 
 /**
  * Compute an HMAC proof for device linking verification.
@@ -543,6 +571,8 @@ export async function deriveLinkingKeys(
  * - macKey is a 32-byte key derived from ECDH shared secret
  * - fieldOrder matches the expected order on the verifying device
  * - Payload values are the exact values being confirmed
+ *
+ * @see src/shared/contracts/cbor-ordering.ts for field order definitions
  *
  * @param macKey - 32-byte MAC key from deriveLinkingKeys()
  * @param payload - Object containing fields to include in the proof
@@ -609,9 +639,11 @@ export function computeLinkingProof(
  *
  * Recomputes the proof from the payload and compares in constant time.
  *
+ * @see src/shared/contracts/cbor-ordering.ts for field order definitions
+ *
  * @param macKey - 32-byte MAC key
  * @param payload - The payload that was supposedly signed
- * @param fieldOrder - The canonical field order
+ * @param fieldOrder - The canonical field order (from cbor-ordering.ts)
  * @param proof - The proof to verify
  * @returns true if the proof is valid
  */
