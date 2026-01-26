@@ -660,7 +660,10 @@ export function verifyLinkingProof(
   try {
     const expectedProof = computeLinkingProof(macKey, payload, fieldOrder)
     return constantTimeEqual(expectedProof, proof)
-  } catch {
+  } catch (error) {
+    if (error instanceof CryptoError && error.code === CryptoErrorCode.ENCODING_FAILED) {
+      console.error('[verifyLinkingProof] CBOR encoding failed:', error.message)
+    }
     return false
   }
 }
