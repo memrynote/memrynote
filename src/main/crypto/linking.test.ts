@@ -180,6 +180,77 @@ describe('Device Linking Crypto', () => {
       )
       expect(isValid).toBe(false)
     })
+
+    it('should reject proofs with wrong length', () => {
+      // #given
+      const macKey = new Uint8Array(32)
+      for (let i = 0; i < 32; i++) macKey[i] = i
+
+      const payload = {
+        sessionId: '123e4567-e89b-12d3-a456-426614174000',
+        token: 'test-token-12345678901234567890123456',
+        newDevicePublicKey: 'YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo='
+      }
+
+      // #when - proof is too short
+      const shortProof = new Uint8Array(16)
+
+      // #then
+      const isValid = verifyLinkingProof(
+        macKey,
+        payload,
+        LINKING_NEW_DEVICE_CONFIRM_FIELD_ORDER,
+        shortProof
+      )
+      expect(isValid).toBe(false)
+    })
+
+    it('should throw on invalid MAC key length in computeLinkingProof', () => {
+      // #given
+      const invalidMacKey = new Uint8Array(16)
+
+      const payload = {
+        sessionId: '123e4567-e89b-12d3-a456-426614174000',
+        token: 'test-token',
+        newDevicePublicKey: 'YWJjZGVm'
+      }
+
+      // #then
+      expect(() =>
+        computeLinkingProof(invalidMacKey, payload, LINKING_NEW_DEVICE_CONFIRM_FIELD_ORDER)
+      ).toThrow('Invalid MAC key length')
+    })
+
+    it('should only include fields present in payload', () => {
+      // #given
+      const macKey = new Uint8Array(32)
+      for (let i = 0; i < 32; i++) macKey[i] = i
+
+      const partialPayload = {
+        sessionId: '123e4567-e89b-12d3-a456-426614174000'
+      }
+
+      const fullPayload = {
+        sessionId: '123e4567-e89b-12d3-a456-426614174000',
+        token: undefined,
+        newDevicePublicKey: undefined
+      }
+
+      // #when
+      const proof1 = computeLinkingProof(
+        macKey,
+        partialPayload,
+        LINKING_NEW_DEVICE_CONFIRM_FIELD_ORDER
+      )
+      const proof2 = computeLinkingProof(
+        macKey,
+        fullPayload,
+        LINKING_NEW_DEVICE_CONFIRM_FIELD_ORDER
+      )
+
+      // #then - should produce same proof since undefined fields are skipped
+      expect(uint8ArrayToBase64(proof1)).toBe(uint8ArrayToBase64(proof2))
+    })
   })
 
   describe('T111: encryptMasterKeyForLinking / decryptMasterKeyFromLinking', () => {

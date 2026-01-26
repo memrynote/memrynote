@@ -8,6 +8,7 @@
 
 import WebSocket from 'ws'
 import { BrowserWindow } from 'electron'
+import { z } from 'zod'
 import { TypedEmitter } from './typed-emitter'
 import { withRetry, DEFAULT_RETRY_CONFIG } from './retry'
 import type { RetryConfig } from './retry'
@@ -30,6 +31,12 @@ export interface WebSocketMessage {
   timestamp: number
 }
 
+export interface LinkedDeviceInfo {
+  id: string
+  name: string
+  platform: string
+}
+
 export interface LinkingApprovedPayload {
   sessionId: string
   encryptedMasterKey: string
@@ -39,11 +46,7 @@ export interface LinkingApprovedPayload {
 
 export interface LinkingCompletedPayload {
   sessionId: string
-  device: {
-    id: string
-    name: string
-    platform: string
-  }
+  device: LinkedDeviceInfo
 }
 
 export interface LinkingEventPayload {
@@ -52,12 +55,23 @@ export interface LinkingEventPayload {
   encryptedMasterKey?: string
   encryptedKeyNonce?: string
   keyConfirm?: string
-  device?: {
-    id: string
-    name: string
-    platform: string
-  }
+  device?: LinkedDeviceInfo
 }
+
+const LinkedDeviceInfoSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  platform: z.string().min(1)
+})
+
+const LinkingEventPayloadSchema = z.object({
+  event: z.enum(['scanned', 'approved', 'completed', 'expired']),
+  sessionId: z.string().min(1),
+  encryptedMasterKey: z.string().optional(),
+  encryptedKeyNonce: z.string().optional(),
+  keyConfirm: z.string().optional(),
+  device: LinkedDeviceInfoSchema.optional()
+})
 
 export type WebSocketState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
 
@@ -70,6 +84,8 @@ export interface WebSocketConfig {
 
 const DEFAULT_PING_INTERVAL_MS = 30000
 const DEFAULT_PONG_TIMEOUT_MS = 10000
+const LINKING_RATE_LIMIT_MS = 1000
+const LINKING_RATE_LIMIT_CLEANUP_INTERVAL_MS = 60000
 
 export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
   private ws: WebSocket | null = null
@@ -83,6 +99,8 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
   private reconnectConfig: RetryConfig
   private reconnecting = false
   private shouldReconnect = true
+  private linkingRateLimiter = new Map<string, number>()
+  private linkingRateLimitCleanupInterval: ReturnType<typeof setInterval> | null = null
 
   constructor(config: WebSocketConfig) {
     super()
@@ -162,6 +180,7 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
 
       this.setupEventHandlers()
       this.startPing()
+      this.startLinkingRateLimitCleanup()
       this.setState('connected')
       this.emit('sync:ws-connected')
       this.broadcastToWindows('sync:ws-connected', undefined)
@@ -203,7 +222,15 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
       }
 
       if (message.type === 'linking') {
-        this.handleLinkingMessage(message.payload as LinkingEventPayload)
+        const result = LinkingEventPayloadSchema.safeParse(message.payload)
+        if (!result.success) {
+          this.emit(
+            'sync:ws-error',
+            new Error(`Invalid linking payload: ${result.error.message}`)
+          )
+          return
+        }
+        this.handleLinkingMessage(result.data)
         return
       }
 
@@ -218,10 +245,14 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
   }
 
   private handleLinkingMessage(payload: LinkingEventPayload): void {
-    if (!payload?.event || !payload?.sessionId) {
-      this.emit('sync:ws-error', new Error('Invalid linking message payload'))
+    const now = Date.now()
+    const rateLimitKey = `${payload.sessionId}:${payload.event}`
+    const lastSeen = this.linkingRateLimiter.get(rateLimitKey) ?? 0
+
+    if (now - lastSeen < LINKING_RATE_LIMIT_MS) {
       return
     }
+    this.linkingRateLimiter.set(rateLimitKey, now)
 
     switch (payload.event) {
       case 'scanned':
@@ -262,8 +293,10 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
         this.broadcastToWindows('sync:linking-expired', payload.sessionId)
         break
 
-      default:
-        this.emit('sync:ws-error', new Error(`Unknown linking event: ${payload.event}`))
+      default: {
+        const exhaustiveCheck: never = payload.event
+        this.emit('sync:ws-error', new Error(`Unknown linking event: ${exhaustiveCheck}`))
+      }
     }
   }
 
@@ -343,6 +376,26 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
     }
   }
 
+  private startLinkingRateLimitCleanup(): void {
+    this.stopLinkingRateLimitCleanup()
+    this.linkingRateLimitCleanupInterval = setInterval(() => {
+      const now = Date.now()
+      for (const [key, timestamp] of this.linkingRateLimiter.entries()) {
+        if (now - timestamp > LINKING_RATE_LIMIT_CLEANUP_INTERVAL_MS) {
+          this.linkingRateLimiter.delete(key)
+        }
+      }
+    }, LINKING_RATE_LIMIT_CLEANUP_INTERVAL_MS)
+  }
+
+  private stopLinkingRateLimitCleanup(): void {
+    if (this.linkingRateLimitCleanupInterval) {
+      clearInterval(this.linkingRateLimitCleanupInterval)
+      this.linkingRateLimitCleanupInterval = null
+    }
+    this.linkingRateLimiter.clear()
+  }
+
   send(message: WebSocketMessage): boolean {
     if (this.ws?.readyState !== WebSocket.OPEN) {
       return false
@@ -364,6 +417,7 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
     this.shouldReconnect = false
     this.stopPing()
     this.clearPongTimeout()
+    this.stopLinkingRateLimitCleanup()
 
     if (this.ws) {
       this.ws.close(1000, 'Client disconnect')

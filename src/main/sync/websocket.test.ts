@@ -181,4 +181,285 @@ describe('WebSocketManager', () => {
       expect(manager.state).toBe('connected')
     })
   })
+
+  describe('T120/T121: linking events', () => {
+    beforeEach(async () => {
+      const connectPromise = manager.connect('test-token')
+      getMockWsInstance()?.triggerOpen()
+      await connectPromise
+    })
+
+    it('should emit sync:linking-scanned on valid scanned event', async () => {
+      // #given
+      const onScanned = vi.fn()
+      manager.on('sync:linking-scanned', onScanned)
+      const mockWs = getMockWsInstance() as {
+        emit: (event: string, ...args: unknown[]) => void
+      }
+
+      // #when
+      mockWs.emit(
+        'message',
+        JSON.stringify({
+          type: 'linking',
+          timestamp: Date.now(),
+          payload: {
+            event: 'scanned',
+            sessionId: '123e4567-e89b-12d3-a456-426614174000'
+          }
+        })
+      )
+
+      // #then
+      expect(onScanned).toHaveBeenCalledWith('123e4567-e89b-12d3-a456-426614174000')
+    })
+
+    it('should emit sync:linking-approved on valid approved event with all fields', async () => {
+      // #given
+      const onApproved = vi.fn()
+      manager.on('sync:linking-approved', onApproved)
+      const mockWs = getMockWsInstance() as {
+        emit: (event: string, ...args: unknown[]) => void
+      }
+
+      // #when
+      mockWs.emit(
+        'message',
+        JSON.stringify({
+          type: 'linking',
+          timestamp: Date.now(),
+          payload: {
+            event: 'approved',
+            sessionId: '123e4567-e89b-12d3-a456-426614174000',
+            encryptedMasterKey: 'encrypted-key-base64',
+            encryptedKeyNonce: 'nonce-base64',
+            keyConfirm: 'hmac-proof-base64'
+          }
+        })
+      )
+
+      // #then
+      expect(onApproved).toHaveBeenCalledWith({
+        sessionId: '123e4567-e89b-12d3-a456-426614174000',
+        encryptedMasterKey: 'encrypted-key-base64',
+        encryptedKeyNonce: 'nonce-base64',
+        keyConfirm: 'hmac-proof-base64'
+      })
+    })
+
+    it('should emit sync:linking-completed on valid completed event with device', async () => {
+      // #given
+      const onCompleted = vi.fn()
+      manager.on('sync:linking-completed', onCompleted)
+      const mockWs = getMockWsInstance() as {
+        emit: (event: string, ...args: unknown[]) => void
+      }
+
+      // #when
+      mockWs.emit(
+        'message',
+        JSON.stringify({
+          type: 'linking',
+          timestamp: Date.now(),
+          payload: {
+            event: 'completed',
+            sessionId: '123e4567-e89b-12d3-a456-426614174000',
+            device: {
+              id: 'device-id-123',
+              name: 'MacBook Pro',
+              platform: 'darwin'
+            }
+          }
+        })
+      )
+
+      // #then
+      expect(onCompleted).toHaveBeenCalledWith({
+        sessionId: '123e4567-e89b-12d3-a456-426614174000',
+        device: {
+          id: 'device-id-123',
+          name: 'MacBook Pro',
+          platform: 'darwin'
+        }
+      })
+    })
+
+    it('should emit sync:linking-expired on valid expired event', async () => {
+      // #given
+      const onExpired = vi.fn()
+      manager.on('sync:linking-expired', onExpired)
+      const mockWs = getMockWsInstance() as {
+        emit: (event: string, ...args: unknown[]) => void
+      }
+
+      // #when
+      mockWs.emit(
+        'message',
+        JSON.stringify({
+          type: 'linking',
+          timestamp: Date.now(),
+          payload: {
+            event: 'expired',
+            sessionId: '123e4567-e89b-12d3-a456-426614174000'
+          }
+        })
+      )
+
+      // #then
+      expect(onExpired).toHaveBeenCalledWith('123e4567-e89b-12d3-a456-426614174000')
+    })
+
+    it('should emit sync:ws-error on invalid linking payload', async () => {
+      // #given
+      const onError = vi.fn()
+      manager.on('sync:ws-error', onError)
+      const mockWs = getMockWsInstance() as {
+        emit: (event: string, ...args: unknown[]) => void
+      }
+
+      // #when - missing sessionId
+      mockWs.emit(
+        'message',
+        JSON.stringify({
+          type: 'linking',
+          timestamp: Date.now(),
+          payload: {
+            event: 'scanned'
+          }
+        })
+      )
+
+      // #then
+      expect(onError).toHaveBeenCalled()
+      expect(onError.mock.calls[0][0].message).toContain('Invalid linking payload')
+    })
+
+    it('should emit sync:ws-error when approved event missing required fields', async () => {
+      // #given
+      const onError = vi.fn()
+      const onApproved = vi.fn()
+      manager.on('sync:ws-error', onError)
+      manager.on('sync:linking-approved', onApproved)
+      const mockWs = getMockWsInstance() as {
+        emit: (event: string, ...args: unknown[]) => void
+      }
+
+      // #when - missing encryptedKeyNonce
+      mockWs.emit(
+        'message',
+        JSON.stringify({
+          type: 'linking',
+          timestamp: Date.now(),
+          payload: {
+            event: 'approved',
+            sessionId: '123e4567-e89b-12d3-a456-426614174000',
+            encryptedMasterKey: 'encrypted-key-base64',
+            keyConfirm: 'hmac-proof-base64'
+          }
+        })
+      )
+
+      // #then
+      expect(onApproved).not.toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Missing required fields in linking_approved payload'
+        })
+      )
+    })
+
+    it('should rate limit rapid duplicate events', async () => {
+      // #given
+      const onScanned = vi.fn()
+      manager.on('sync:linking-scanned', onScanned)
+      const mockWs = getMockWsInstance() as {
+        emit: (event: string, ...args: unknown[]) => void
+      }
+
+      const message = JSON.stringify({
+        type: 'linking',
+        timestamp: Date.now(),
+        payload: {
+          event: 'scanned',
+          sessionId: '123e4567-e89b-12d3-a456-426614174000'
+        }
+      })
+
+      // #when - send same message 3 times rapidly
+      mockWs.emit('message', message)
+      mockWs.emit('message', message)
+      mockWs.emit('message', message)
+
+      // #then - only first should be processed
+      expect(onScanned).toHaveBeenCalledTimes(1)
+    })
+
+    it('should allow same session with different events', async () => {
+      // #given
+      const onScanned = vi.fn()
+      const onApproved = vi.fn()
+      manager.on('sync:linking-scanned', onScanned)
+      manager.on('sync:linking-approved', onApproved)
+      const mockWs = getMockWsInstance() as {
+        emit: (event: string, ...args: unknown[]) => void
+      }
+
+      // #when - send scanned then approved for same session
+      mockWs.emit(
+        'message',
+        JSON.stringify({
+          type: 'linking',
+          timestamp: Date.now(),
+          payload: {
+            event: 'scanned',
+            sessionId: '123e4567-e89b-12d3-a456-426614174000'
+          }
+        })
+      )
+      mockWs.emit(
+        'message',
+        JSON.stringify({
+          type: 'linking',
+          timestamp: Date.now(),
+          payload: {
+            event: 'approved',
+            sessionId: '123e4567-e89b-12d3-a456-426614174000',
+            encryptedMasterKey: 'encrypted-key-base64',
+            encryptedKeyNonce: 'nonce-base64',
+            keyConfirm: 'hmac-proof-base64'
+          }
+        })
+      )
+
+      // #then - both should be processed
+      expect(onScanned).toHaveBeenCalledTimes(1)
+      expect(onApproved).toHaveBeenCalledTimes(1)
+    })
+
+    it('should allow events after rate limit window expires', async () => {
+      // #given
+      const onScanned = vi.fn()
+      manager.on('sync:linking-scanned', onScanned)
+      const mockWs = getMockWsInstance() as {
+        emit: (event: string, ...args: unknown[]) => void
+      }
+
+      const message = JSON.stringify({
+        type: 'linking',
+        timestamp: Date.now(),
+        payload: {
+          event: 'scanned',
+          sessionId: '123e4567-e89b-12d3-a456-426614174000'
+        }
+      })
+
+      // #when - send, wait for rate limit to expire, send again
+      mockWs.emit('message', message)
+      vi.advanceTimersByTime(1100)
+      mockWs.emit('message', message)
+
+      // #then - both should be processed
+      expect(onScanned).toHaveBeenCalledTimes(2)
+    })
+  })
 })
