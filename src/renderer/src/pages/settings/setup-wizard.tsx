@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
 import type { SetupFirstDeviceResponse, ScanLinkingQRResponse } from '@shared/contracts/ipc-sync'
 import type { Device } from '@shared/contracts/sync-api'
+import { LINKING_CONSTANTS } from '@shared/contracts/linking-api'
 
 type WizardStep =
   | 'auth'
@@ -291,9 +292,9 @@ export function SetupWizard({ onComplete, className }: SetupWizardProps): React.
       let expiresAt: number
       try {
         const parsedQR = JSON.parse(qrContent) as { expiresAt?: number }
-        expiresAt = parsedQR.expiresAt ?? Date.now() + 5 * 60 * 1000
+        expiresAt = parsedQR.expiresAt ?? Date.now() + LINKING_CONSTANTS.SESSION_EXPIRY_MS
       } catch {
-        expiresAt = Date.now() + 5 * 60 * 1000
+        expiresAt = Date.now() + LINKING_CONSTANTS.SESSION_EXPIRY_MS
       }
       setLinkingExpiresAt(expiresAt)
 

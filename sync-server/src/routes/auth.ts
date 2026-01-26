@@ -861,6 +861,63 @@ authRoutes.post('/linking/approve', authMiddleware(), async (c) => {
 })
 
 /**
+ * GET /auth/linking/:sessionId
+ * Get linking session status.
+ * Supports two auth methods:
+ * - JWT Bearer token (for initiator device)
+ * - Linking token in query param ?token=xxx (for new device)
+ */
+authRoutes.get('/linking/:sessionId', async (c) => {
+  const sessionId = c.req.param('sessionId')
+  const tokenQuery = c.req.query('token')
+
+  const session = await getLinkingSession(c.env.DB, sessionId)
+  if (!session) {
+    throw linkingSessionNotFound()
+  }
+
+  if (isSessionExpired(session.expires_at)) {
+    throw linkingSessionExpired()
+  }
+
+  const authHeader = c.req.header('Authorization')
+  let isAuthorized = false
+
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      const auth = getAuth(c)
+      if (auth?.userId === session.user_id) {
+        isAuthorized = true
+      }
+    } catch {
+      // JWT validation failed, check for token auth
+    }
+  }
+
+  if (!isAuthorized && tokenQuery) {
+    const tokenValid = await verifyLinkingToken(tokenQuery, session.linking_token_hash)
+    if (tokenValid) {
+      isAuthorized = true
+    }
+  }
+
+  if (!isAuthorized) {
+    throw new SyncError('Unauthorized', ErrorCode.AUTH_UNAUTHORIZED, 401)
+  }
+
+  return c.json({
+    id: session.id,
+    initiatorDeviceId: session.initiator_device_id,
+    ephemeralPublicKey: session.ephemeral_public_key,
+    newDevicePublicKey: session.new_device_public_key ?? undefined,
+    status: session.status,
+    createdAt: session.created_at,
+    expiresAt: session.expires_at,
+    completedAt: session.completed_at ?? undefined
+  })
+})
+
+/**
  * T107: POST /auth/linking/complete
  * New device completes linking and retrieves encrypted master key.
  * No auth required - new device doesn't have tokens yet.

@@ -136,12 +136,12 @@ export interface SyncApiClient {
   approveLinking(token: string, request: LinkingApproveRequest): Promise<LinkingApproveResponse>
   completeLinking(request: LinkingCompleteRequest): Promise<LinkingCompleteResponse>
   getLinkingStatus(token: string, sessionId: string): Promise<LinkingStatusResponse>
+  getLinkingStatusWithToken(sessionId: string, linkingToken: string): Promise<LinkingStatusResponse>
 }
 
 let clientInstance: SyncApiClient | null = null
 
-function createApiClient(): SyncApiClient {
-  const baseUrl = getSyncServerUrl()
+function createApiClientInternal(baseUrl: string): SyncApiClient {
 
   return {
     async requestOtp(email: string): Promise<OtpRequestResponse> {
@@ -391,8 +391,24 @@ function createApiClient(): SyncApiClient {
         }
       })
       return handleResponse<LinkingStatusResponse>(response)
+    },
+
+    async getLinkingStatusWithToken(sessionId: string, linkingToken: string): Promise<LinkingStatusResponse> {
+      const response = await fetch(`${baseUrl}/api/v1/auth/linking/${sessionId}?token=${encodeURIComponent(linkingToken)}`, {
+        method: 'GET'
+      })
+      return handleResponse<LinkingStatusResponse>(response)
     }
   }
+}
+
+function createApiClient(): SyncApiClient {
+  const baseUrl = getSyncServerUrl()
+  return createApiClientInternal(baseUrl)
+}
+
+export function createApiClientWithUrl(serverUrl: string): SyncApiClient {
+  return createApiClientInternal(serverUrl)
 }
 
 export function getSyncApiClient(): SyncApiClient {
