@@ -41,9 +41,9 @@ export async function resetSyncStateForNewDevice(): Promise<void> {
 
   console.info('[SyncStateReset] Resetting sync state for new device')
 
-  await db.delete(syncState).where(eq(syncState.key, CURSOR_KEY))
+  db.delete(syncState).where(eq(syncState.key, CURSOR_KEY)).run()
 
-  await db.delete(syncState).where(eq(syncState.key, SETTINGS_FIELD_CLOCKS_KEY))
+  db.delete(syncState).where(eq(syncState.key, SETTINGS_FIELD_CLOCKS_KEY)).run()
 
   deleteSetting(db, BOOTSTRAP_KEY)
 
