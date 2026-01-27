@@ -18,3 +18,20 @@ test-results
 # Cloudflare Workers
 .dev.vars
 .wrangler/
+
+# Build cache
+*.tsbuildinfo
+
+# Test databases
+test-data.db
+test-index.db
+
+# AI tool caches
+.codex/
+.opencode/
+
+# Git worktrees
+.worktree/
+
+# Local settings
+.claude/**/*.local.json
