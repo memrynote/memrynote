@@ -1384,6 +1384,17 @@ const api = {
       ipcRenderer.invoke(SyncChannels.invoke.RESOLVE_CONFLICT, request)
   },
 
+  // Yjs CRDT API (T129b)
+  yjs: {
+    getDoc: (noteId: string) => ipcRenderer.invoke(SyncChannels.invoke.YJS_GET_DOC, { noteId }),
+    applyUpdate: (noteId: string, update: string, origin?: string) =>
+      ipcRenderer.invoke(SyncChannels.invoke.YJS_APPLY_UPDATE, { noteId, update, origin }),
+    getStateVector: (noteId: string) =>
+      ipcRenderer.invoke(SyncChannels.invoke.YJS_GET_STATE_VECTOR, { noteId }),
+    syncRequest: (noteId: string, stateVector: string) =>
+      ipcRenderer.invoke(SyncChannels.invoke.YJS_SYNC_REQUEST, { noteId, stateVector })
+  },
+
   // Crypto API
   crypto: {
     hasKeys: () => ipcRenderer.invoke(CryptoChannels.invoke.HAS_KEYS),
@@ -1529,6 +1540,29 @@ const api = {
     const handler = (_event: Electron.IpcRendererEvent, data: unknown): void => callback(data)
     ipcRenderer.on(AuthChannels.events.OAUTH_CALLBACK, handler)
     return () => ipcRenderer.removeListener(AuthChannels.events.OAUTH_CALLBACK, handler)
+  },
+
+  // Yjs CRDT event subscription helpers (T129b)
+  onYjsUpdateReceived: (
+    callback: (event: { noteId: string; update: string; sourceWindowId?: number }) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { noteId: string; update: string; sourceWindowId?: number }
+    ): void => callback(data)
+    ipcRenderer.on(SyncChannels.events.YJS_UPDATE_RECEIVED, handler)
+    return () => ipcRenderer.removeListener(SyncChannels.events.YJS_UPDATE_RECEIVED, handler)
+  },
+
+  onYjsDocSynced: (
+    callback: (event: { noteId: string; timestamp: number }) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { noteId: string; timestamp: number }
+    ): void => callback(data)
+    ipcRenderer.on(SyncChannels.events.YJS_DOC_SYNCED, handler)
+    return () => ipcRenderer.removeListener(SyncChannels.events.YJS_DOC_SYNCED, handler)
   }
 }
 

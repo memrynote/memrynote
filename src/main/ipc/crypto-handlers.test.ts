@@ -197,9 +197,7 @@ describe('crypto-handlers', () => {
       ;(crypto.generateRecoveryPhrase as Mock).mockReturnValue(mockPhrase)
 
       // #when
-      const result = (await invokeHandler(CryptoChannels.invoke.GENERATE_RECOVERY_PHRASE)) as {
-        phrase: string[]
-      }
+      const result = await invokeHandler(CryptoChannels.invoke.GENERATE_RECOVERY_PHRASE)
 
       // #then
       expect(result.phrase).toEqual(mockPhrase)
@@ -224,10 +222,7 @@ describe('crypto-handlers', () => {
       }
 
       // #when
-      const result = (await invokeHandler(CryptoChannels.invoke.DERIVE_KEYS, input)) as {
-        success: boolean
-        keyVerifier?: string
-      }
+      const result = await invokeHandler(CryptoChannels.invoke.DERIVE_KEYS, input)
 
       // #then
       expect(result.success).toBe(true)
@@ -245,10 +240,7 @@ describe('crypto-handlers', () => {
       }
 
       // #when
-      const result = (await invokeHandler(CryptoChannels.invoke.DERIVE_KEYS, input)) as {
-        success: boolean
-        error?: string
-      }
+      const result = await invokeHandler(CryptoChannels.invoke.DERIVE_KEYS, input)
 
       // #then
       expect(result.success).toBe(false)
@@ -304,10 +296,7 @@ describe('crypto-handlers', () => {
       }
 
       // #when
-      const result = (await invokeHandler(CryptoChannels.invoke.ENCRYPT_ITEM, input)) as {
-        success: boolean
-        item?: EncryptedItem
-      }
+      const result = await invokeHandler(CryptoChannels.invoke.ENCRYPT_ITEM, input)
 
       // #then
       expect(result.success).toBe(true)
@@ -331,10 +320,7 @@ describe('crypto-handlers', () => {
       }
 
       // #when
-      const result = (await invokeHandler(CryptoChannels.invoke.ENCRYPT_ITEM, input)) as {
-        success: boolean
-        error?: string
-      }
+      const result = await invokeHandler(CryptoChannels.invoke.ENCRYPT_ITEM, input)
 
       // #then
       expect(result.success).toBe(false)
@@ -361,10 +347,7 @@ describe('crypto-handlers', () => {
       }
 
       // #when
-      const result = (await invokeHandler(CryptoChannels.invoke.ENCRYPT_ITEM, input)) as {
-        success: boolean
-        error?: string
-      }
+      const result = await invokeHandler(CryptoChannels.invoke.ENCRYPT_ITEM, input)
 
       // #then
       expect(result.success).toBe(false)
@@ -400,12 +383,9 @@ describe('crypto-handlers', () => {
       }
 
       // #when
-      const result = (await invokeHandler(CryptoChannels.invoke.DECRYPT_ITEM, {
+      const result = await invokeHandler(CryptoChannels.invoke.DECRYPT_ITEM, {
         item: encryptedItem
-      })) as {
-        success: boolean
-        data?: string
-      }
+      })
 
       // #then
       expect(result.success).toBe(true)
@@ -430,12 +410,9 @@ describe('crypto-handlers', () => {
       }
 
       // #when
-      const result = (await invokeHandler(CryptoChannels.invoke.DECRYPT_ITEM, {
+      const result = await invokeHandler(CryptoChannels.invoke.DECRYPT_ITEM, {
         item: encryptedItem
-      })) as {
-        success: boolean
-        error?: string
-      }
+      })
 
       // #then
       expect(result.success).toBe(false)
@@ -462,10 +439,10 @@ describe('crypto-handlers', () => {
       }
 
       // #when
-      const result = (await invokeHandler(CryptoChannels.invoke.VERIFY_SIGNATURE, {
+      const result = await invokeHandler(CryptoChannels.invoke.VERIFY_SIGNATURE, {
         item: encryptedItem,
         signerPublicKey: 'publicKey123'
-      })) as { valid: boolean }
+      })
 
       // #then
       expect(result.valid).toBe(true)
@@ -492,10 +469,10 @@ describe('crypto-handlers', () => {
       }
 
       // #when
-      const result = (await invokeHandler(CryptoChannels.invoke.VERIFY_SIGNATURE, {
+      const result = await invokeHandler(CryptoChannels.invoke.VERIFY_SIGNATURE, {
         item: encryptedItem,
         signerPublicKey: 'publicKey123'
-      })) as { valid: boolean; error?: string }
+      })
 
       // #then
       expect(result.valid).toBe(false)
@@ -546,9 +523,7 @@ describe('crypto-handlers', () => {
       registerCryptoHandlers()
 
       // #when
-      const result = (await invokeHandler(CryptoChannels.invoke.DELETE_KEYS)) as {
-        success: boolean
-      }
+      const result = await invokeHandler(CryptoChannels.invoke.DELETE_KEYS)
 
       // #then
       expect(result.success).toBe(true)
@@ -562,9 +537,7 @@ describe('crypto-handlers', () => {
       ;(crypto.deleteKeyMaterial as Mock).mockRejectedValue(new Error('Delete failed'))
 
       // #when
-      const result = (await invokeHandler(CryptoChannels.invoke.DELETE_KEYS)) as {
-        success: boolean
-      }
+      const result = await invokeHandler(CryptoChannels.invoke.DELETE_KEYS)
 
       // #then
       expect(result.success).toBe(false)

@@ -806,10 +806,7 @@ async function handleArchive(id: string): Promise<{ success: boolean; error?: st
 
     // Set archivedAt timestamp (soft delete - keep attachments and tags)
     const now = new Date().toISOString()
-    db.update(inboxItems)
-      .set({ archivedAt: now })
-      .where(eq(inboxItems.id, id))
-      .run()
+    db.update(inboxItems).set({ archivedAt: now }).where(eq(inboxItems.id, id)).run()
 
     // Update stats
     incrementArchivedCount()

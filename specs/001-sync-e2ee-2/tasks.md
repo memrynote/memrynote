@@ -483,20 +483,20 @@ All D1 tables include explicit PKs, FKs, indexes, and constraints.
 
 ### Server Recovery for US4
 
-- [ ] T122 [US4] Implement recovery data fetch endpoint GET /auth/recovery (requires email + recovery phrase derived proof, returns kdf_salt, key_verifier) in sync-server/src/routes/auth.ts - protected by rate limiting, does not reveal if account exists
+- [x] T122 [US4] Implement recovery data fetch endpoint GET /auth/recovery (requires email + recovery phrase derived proof, returns kdf_salt, key_verifier) in sync-server/src/routes/auth.ts - protected by rate limiting, does not reveal if account exists
 
 ### Client Recovery for US4
 
-- [ ] T123 [US4] Implement recovery phrase to master key derivation in src/main/crypto/recovery.ts
-- [ ] T124 [US4] Implement key_verifier validation in src/main/crypto/recovery.ts
-- [ ] T125 [US4] Implement link via recovery phrase IPC handler in src/main/ipc/sync-handlers.ts
+- [x] T123 [US4] Implement recovery phrase to master key derivation in src/main/crypto/recovery.ts
+- [x] T124 [US4] Implement key_verifier validation in src/main/crypto/recovery.ts
+- [x] T125 [US4] Implement link via recovery phrase IPC handler in src/main/ipc/sync-handlers.ts
 
 ### UI Components for US4
 
-- [ ] T126 [P] [US4] Create recovery phrase input component in src/renderer/src/components/sync/recovery-input.tsx
-- [ ] T127 [US4] Create recovery in progress screen in src/renderer/src/components/sync/recovery-progress.tsx
-- [ ] T128 [US4] Add recovery phrase option to login flow in src/renderer/src/pages/settings/setup-wizard.tsx
-- [ ] T128a [US4] Wire recovery flow UI to recovery IPC handler in src/renderer/src/pages/settings/setup-wizard.tsx
+- [x] T126 [P] [US4] Create recovery phrase input component in src/renderer/src/components/sync/recovery-input.tsx
+- [x] T127 [US4] Create recovery in progress screen in src/renderer/src/components/sync/recovery-progress.tsx
+- [x] T128 [US4] Add recovery phrase option to login flow in src/renderer/src/pages/settings/setup-wizard.tsx
+- [x] T128a [US4] Wire recovery flow UI to recovery IPC handler in src/renderer/src/pages/settings/setup-wizard.tsx
 
 **Checkpoint**: User Story 4 complete - users can recover accounts with recovery phrase
 
@@ -510,17 +510,17 @@ All D1 tables include explicit PKs, FKs, indexes, and constraints.
 
 ### CRDT Implementation for US5
 
-- [ ] T129 [US5] Create main-process Yjs host in src/main/sync/crdt-provider.ts (authoritative doc, encryption before network)
-- [ ] T129a [US5] Define Yjs IPC channel types (sync/update/awareness) in src/shared/contracts/ipc-sync.ts and specs/001-sync-e2ee-2/contracts/ipc.yaml
-- [ ] T129b [US5] Implement main IPC bridge to apply Yjs updates from renderer and broadcast to all windows in src/main/sync/crdt-provider.ts and src/main/ipc/sync-handlers.ts
-- [ ] T129c [US5] Implement renderer Yjs IPC provider for BlockNote collaboration in src/renderer/src/sync/yjs-ipc-provider.ts
-- [ ] T129d [US5] Implement initial sync handshake (state vector exchange) between renderer and main in src/renderer/src/sync/yjs-ipc-provider.ts
-- [ ] T129e [US5] Keep awareness local-only (do not send to server) in src/renderer/src/sync/yjs-ipc-provider.ts
-- [ ] T130 [US5] Implement Yjs document creation per note in src/main/sync/crdt-provider.ts
-- [ ] T131 [US5] Implement Yjs state vector tracking in src/main/sync/crdt-provider.ts
-- [ ] T132 [US5] Implement incremental update encryption in src/main/sync/crdt-provider.ts
-- [ ] T133 [US5] Implement snapshot compaction in src/main/sync/crdt-provider.ts
-- [ ] T134 [US5] Integrate y-leveldb for local Yjs persistence in src/main/sync/crdt-provider.ts
+- [x] T129 [US5] Create main-process Yjs host in src/main/sync/crdt-provider.ts (authoritative doc, encryption before network)
+- [x] T129a [US5] Define Yjs IPC channel types (sync/update/awareness) in src/shared/contracts/ipc-sync.ts and specs/001-sync-e2ee-2/contracts/ipc.yaml
+- [x] T129b [US5] Implement main IPC bridge to apply Yjs updates from renderer and broadcast to all windows in src/main/sync/crdt-provider.ts and src/main/ipc/sync-handlers.ts
+- [x] T129c [US5] Implement renderer Yjs IPC provider for BlockNote collaboration in src/renderer/src/sync/yjs-ipc-provider.ts
+- [x] T129d [US5] Implement initial sync handshake (state vector exchange) between renderer and main in src/renderer/src/sync/yjs-ipc-provider.ts
+- [x] T129e [US5] Keep awareness local-only (do not send to server) in src/renderer/src/sync/yjs-ipc-provider.ts
+- [x] T130 [US5] Implement Yjs document creation per note in src/main/sync/crdt-provider.ts
+- [x] T131 [US5] Implement Yjs state vector tracking in src/main/sync/crdt-provider.ts
+- [x] T132 [US5] Implement incremental update encryption in src/main/sync/crdt-provider.ts
+- [x] T133 [US5] Implement snapshot compaction in src/main/sync/crdt-provider.ts
+- [x] T134 [US5] Integrate y-leveldb for local Yjs persistence in src/main/sync/crdt-provider.ts
 
 ### Server CRDT Endpoints for US5
 

@@ -12,7 +12,12 @@
 import { ipcMain, BrowserWindow, app } from 'electron'
 import os from 'node:os'
 import { SyncChannels } from '@shared/contracts/ipc-sync'
-import { InboxChannels, SavedFiltersChannels, SettingsChannels, TasksChannels } from '@shared/ipc-channels'
+import {
+  InboxChannels,
+  SavedFiltersChannels,
+  SettingsChannels,
+  TasksChannels
+} from '@shared/ipc-channels'
 import type {
   GetSyncStatusResponse,
   TriggerSyncResponse,
@@ -45,7 +50,12 @@ import {
   ResolveConflictRequestSchema
 } from '@shared/contracts/ipc-sync'
 import { eq } from 'drizzle-orm'
-import { createValidatedHandler, createHandler, createStringHandler } from './validate'
+import {
+  createValidatedHandler,
+  createHandler,
+  createStringHandler,
+  createValidatedHandlerWithEvent
+} from './validate'
 import { z } from 'zod'
 import {
   generateDeviceSigningKeyPair,
@@ -94,6 +104,23 @@ import { resetSyncStateForNewDevice } from '../sync/state-reset'
 import type { DecryptedSyncItem } from '../sync/engine'
 import { getSyncQueue } from '../sync/queue'
 import { getNetworkMonitor } from '../sync/network'
+import {
+  getCrdtProvider,
+  base64ToUint8Array as crdtBase64ToUint8Array
+} from '../sync/crdt-provider'
+import * as Y from 'yjs'
+import {
+  YjsApplyUpdateRequestSchema,
+  YjsGetDocRequestSchema,
+  YjsGetStateVectorRequestSchema,
+  YjsSyncRequestSchema
+} from '@shared/contracts/ipc-sync'
+import type {
+  YjsApplyUpdateResponse,
+  YjsGetDocResponse,
+  YjsGetStateVectorResponse,
+  YjsSyncResponse
+} from '@shared/contracts/ipc-sync'
 import { getDatabase } from '../database/client'
 import { inboxItems } from '@shared/db/schema/inbox'
 import { savedFilters } from '@shared/db/schema/settings'
@@ -1250,7 +1277,10 @@ export function registerSyncHandlers(): void {
 
           if (linkingSession?.serverUrl && linkingSession?.linkingToken) {
             const client = createApiClientWithUrl(linkingSession.serverUrl)
-            const response = await client.getLinkingStatusWithToken(sessionId, linkingSession.linkingToken)
+            const response = await client.getLinkingStatusWithToken(
+              sessionId,
+              linkingSession.linkingToken
+            )
             return {
               session: {
                 id: response.id,
@@ -1386,6 +1416,122 @@ export function registerSyncHandlers(): void {
     createValidatedHandler(
       ResolveConflictRequestSchema,
       (): ResolveConflictResponse => createNotImplementedResponse()
+    )
+  )
+
+  // ============================================================================
+  // Yjs CRDT Operations (T129b)
+  // ============================================================================
+
+  ipcMain.handle(
+    SyncChannels.invoke.YJS_GET_DOC,
+    createValidatedHandler(
+      YjsGetDocRequestSchema,
+      async ({ noteId }): Promise<YjsGetDocResponse> => {
+        const provider = getCrdtProvider()
+        if (!provider) {
+          throw new Error('CrdtProvider not initialized')
+        }
+
+        const doc = await provider.getOrCreateDoc(noteId)
+        const snapshot = Y.encodeStateAsUpdate(doc)
+        const stateVector = Y.encodeStateVector(doc)
+
+        return {
+          noteId,
+          snapshot: uint8ArrayToBase64(snapshot),
+          stateVector: uint8ArrayToBase64(stateVector)
+        }
+      }
+    )
+  )
+
+  ipcMain.handle(
+    SyncChannels.invoke.YJS_APPLY_UPDATE,
+    createValidatedHandlerWithEvent(
+      YjsApplyUpdateRequestSchema,
+      ({ noteId, update, origin }, event): YjsApplyUpdateResponse => {
+        const provider = getCrdtProvider()
+        if (!provider) {
+          return { success: false, error: 'CrdtProvider not initialized' }
+        }
+
+        try {
+          const updateBytes = crdtBase64ToUint8Array(update)
+          const sourceWindowId = event.sender
+            ? BrowserWindow.fromWebContents(event.sender)?.id
+            : undefined
+          provider.applyUpdate(noteId, updateBytes, origin ?? 'renderer', sourceWindowId)
+          return { success: true }
+        } catch (error) {
+          console.error('[Yjs] Apply update failed:', error)
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Apply update failed'
+          }
+        }
+      }
+    )
+  )
+
+  ipcMain.handle(
+    SyncChannels.invoke.YJS_GET_STATE_VECTOR,
+    createValidatedHandler(
+      YjsGetStateVectorRequestSchema,
+      async ({ noteId }): Promise<YjsGetStateVectorResponse> => {
+        const provider = getCrdtProvider()
+        if (!provider) {
+          throw new Error('CrdtProvider not initialized')
+        }
+
+        if (!provider.hasDoc(noteId)) {
+          await provider.getOrCreateDoc(noteId)
+        }
+
+        const stateVector = provider.getStateVector(noteId)
+        return {
+          noteId,
+          stateVector: uint8ArrayToBase64(stateVector)
+        }
+      }
+    )
+  )
+
+  ipcMain.handle(
+    SyncChannels.invoke.YJS_SYNC_REQUEST,
+    createValidatedHandler(
+      YjsSyncRequestSchema,
+      async ({ noteId, stateVector }): Promise<YjsSyncResponse> => {
+        const provider = getCrdtProvider()
+        if (!provider) {
+          throw new Error('CrdtProvider not initialized')
+        }
+
+        try {
+          const doc = await provider.getOrCreateDoc(noteId)
+
+          let updateBytes: Uint8Array
+          if (stateVector && stateVector.length > 0) {
+            const clientSV = crdtBase64ToUint8Array(stateVector)
+            updateBytes = Y.encodeStateAsUpdate(doc, clientSV)
+          } else {
+            updateBytes = Y.encodeStateAsUpdate(doc)
+          }
+
+          const currentSV = Y.encodeStateVector(doc)
+
+          return {
+            noteId,
+            update: uint8ArrayToBase64(updateBytes),
+            stateVector: uint8ArrayToBase64(currentSV)
+          }
+        } catch (error) {
+          console.error('[Yjs] Sync request failed:', error)
+          throw new Error(
+            `Sync request failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+          )
+        }
+      }
     )
   )
 

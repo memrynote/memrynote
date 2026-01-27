@@ -2170,6 +2170,70 @@ export interface ResolveConflictResponse {
   error?: string
 }
 
+// =============================================================================
+// Yjs CRDT Types (T129a)
+// =============================================================================
+
+export interface YjsApplyUpdateRequest {
+  noteId: string
+  update: string
+  origin?: string
+}
+
+export interface YjsApplyUpdateResponse {
+  success: boolean
+  error?: string
+}
+
+export interface YjsGetDocRequest {
+  noteId: string
+}
+
+export interface YjsGetDocResponse {
+  noteId: string
+  snapshot: string
+  stateVector: string
+}
+
+export interface YjsGetStateVectorRequest {
+  noteId: string
+}
+
+export interface YjsGetStateVectorResponse {
+  noteId: string
+  stateVector: string
+}
+
+export interface YjsSyncRequest {
+  noteId: string
+  stateVector: string
+}
+
+export interface YjsSyncResponse {
+  noteId: string
+  update: string
+  stateVector: string
+}
+
+export interface YjsUpdateReceivedEvent {
+  noteId: string
+  update: string
+  sourceWindowId?: number
+}
+
+export interface YjsDocSyncedEvent {
+  noteId: string
+  timestamp: number
+}
+
+// Yjs client API interface
+export interface YjsClientAPI {
+  getDoc(noteId: string): Promise<YjsGetDocResponse>
+  applyUpdate(noteId: string, update: string, origin?: string): Promise<YjsApplyUpdateResponse>
+  getStateVector(noteId: string): Promise<YjsGetStateVectorResponse>
+  syncRequest(noteId: string, stateVector: string): Promise<YjsSyncResponse>
+}
+
 // Sync Event Types
 export interface SyncStatusChangedEvent {
   previousStatus: SyncStatus
@@ -2442,6 +2506,7 @@ interface API extends WindowAPI {
   auth: AuthClientAPI
   sync: SyncClientAPI
   crypto: CryptoClientAPI
+  yjs: YjsClientAPI
   /** Show a native OS context menu and return the selected item id, or null if dismissed */
   showContextMenu: (items: ContextMenuItem[]) => Promise<string | null>
   // Vault event subscriptions
@@ -2548,6 +2613,9 @@ interface API extends WindowAPI {
   onSessionChanged: (callback: (event: unknown) => void) => () => void
   onSessionExpired: (callback: () => void) => () => void
   onOAuthCallback: (callback: (event: unknown) => void) => () => void
+  // Yjs CRDT event subscriptions (T129b)
+  onYjsUpdateReceived: (callback: (event: YjsUpdateReceivedEvent) => void) => () => void
+  onYjsDocSynced: (callback: (event: YjsDocSyncedEvent) => void) => () => void
 }
 
 declare global {

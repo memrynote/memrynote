@@ -151,7 +151,6 @@ const MemryFilePlayer = forwardRef<HTMLVideoElement, MemryFilePlayerProps>(
 MemryFilePlayer.displayName = 'MemryFilePlayer'
 
 // Static method to determine if this player can handle the URL
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ;(MemryFilePlayer as any).canPlay = (src: string) => {
   return src?.startsWith('memry-file://')
 }

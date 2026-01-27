@@ -19,6 +19,10 @@ import type {
   LinkingKeyPair,
   LinkingDerivedKeys
 } from '@shared/contracts/crypto'
+import {
+  uint8ArrayToBase64 as sharedUint8ArrayToBase64,
+  base64ToUint8Array as sharedBase64ToUint8Array
+} from '@shared/utils/encoding'
 import * as cborg from 'cborg'
 
 /**
@@ -241,38 +245,8 @@ export async function generateNonce(): Promise<Uint8Array> {
   return sodium.randombytes_buf(XCHACHA_PARAMS.nonceSize)
 }
 
-/**
- * Convert Uint8Array to Base64 string.
- */
-export function uint8ArrayToBase64(bytes: Uint8Array): string {
-  // Use Buffer in Node.js environment
-  if (typeof Buffer !== 'undefined') {
-    return Buffer.from(bytes).toString('base64')
-  }
-  // Fallback for browser
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return btoa(binary)
-}
-
-/**
- * Convert Base64 string to Uint8Array.
- */
-export function base64ToUint8Array(base64: string): Uint8Array {
-  // Use Buffer in Node.js environment
-  if (typeof Buffer !== 'undefined') {
-    return new Uint8Array(Buffer.from(base64, 'base64'))
-  }
-  // Fallback for browser
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i)
-  }
-  return bytes
-}
+export const uint8ArrayToBase64 = sharedUint8ArrayToBase64
+export const base64ToUint8Array = sharedBase64ToUint8Array
 
 // =============================================================================
 // T058: Key Verifier Generation
@@ -486,11 +460,7 @@ export async function deriveLinkingKeys(
 
   try {
     // Step 1: Compute ECDH shared secret using X25519 scalar multiplication
-    sodium.crypto_scalarmult(
-      sharedSecret,
-      Buffer.from(myPrivateKey),
-      Buffer.from(theirPublicKey)
-    )
+    sodium.crypto_scalarmult(sharedSecret, Buffer.from(myPrivateKey), Buffer.from(theirPublicKey))
 
     // Step 2: Derive encryption key using HKDF (via crypto_kdf)
     const encryptionKey = await deriveKey(
@@ -500,11 +470,7 @@ export async function deriveLinkingKeys(
     )
 
     // Step 3: Derive MAC key using HKDF (via crypto_kdf)
-    const macKey = await deriveKey(
-      new Uint8Array(sharedSecret),
-      HKDF_CONTEXTS.LINKING_MAC,
-      32
-    )
+    const macKey = await deriveKey(new Uint8Array(sharedSecret), HKDF_CONTEXTS.LINKING_MAC, 32)
 
     return {
       encryptionKey,
@@ -615,22 +581,14 @@ export function computeLinkingProof(
 
     // Step 3: Compute keyed BLAKE2b-256 hash (HMAC-like construction)
     const proof = Buffer.alloc(32)
-    sodium.crypto_generichash(
-      proof,
-      Buffer.from(cborData),
-      Buffer.from(macKey)
-    )
+    sodium.crypto_generichash(proof, Buffer.from(cborData), Buffer.from(macKey))
 
     return new Uint8Array(proof)
   } catch (error) {
     if (error instanceof CryptoError) {
       throw error
     }
-    throw new CryptoError(
-      'Failed to compute linking proof',
-      CryptoErrorCode.HMAC_FAILED,
-      error
-    )
+    throw new CryptoError('Failed to compute linking proof', CryptoErrorCode.HMAC_FAILED, error)
   }
 }
 

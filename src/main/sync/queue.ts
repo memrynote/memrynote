@@ -315,8 +315,7 @@ export class SyncQueue extends TypedEmitter<QueueEvents> {
     this.broadcastToWindows('sync:queue-changed', count)
 
     if (count === 0 && this.lastCount > 0) {
-      const duration =
-        this.queueStartAt !== null ? Math.max(0, Date.now() - this.queueStartAt) : 0
+      const duration = this.queueStartAt !== null ? Math.max(0, Date.now() - this.queueStartAt) : 0
       const payload = { itemCount: this.lastCount, duration }
       this.emit('sync:queue-cleared', payload)
       this.broadcastToWindows('sync:queue-cleared', payload)

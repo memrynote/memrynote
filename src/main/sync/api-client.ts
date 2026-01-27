@@ -133,7 +133,11 @@ export interface SyncApiClient {
   pushItems(items: SyncItemPush[], deviceClock: VectorClock): Promise<PushSyncResponse>
   pullItems(cursor: number, limit?: number): Promise<PullSyncResponse>
   getSyncStatus(): Promise<SyncStatusResponse>
-  initiateLinking(token: string, deviceId: string, ephemeralPublicKey: string): Promise<LinkingInitiateResponse>
+  initiateLinking(
+    token: string,
+    deviceId: string,
+    ephemeralPublicKey: string
+  ): Promise<LinkingInitiateResponse>
   scanLinking(request: LinkingScanRequest): Promise<LinkingScanResponse>
   approveLinking(token: string, request: LinkingApproveRequest): Promise<LinkingApproveResponse>
   completeLinking(request: LinkingCompleteRequest): Promise<LinkingCompleteResponse>
@@ -144,7 +148,6 @@ export interface SyncApiClient {
 let clientInstance: SyncApiClient | null = null
 
 function createApiClientInternal(baseUrl: string): SyncApiClient {
-
   return {
     async requestOtp(email: string): Promise<OtpRequestResponse> {
       const request: OtpRequest = { email }
@@ -405,10 +408,16 @@ function createApiClientInternal(baseUrl: string): SyncApiClient {
       return handleResponse<LinkingStatusResponse>(response)
     },
 
-    async getLinkingStatusWithToken(sessionId: string, linkingToken: string): Promise<LinkingStatusResponse> {
-      const response = await fetch(`${baseUrl}/api/v1/auth/linking/${sessionId}?token=${encodeURIComponent(linkingToken)}`, {
-        method: 'GET'
-      })
+    async getLinkingStatusWithToken(
+      sessionId: string,
+      linkingToken: string
+    ): Promise<LinkingStatusResponse> {
+      const response = await fetch(
+        `${baseUrl}/api/v1/auth/linking/${sessionId}?token=${encodeURIComponent(linkingToken)}`,
+        {
+          method: 'GET'
+        }
+      )
       return handleResponse<LinkingStatusResponse>(response)
     }
   }

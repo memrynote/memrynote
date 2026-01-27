@@ -515,7 +515,7 @@ authRoutes.post('/devices', authMiddleware(), async (c) => {
     id: deviceId,
     userId: auth.userId,
     name,
-    platform: platform as DevicePlatform,
+    platform: platform,
     osVersion,
     appVersion,
     authPublicKey,
@@ -710,7 +710,9 @@ authRoutes.post('/linking/initiate', authMiddleware(), async (c) => {
   if (!rateCheck.allowed) {
     const retryAfter = Math.ceil((rateCheck.resetAt - Date.now()) / 1000)
     c.header('Retry-After', String(retryAfter))
-    throw new SyncError('Too many linking requests', ErrorCode.AUTH_RATE_LIMITED, 429, { retryAfter })
+    throw new SyncError('Too many linking requests', ErrorCode.AUTH_RATE_LIMITED, 429, {
+      retryAfter
+    })
   }
 
   const ownsDevice = await verifyDeviceOwnership(c.env.DB, deviceId, auth.userId)
@@ -741,15 +743,17 @@ authRoutes.post('/linking/initiate', authMiddleware(), async (c) => {
 
   const doId = c.env.LINKING_SESSION.idFromName(sessionId)
   const stub = c.env.LINKING_SESSION.get(doId)
-  await stub.fetch(new Request('https://internal/init', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      sessionId,
-      userId: auth.userId,
-      expiresAt
+  await stub.fetch(
+    new Request('https://internal/init', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        userId: auth.userId,
+        expiresAt
+      })
     })
-  }))
+  )
 
   const response: LinkingInitiateResponse = {
     sessionId,
@@ -804,18 +808,25 @@ authRoutes.post('/linking/scan', async (c) => {
     throw badRequest('Invalid linking token')
   }
 
-  const updated = await updateSessionToScanned(c.env.DB, sessionId, newDevicePublicKey, newDeviceConfirm)
+  const updated = await updateSessionToScanned(
+    c.env.DB,
+    sessionId,
+    newDevicePublicKey,
+    newDeviceConfirm
+  )
   if (!updated) {
     throw linkingInvalidState('pending', session.status)
   }
 
   const doId = c.env.LINKING_SESSION.idFromName(sessionId)
   const stub = c.env.LINKING_SESSION.get(doId)
-  await stub.fetch(new Request('https://internal/broadcast', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'scanned' })
-  }))
+  await stub.fetch(
+    new Request('https://internal/broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'scanned' })
+    })
+  )
 
   const response: LinkingScanResponse = {
     status: 'scanned'
@@ -852,18 +863,26 @@ authRoutes.post('/linking/approve', authMiddleware(), async (c) => {
     throw linkingSessionExpired()
   }
 
-  const updated = await updateSessionToApproved(c.env.DB, sessionId, encryptedMasterKey, encryptedKeyNonce, keyConfirm)
+  const updated = await updateSessionToApproved(
+    c.env.DB,
+    sessionId,
+    encryptedMasterKey,
+    encryptedKeyNonce,
+    keyConfirm
+  )
   if (!updated) {
     throw linkingInvalidState('scanned', session.status)
   }
 
   const doId = c.env.LINKING_SESSION.idFromName(sessionId)
   const stub = c.env.LINKING_SESSION.get(doId)
-  await stub.fetch(new Request('https://internal/broadcast', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'approved' })
-  }))
+  await stub.fetch(
+    new Request('https://internal/broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'approved' })
+    })
+  )
 
   const response: LinkingApproveResponse = {
     status: 'approved'
@@ -955,7 +974,9 @@ authRoutes.post('/linking/complete', async (c) => {
   if (!rateCheck.allowed) {
     const retryAfter = Math.ceil((rateCheck.resetAt - Date.now()) / 1000)
     c.header('Retry-After', String(retryAfter))
-    throw new SyncError('Too many complete attempts', ErrorCode.AUTH_RATE_LIMITED, 429, { retryAfter })
+    throw new SyncError('Too many complete attempts', ErrorCode.AUTH_RATE_LIMITED, 429, {
+      retryAfter
+    })
   }
 
   const session = await getLinkingSession(c.env.DB, sessionId)
@@ -992,11 +1013,13 @@ authRoutes.post('/linking/complete', async (c) => {
 
   const doId = c.env.LINKING_SESSION.idFromName(sessionId)
   const stub = c.env.LINKING_SESSION.get(doId)
-  await stub.fetch(new Request('https://internal/broadcast', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'completed' })
-  }))
+  await stub.fetch(
+    new Request('https://internal/broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'completed' })
+    })
+  )
 
   const response: LinkingCompleteResponse = {
     accessToken: tokens.accessToken,

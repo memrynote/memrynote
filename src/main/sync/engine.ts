@@ -705,7 +705,7 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
           clock = undefined
         }
       } else if (maybeClock && typeof maybeClock === 'object') {
-        clock = maybeClock as VectorClock
+        clock = maybeClock
       }
 
       const maybeFieldClocks = (rawData as { fieldClocks?: FieldClocks | string | null })
@@ -717,7 +717,7 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
           fieldClocks = undefined
         }
       } else if (maybeFieldClocks && typeof maybeFieldClocks === 'object') {
-        fieldClocks = maybeFieldClocks as FieldClocks
+        fieldClocks = maybeFieldClocks
       }
     }
 

@@ -4,7 +4,6 @@
  * Uses shadcn/ui components for consistent styling
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 // BlockNote uses dynamic content types with 'any' internally - these errors are unavoidable
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -615,11 +614,10 @@ export const ContentArea = memo(function ContentArea({
 
             let blocks
             if (contentType === 'markdown') {
-              // eslint-disable-next-line @typescript-eslint/await-thenable -- BlockNote types are incorrect, this is async
               blocks = await editor.tryParseMarkdownToBlocks(content)
             } else {
               // Default to HTML parsing
-              // eslint-disable-next-line @typescript-eslint/await-thenable -- BlockNote types are incorrect, this is async
+
               blocks = await editor.tryParseHTMLToBlocks(content)
             }
 
@@ -674,7 +672,6 @@ export const ContentArea = memo(function ContentArea({
       }
       markdownDebounceRef.current = setTimeout(async () => {
         try {
-          // eslint-disable-next-line @typescript-eslint/await-thenable -- BlockNote types are incorrect, this is async
           let markdown = await editor.blocksToMarkdownLossy(editor.document)
 
           // Serialize file blocks to markers (they're lost in markdown conversion)
