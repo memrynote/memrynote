@@ -54,7 +54,13 @@ export const SyncChannels = {
 
     // Conflict Resolution
     GET_CONFLICTS: 'sync:get-conflicts',
-    RESOLVE_CONFLICT: 'sync:resolve-conflict'
+    RESOLVE_CONFLICT: 'sync:resolve-conflict',
+
+    // Yjs CRDT Operations (T129a)
+    YJS_GET_DOC: 'yjs:get-doc',
+    YJS_APPLY_UPDATE: 'yjs:apply-update',
+    YJS_GET_STATE_VECTOR: 'yjs:get-state-vector',
+    YJS_SYNC_REQUEST: 'yjs:sync-request'
   },
 
   /** Event channels (ipcMain.emit / ipcRenderer.on) */
@@ -76,7 +82,11 @@ export const SyncChannels = {
 
     // Device Events
     DEVICE_LINKED: 'sync:device-linked',
-    DEVICE_REVOKED: 'sync:device-revoked'
+    DEVICE_REVOKED: 'sync:device-revoked',
+
+    // Yjs CRDT Events (T129a)
+    YJS_UPDATE_RECEIVED: 'yjs:update-received',
+    YJS_DOC_SYNCED: 'yjs:doc-synced'
   }
 } as const
 
@@ -532,6 +542,73 @@ export interface DeviceRevokedEvent {
   deviceName: string
 }
 
+// --- Yjs CRDT Types (T129a) ---
+
+export type YjsUpdateOriginType = 'local' | 'remote' | 'persistence' | 'renderer'
+
+export interface YjsApplyUpdateRequest {
+  noteId: string
+  /** Base64-encoded Yjs update */
+  update: string
+  /** Origin identifier for the update (prevents echo) */
+  origin?: YjsUpdateOriginType
+}
+
+export interface YjsApplyUpdateResponse {
+  success: boolean
+  error?: string
+}
+
+export interface YjsGetDocRequest {
+  noteId: string
+}
+
+export interface YjsGetDocResponse {
+  noteId: string
+  /** Base64-encoded document snapshot */
+  snapshot: string
+  /** Base64-encoded state vector */
+  stateVector: string
+}
+
+export interface YjsGetStateVectorRequest {
+  noteId: string
+}
+
+export interface YjsGetStateVectorResponse {
+  noteId: string
+  /** Base64-encoded state vector */
+  stateVector: string
+}
+
+export interface YjsSyncRequest {
+  noteId: string
+  /** Base64-encoded local state vector (may be empty for new doc) */
+  stateVector: string
+}
+
+export interface YjsSyncResponse {
+  noteId: string
+  /** Base64-encoded update diff based on client state vector */
+  update: string
+  /** Base64-encoded current state vector */
+  stateVector: string
+}
+
+export interface YjsUpdateReceivedEvent {
+  noteId: string
+  /** Base64-encoded Yjs update */
+  update: string
+  /** Window ID that originated the update (to filter out echoes) */
+  sourceWindowId?: number
+}
+
+export interface YjsDocSyncedEvent {
+  noteId: string
+  /** When the document was synced with server */
+  timestamp: number
+}
+
 // =============================================================================
 // Zod Schemas for Validation
 // =============================================================================
@@ -613,6 +690,29 @@ export const VerifyOtpRequestSchema = z.object({
 
 export const ResendOtpRequestSchema = z.object({
   email: z.string().email().max(255)
+})
+
+// Yjs CRDT Schemas (T129a)
+export const YjsUpdateOriginSchema = z.enum(['local', 'remote', 'persistence', 'renderer'])
+export type YjsUpdateOrigin = z.infer<typeof YjsUpdateOriginSchema>
+
+export const YjsApplyUpdateRequestSchema = z.object({
+  noteId: z.string(),
+  update: z.string(),
+  origin: YjsUpdateOriginSchema.optional()
+})
+
+export const YjsGetDocRequestSchema = z.object({
+  noteId: z.string()
+})
+
+export const YjsGetStateVectorRequestSchema = z.object({
+  noteId: z.string()
+})
+
+export const YjsSyncRequestSchema = z.object({
+  noteId: z.string(),
+  stateVector: z.string()
 })
 
 // =============================================================================

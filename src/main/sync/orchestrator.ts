@@ -38,10 +38,7 @@ async function canSync(): Promise<{ ok: boolean; reason?: string }> {
   }
 
   try {
-    const [tokens, keyMaterial] = await Promise.all([
-      retrieveAuthTokens(),
-      retrieveKeyMaterial()
-    ])
+    const [tokens, keyMaterial] = await Promise.all([retrieveAuthTokens(), retrieveKeyMaterial()])
 
     if (!tokens?.accessToken) {
       return { ok: false, reason: 'missing-auth-token' }

@@ -196,7 +196,8 @@ app.get('/api/v1/auth/linking/:sessionId/ws', async (c) => {
   }
 
   if (role === 'initiator') {
-    const jwtToken = c.req.query('token') ?? c.req.header('Authorization')?.replace(/^Bearer\s+/i, '')
+    const jwtToken =
+      c.req.query('token') ?? c.req.header('Authorization')?.replace(/^Bearer\s+/i, '')
     if (!jwtToken) {
       return c.json({ error: 'Missing authentication token' }, 401)
     }

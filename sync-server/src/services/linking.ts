@@ -255,7 +255,10 @@ export async function updateSessionToApproved(
  * @param sessionId - Linking session ID
  * @returns True if update succeeded, false if state was not 'approved'
  */
-export async function updateSessionToCompleted(db: D1Database, sessionId: string): Promise<boolean> {
+export async function updateSessionToCompleted(
+  db: D1Database,
+  sessionId: string
+): Promise<boolean> {
   const now = Date.now()
 
   const result = await db

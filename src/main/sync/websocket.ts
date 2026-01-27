@@ -224,10 +224,7 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
       if (message.type === 'linking') {
         const result = LinkingEventPayloadSchema.safeParse(message.payload)
         if (!result.success) {
-          this.emit(
-            'sync:ws-error',
-            new Error(`Invalid linking payload: ${result.error.message}`)
-          )
+          this.emit('sync:ws-error', new Error(`Invalid linking payload: ${result.error.message}`))
           return
         }
         this.handleLinkingMessage(result.data)
@@ -271,7 +268,10 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
           this.emit('sync:linking-approved', approvedPayload)
           this.broadcastToWindows('sync:linking-approved', approvedPayload)
         } else {
-          this.emit('sync:ws-error', new Error('Missing required fields in linking_approved payload'))
+          this.emit(
+            'sync:ws-error',
+            new Error('Missing required fields in linking_approved payload')
+          )
         }
         break
 

@@ -57,10 +57,7 @@ describe('resetSyncStateForNewDevice', () => {
     await resetSyncStateForNewDevice()
 
     // #then
-    expect(mockDeleteSetting).toHaveBeenCalledWith(
-      expect.anything(),
-      'sync.bootstrap.v1'
-    )
+    expect(mockDeleteSetting).toHaveBeenCalledWith(expect.anything(), 'sync.bootstrap.v1')
   })
 
   it('should handle missing database gracefully', async () => {

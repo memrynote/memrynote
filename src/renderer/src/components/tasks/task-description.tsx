@@ -16,7 +16,6 @@ interface TaskDescriptionProps {
 // DEBOUNCE HOOK
 // ============================================================================
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const useDebounce = <T extends (...args: any[]) => void>(callback: T, delay: number): T => {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 

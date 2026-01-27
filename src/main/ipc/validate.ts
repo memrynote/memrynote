@@ -121,3 +121,32 @@ export function withErrorHandling<TArgs extends unknown[], TResult>(
     }
   }
 }
+
+/**
+ * Creates a validated IPC handler that also provides the event object.
+ * Useful for handlers that need access to the sender window.
+ *
+ * @param schema - Zod schema to validate input against
+ * @param handler - Handler function that receives validated input and the IPC event
+ * @returns IPC handler function compatible with ipcMain.handle
+ */
+export function createValidatedHandlerWithEvent<TSchema extends z.ZodSchema, TResult>(
+  schema: TSchema,
+  handler: (input: z.infer<TSchema>, event: IpcMainInvokeEvent) => TResult | Promise<TResult>
+): (event: IpcMainInvokeEvent, rawInput: unknown) => Promise<TResult> {
+  return async (event: IpcMainInvokeEvent, rawInput: unknown): Promise<TResult> => {
+    try {
+      const validated = schema.parse(rawInput)
+      return await handler(validated, event)
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const issues = error.issues ?? (error as { errors?: unknown[] }).errors ?? []
+        const messages = (issues as Array<{ path: (string | number)[]; message: string }>)
+          .map((e) => `${e.path.join('.')}: ${e.message}`)
+          .join(', ')
+        throw new Error(`Validation failed: ${messages}`)
+      }
+      throw error
+    }
+  }
+}
