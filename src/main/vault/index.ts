@@ -203,7 +203,7 @@ async function openVault(vaultPath: string): Promise<void> {
   initDatabase(dataDbPath)
 
   // Initialize CRDT provider for Yjs document sync
-  initializeCrdtProvider(dataDbPath)
+  await initializeCrdtProvider(dataDbPath)
 
   // Seed default data (inbox project, etc.)
   seedDefaults(getDatabase())
