@@ -13,6 +13,7 @@
 
 import * as Y from 'yjs'
 import { Observable } from 'lib0/observable'
+import { Awareness } from 'y-protocols/awareness'
 
 import { uint8ArrayToBase64, base64ToUint8Array } from '@shared/utils/encoding'
 
@@ -30,10 +31,13 @@ export class YjsIPCProvider extends Observable<keyof YjsIPCProviderEvents> {
   private _destroyed = false
   private unsubscribeRemoteUpdate: (() => void) | null = null
 
+  public readonly awareness: Awareness
+
   constructor(noteId: string, doc: Y.Doc) {
     super()
     this.noteId = noteId
     this.doc = doc
+    this.awareness = new Awareness(doc)
   }
 
   get synced(): boolean {
@@ -124,6 +128,7 @@ export class YjsIPCProvider extends Observable<keyof YjsIPCProviderEvents> {
     }
 
     this.disconnect()
+    this.awareness.destroy()
     this._destroyed = true
     this.emit('destroy', [])
     super.destroy()

@@ -371,7 +371,10 @@ export const ContentArea = memo(function ContentArea({
   onLinkClick,
   onInternalLinkClick,
   className,
-  initialHighlight
+  initialHighlight,
+  ydoc,
+  yjsProvider,
+  yjsSynced
 }: ContentAreaProps) {
   // T030: Get current theme for dark mode support
   const { resolvedTheme } = useTheme()
@@ -491,22 +494,46 @@ export const ContentArea = memo(function ContentArea({
     return result.path
   }, [])
 
-  // Create the BlockNote editor
-  const editor = useCreateBlockNote({
-    schema,
-    // Enable data-id attributes on blocks for scroll tracking (T078)
-    setIdAttribute: true,
-    // T069: Configure file upload for images and files
-    uploadFile,
-    // Configure placeholders
-    placeholders: {
-      default: placeholder,
-      heading: 'Heading',
-      bulletListItem: 'List item',
-      numberedListItem: 'List item',
-      checkListItem: 'To-do item'
+  // T140: Build collaboration options when Y.Doc and provider are available
+  const collaborationOptions = useMemo(() => {
+    if (!ydoc || !yjsProvider) {
+      return undefined
     }
-  })
+
+    return {
+      provider: yjsProvider,
+      fragment: ydoc.getXmlFragment('document-store'),
+      user: {
+        name: 'Local User',
+        color: '#3b82f6'
+      },
+      showCursorLabels: 'activity' as const
+    }
+  }, [ydoc, yjsProvider])
+
+  // Create the BlockNote editor
+  // When collaboration is enabled, BlockNote manages content via Y.Doc
+  const editor = useCreateBlockNote(
+    {
+      schema,
+      // Enable data-id attributes on blocks for scroll tracking (T078)
+      setIdAttribute: true,
+      // T069: Configure file upload for images and files
+      uploadFile,
+      // Configure placeholders
+      placeholders: {
+        default: placeholder,
+        heading: 'Heading',
+        bulletListItem: 'List item',
+        numberedListItem: 'List item',
+        checkListItem: 'To-do item'
+      },
+      // T140: Enable Yjs collaboration when doc and provider are available
+      ...(collaborationOptions && { collaboration: collaborationOptions })
+    },
+    // Re-create editor when collaboration changes
+    [collaborationOptions]
+  )
 
   const notesCacheRef = useRef<{ notes: NoteSuggestion[]; fetchedAt: number } | null>(null)
 
@@ -574,18 +601,37 @@ export const ContentArea = memo(function ContentArea({
     [editor]
   )
 
-  // Parse content based on content type (only on initial mount)
+  // Parse content based on content type (only on initial mount or when Yjs sync completes)
   // We use a ref to prevent re-loading when the parent updates initialContent
   // This makes ContentArea an "uncontrolled" component for content
   useEffect(() => {
+    // T140: When collaboration is enabled, wait for sync before loading
+    // This prevents the race condition where we check fragment.length before sync completes
+    if (ydoc && collaborationOptions && !yjsSynced) {
+      return
+    }
+
     // Skip if already loaded (prevents overwriting user edits when parent re-renders)
     if (initialContentLoadedRef.current) {
       return
     }
-    initialContentLoadedRef.current = true
 
     async function loadContent(): Promise<void> {
       try {
+        // T140: When collaboration is enabled and synced, check if Y.Doc already has content
+        // If Y.Doc has content (from persistence), BlockNote loads it automatically
+        // Only initialize from markdown if Y.Doc is empty
+        if (ydoc && collaborationOptions) {
+          const fragment = ydoc.getXmlFragment('document-store')
+          if (fragment.length > 0) {
+            // Y.Doc has content - BlockNote collaboration handles loading
+            initialContentLoadedRef.current = true
+            isContentReadyRef.current = true
+            return
+          }
+          // Y.Doc is empty - fall through to load from initialContent
+        }
+
         if (typeof initialContent === 'string' && initialContent.trim()) {
           try {
             let content = initialContent
@@ -638,16 +684,20 @@ export const ContentArea = memo(function ContentArea({
           editor.replaceBlocks(editor.document, normalized.blocks)
         }
       } finally {
-        // Mark content as ready for saving (prevents race condition where empty content is saved)
-        // Using finally ensures the flag is set even if parsing fails
+        // Mark content as loaded and ready for saving
+        // (prevents race condition where empty content is saved and
+        // prevents re-loading when parent re-renders)
+        initialContentLoadedRef.current = true
         isContentReadyRef.current = true
       }
     }
     void loadContent()
-    // Note: We intentionally only depend on editor to run once on mount
+    // Note: We depend on editor and yjsSynced
+    // - editor: triggers on mount
+    // - yjsSynced: triggers when sync completes (to check if Y.Doc has content)
     // The key prop on ContentArea should be used to force re-mount when content source changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor])
+  }, [editor, yjsSynced])
 
   // Handle content changes with debouncing for expensive operations
   // This prevents typing lag by deferring markdown conversion and heading extraction

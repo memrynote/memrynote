@@ -44,6 +44,7 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   private persistence: LeveldbPersistence | null = null
   private dbPath: string = ''
   private initialized = false
+  private shuttingDown = false
   private syncEngine: SyncEngine | null = null
 
   initialize(customDbPath?: string): void {
@@ -60,6 +61,10 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
 
   setSyncEngine(engine: SyncEngine): void {
     this.syncEngine = engine
+  }
+
+  private canPersist(): boolean {
+    return this.initialized && this.persistence !== null && !this.shuttingDown
   }
 
   async getOrCreateDoc(noteId: string): Promise<Y.Doc> {
@@ -94,7 +99,7 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
       const update = Y.encodeStateAsUpdate(storedDoc)
       Y.applyUpdate(doc, update)
     } else {
-      doc.getXmlFragment('content')
+      doc.getXmlFragment('document-store')
       doc.getMap('meta').set('created', Date.now())
     }
 
@@ -119,7 +124,14 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     entry.lastActivity = Date.now()
 
     if (origin !== 'remote' && origin !== 'persistence') {
-      void this.persistence!.storeUpdate(noteId, update)
+      if (this.canPersist()) {
+        this.persistence!.storeUpdate(noteId, update).catch((error) => {
+          if (!this.shuttingDown) {
+            console.error('[CrdtProvider] storeUpdate failed:', noteId, error)
+            this.emit('crdt:error', { noteId, error: error as Error })
+          }
+        })
+      }
       this.emit('crdt:doc-updated', {
         noteId,
         update,
@@ -146,7 +158,13 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
 
     Y.applyUpdate(entry.doc, update, origin)
 
-    void this.persistence!.storeUpdate(noteId, update)
+    if (this.canPersist()) {
+      this.persistence!.storeUpdate(noteId, update).catch((error) => {
+        if (!this.shuttingDown) {
+          console.error('[CrdtProvider] storeUpdate failed:', noteId, error)
+        }
+      })
+    }
 
     this.broadcastToWindows(noteId, update, sourceWindowId)
   }
@@ -194,6 +212,8 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   }
 
   async compactDoc(noteId: string): Promise<void> {
+    if (!this.canPersist()) return
+
     const entry = this.docs.get(noteId)
     if (!entry) return
 
@@ -204,8 +224,10 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
 
       this.queueSnapshotForSync(noteId)
     } catch (error) {
-      console.error('[CrdtProvider] Compaction failed:', noteId, error)
-      this.emit('crdt:error', { noteId, error: error as Error })
+      if (!this.shuttingDown) {
+        console.error('[CrdtProvider] Compaction failed:', noteId, error)
+        this.emit('crdt:error', { noteId, error: error as Error })
+      }
     }
   }
 
@@ -247,8 +269,12 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   async shutdown(): Promise<void> {
     if (!this.initialized) return
 
+    this.shuttingDown = true
+
     const flushPromises = Array.from(this.docs.keys()).map((noteId) =>
-      this.persistence!.flushDocument(noteId)
+      this.persistence!.flushDocument(noteId).catch((error) => {
+        console.warn('[CrdtProvider] Flush failed during shutdown:', noteId, error)
+      })
     )
     await Promise.all(flushPromises)
 
@@ -260,6 +286,7 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     await this.persistence?.destroy()
     this.persistence = null
     this.initialized = false
+    this.shuttingDown = false
 
     console.info('[CrdtProvider] Shut down')
   }

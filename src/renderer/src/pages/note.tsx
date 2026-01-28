@@ -39,6 +39,7 @@ import { toast } from 'sonner'
 import { useIsBookmarked } from '@/hooks/use-bookmarks'
 import { NoteReminderButton } from '@/components/note/note-reminder-button'
 import { useNoteEditorSettings } from '@/hooks/use-note-editor-settings'
+import { useYjsDoc } from '@/hooks/use-yjs-doc'
 
 // ============================================================================
 // Types
@@ -158,6 +159,9 @@ export function NotePage({ noteId }: NotePageProps) {
 
   // Editor settings (toolbar mode)
   const { settings: editorSettings } = useNoteEditorSettings()
+
+  // T140: Yjs document management for CRDT sync
+  const { doc: ydoc, provider: yjsProvider, synced: yjsSynced } = useYjsDoc(noteId ?? null)
 
   // Content tracking for change detection
   const lastSavedContent = useRef<string>('')
@@ -750,6 +754,9 @@ export function NotePage({ noteId }: NotePageProps) {
                 onLinkClick={handleLinkClick}
                 onInternalLinkClick={handleInternalLinkClick}
                 initialHighlight={initialHighlight}
+                ydoc={ydoc ?? undefined}
+                yjsProvider={yjsProvider ?? undefined}
+                yjsSynced={yjsSynced}
               />
             </EditorErrorBoundary>
           </div>

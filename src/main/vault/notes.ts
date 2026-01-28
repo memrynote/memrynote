@@ -63,6 +63,7 @@ import { NoteError, NoteErrorCode, VaultError, VaultErrorCode } from '../lib/err
 import { generateNoteId } from '../lib/id'
 import { NotesChannels } from '@shared/contracts/notes-api'
 import { queueEmbeddingUpdate } from '../inbox/embedding-queue'
+import { getCrdtProvider } from '../sync/crdt-provider'
 
 // ============================================================================
 // Types
@@ -342,6 +343,14 @@ export async function createNote(input: NoteCreateInput): Promise<Note> {
 
   // Queue embedding update (batched for performance)
   queueEmbeddingUpdate(note.id)
+
+  // T139: Initialize Y.Doc for new note
+  const crdtProvider = getCrdtProvider()
+  if (crdtProvider) {
+    void crdtProvider.getOrCreateDoc(frontmatter.id).catch((err) => {
+      console.error('[Notes] Failed to initialize Y.Doc for new note:', err)
+    })
+  }
 
   return note
 }
@@ -796,6 +805,14 @@ export async function deleteNote(id: string): Promise<void> {
 
   // Remove from cache using NoteSyncService (handles links cleanup + cache deletion)
   deleteNoteFromCache(db, id)
+
+  // T139: Clear Y.Doc when note is deleted
+  const crdtProvider = getCrdtProvider()
+  if (crdtProvider) {
+    void crdtProvider.clearDoc(id).catch((err) => {
+      console.error('[Notes] Failed to clear Y.Doc for deleted note:', err)
+    })
+  }
 
   // Emit event
   emitNoteEvent(NotesChannels.events.DELETED, {
@@ -1272,6 +1289,14 @@ export async function restoreVersion(snapshotId: string): Promise<Note> {
     wordCount: syncResult.wordCount,
     properties: syncResult.properties,
     emoji: syncResult.emoji
+  }
+
+  // T139: Clear Y.Doc when restoring version (will be re-initialized on next editor open)
+  const crdtProvider = getCrdtProvider()
+  if (crdtProvider && crdtProvider.hasDoc(cached.id)) {
+    void crdtProvider.clearDoc(cached.id).catch((err) => {
+      console.error('[Notes] Failed to clear Y.Doc for restored note:', err)
+    })
   }
 
   // Emit event
