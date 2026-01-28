@@ -22,7 +22,7 @@ import path from 'path'
 import { SyncChannels } from '@shared/contracts/ipc-sync'
 import { uint8ArrayToBase64 } from '@shared/utils/encoding'
 import { TypedEmitter } from './typed-emitter'
-import type { SyncEngine } from './engine'
+import type { CrdtSyncBridge } from './crdt-sync-bridge'
 
 const SNAPSHOT_THRESHOLD = 100
 
@@ -46,7 +46,7 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   private dbReady: Promise<void> | null = null
   private initialized = false
   private shuttingDown = false
-  private syncEngine: SyncEngine | null = null
+  private syncBridge: CrdtSyncBridge | null = null
 
   async initialize(customDbPath?: string): Promise<void> {
     if (this.initialized) return
@@ -55,9 +55,13 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     this.persistence = new LeveldbPersistence(this.dbPath)
 
     this.dbReady = (async () => {
-      const docNames = await this.persistence!.getAllDocNames()
-      if (docNames.length > 0) {
-        await this.persistence!.getYDoc(docNames[0])
+      try {
+        const docNames = await this.persistence!.getAllDocNames()
+        if (docNames.length > 0) {
+          await this.persistence!.getYDoc(docNames[0])
+        }
+      } catch (error) {
+        console.warn('[CrdtProvider] DB warmup failed, will initialize lazily:', error)
       }
     })()
     await this.dbReady
@@ -66,8 +70,8 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     console.info('[CrdtProvider] Initialized at', this.dbPath)
   }
 
-  setSyncEngine(engine: SyncEngine): void {
-    this.syncEngine = engine
+  setSyncBridge(bridge: CrdtSyncBridge): void {
+    this.syncBridge = bridge
   }
 
   private async waitForDb(): Promise<LeveldbPersistence | null> {
@@ -253,11 +257,17 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   }
 
   private queueSnapshotForSync(noteId: string): void {
-    if (!this.syncEngine) {
+    if (!this.syncBridge) {
       return
     }
 
-    // TODO: Queue snapshot for server sync when encryption is wired up
+    try {
+      const snapshot = this.encodeSnapshot(noteId)
+      void this.syncBridge.pushSnapshot(noteId, snapshot)
+    } catch (error) {
+      console.error('[CrdtProvider] Failed to queue snapshot for sync:', noteId, error)
+    }
+
     this.emit('crdt:doc-synced', { noteId, timestamp: Date.now() })
   }
 
@@ -311,6 +321,7 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
 
     await this.persistence?.destroy()
     this.persistence = null
+    this.dbReady = null
     this.initialized = false
     this.shuttingDown = false
 
