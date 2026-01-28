@@ -4,6 +4,8 @@
  */
 
 import type { Block } from '@blocknote/core'
+import type * as Y from 'yjs'
+import type { YjsIPCProvider } from '@/sync/yjs-ipc-provider'
 
 // =============================================================================
 // HEADING TYPES
@@ -90,6 +92,12 @@ export interface ContentAreaProps {
   className?: string
   /** Initial highlight info to scroll to and highlight (from reminder navigation) */
   initialHighlight?: HighlightInfo
+  /** T140: Y.Doc for Yjs collaboration (optional - editor works without it) */
+  ydoc?: Y.Doc
+  /** T140: Yjs IPC provider for collaboration (required if ydoc is provided) */
+  yjsProvider?: YjsIPCProvider
+  /** T140: Whether Yjs sync has completed (prevents race condition on content load) */
+  yjsSynced?: boolean
 }
 
 // =============================================================================

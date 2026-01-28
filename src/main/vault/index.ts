@@ -49,6 +49,7 @@ import { initEmbeddingModel, isModelLoaded, isModelLoading } from '../lib/embedd
 import { flushFtsUpdates, hasPendingFtsUpdates } from '../database'
 import { clearEmbeddingQueue, hasPendingEmbeddings } from '../inbox/embedding-queue'
 import { initSyncSubsystem } from '../sync/orchestrator'
+import { initializeCrdtProvider, shutdownCrdtProvider } from '../sync/crdt-provider'
 
 /**
  * Current vault status
@@ -200,6 +201,9 @@ async function openVault(vaultPath: string): Promise<void> {
 
   // Initialize data database
   initDatabase(dataDbPath)
+
+  // Initialize CRDT provider for Yjs document sync
+  initializeCrdtProvider(dataDbPath)
 
   // Seed default data (inbox project, etc.)
   seedDefaults(getDatabase())
@@ -400,6 +404,9 @@ export async function closeVault(): Promise<void> {
     clearEmbeddingQueue()
     console.log(`[Vault] Cleared pending embedding updates before close`)
   }
+
+  // Shutdown CRDT provider before closing database
+  await shutdownCrdtProvider()
 
   // Close databases
   closeAllDatabases()
