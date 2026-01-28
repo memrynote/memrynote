@@ -13,6 +13,8 @@ import { retrieveAuthTokens, retrieveKeyMaterial } from '../crypto/keychain'
 import { bootstrapSyncData } from './bootstrap'
 import { initAuthSyncBridge, handleSessionExpired } from './auth-bridge'
 import { registerDecryptedItemListener } from '../ipc/sync-handlers'
+import { getCrdtProvider } from './crdt-provider'
+import { initializeCrdtSyncBridge, getCrdtSyncBridge } from './crdt-sync-bridge'
 
 const AUTO_SYNC_DEBOUNCE_MS = 1500
 
@@ -148,6 +150,15 @@ export async function initSyncSubsystem(): Promise<void> {
 
   await initAuthSyncBridge()
 
+  // Initialize CRDT sync bridge if CrdtProvider is available
+  const crdtProvider = getCrdtProvider()
+  if (crdtProvider) {
+    const crdtBridge = initializeCrdtSyncBridge()
+    crdtBridge.initialize(crdtProvider)
+    crdtProvider.setSyncBridge(crdtBridge)
+    console.info('[Sync] CRDT sync bridge initialized')
+  }
+
   // Pull remote changes on startup if possible
   void runSync('startup', true)
   void bootstrapSyncData()
@@ -157,6 +168,14 @@ export async function initSyncSubsystem(): Promise<void> {
     .catch((error) => {
       console.warn('[Sync] Bootstrap failed:', error)
     })
+
+  // Sync CRDT documents on startup
+  const crdtBridge = getCrdtSyncBridge()
+  if (crdtBridge) {
+    void crdtBridge.syncAllDocs().catch((error) => {
+      console.warn('[Sync] CRDT startup sync failed:', error)
+    })
+  }
 
   initialized = true
 }

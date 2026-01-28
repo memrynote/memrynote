@@ -45,6 +45,13 @@ import type {
   SyncStatusResponse,
   VectorClock
 } from '@shared/contracts/sync-api'
+import type {
+  CrdtUpdatePush,
+  PushCrdtUpdatesResponse,
+  GetCrdtUpdatesResponse,
+  PushCrdtSnapshotResponse,
+  GetCrdtSnapshotResponse
+} from '@shared/contracts/crdt-api'
 import { retrieveAuthTokens } from '../crypto/keychain'
 
 export class SyncApiError extends Error {
@@ -143,6 +150,20 @@ export interface SyncApiClient {
   completeLinking(request: LinkingCompleteRequest): Promise<LinkingCompleteResponse>
   getLinkingStatus(token: string, sessionId: string): Promise<LinkingStatusResponse>
   getLinkingStatusWithToken(sessionId: string, linkingToken: string): Promise<LinkingStatusResponse>
+
+  pushCrdtUpdates(updates: CrdtUpdatePush[]): Promise<PushCrdtUpdatesResponse>
+  pullCrdtUpdates(
+    noteId: string,
+    sinceSequence: number,
+    limit?: number
+  ): Promise<GetCrdtUpdatesResponse>
+  pushCrdtSnapshot(
+    noteId: string,
+    snapshotData: string,
+    sequenceNum: number,
+    sizeBytes: number
+  ): Promise<PushCrdtSnapshotResponse>
+  pullCrdtSnapshot(noteId: string): Promise<GetCrdtSnapshotResponse>
 }
 
 let clientInstance: SyncApiClient | null = null
@@ -419,6 +440,95 @@ function createApiClientInternal(baseUrl: string): SyncApiClient {
         }
       )
       return handleResponse<LinkingStatusResponse>(response)
+    },
+
+    async pushCrdtUpdates(updates: CrdtUpdatePush[]): Promise<PushCrdtUpdatesResponse> {
+      const tokens = await retrieveAuthTokens()
+      if (!tokens) {
+        throw new SyncApiError('Not authenticated', 401, 'UNAUTHORIZED')
+      }
+
+      console.info('[SyncApi] CRDT push updates:', { count: updates.length })
+
+      const response = await fetch(`${baseUrl}/api/v1/sync/crdt/updates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokens.accessToken}`
+        },
+        body: JSON.stringify({ updates })
+      })
+      return handleResponse<PushCrdtUpdatesResponse>(response)
+    },
+
+    async pullCrdtUpdates(
+      noteId: string,
+      sinceSequence: number,
+      limit?: number
+    ): Promise<GetCrdtUpdatesResponse> {
+      const tokens = await retrieveAuthTokens()
+      if (!tokens) {
+        throw new SyncApiError('Not authenticated', 401, 'UNAUTHORIZED')
+      }
+
+      const params = new URLSearchParams({
+        noteId,
+        sinceSequence: sinceSequence.toString()
+      })
+      if (limit) {
+        params.set('limit', limit.toString())
+      }
+
+      console.info('[SyncApi] CRDT pull updates:', { noteId, sinceSequence, limit })
+
+      const response = await fetch(`${baseUrl}/api/v1/sync/crdt/updates?${params}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${tokens.accessToken}`
+        }
+      })
+      return handleResponse<GetCrdtUpdatesResponse>(response)
+    },
+
+    async pushCrdtSnapshot(
+      noteId: string,
+      snapshotData: string,
+      sequenceNum: number,
+      sizeBytes: number
+    ): Promise<PushCrdtSnapshotResponse> {
+      const tokens = await retrieveAuthTokens()
+      if (!tokens) {
+        throw new SyncApiError('Not authenticated', 401, 'UNAUTHORIZED')
+      }
+
+      console.info('[SyncApi] CRDT push snapshot:', { noteId, sequenceNum, sizeBytes })
+
+      const response = await fetch(`${baseUrl}/api/v1/sync/crdt/snapshot`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokens.accessToken}`
+        },
+        body: JSON.stringify({ noteId, snapshotData, sequenceNum, sizeBytes })
+      })
+      return handleResponse<PushCrdtSnapshotResponse>(response)
+    },
+
+    async pullCrdtSnapshot(noteId: string): Promise<GetCrdtSnapshotResponse> {
+      const tokens = await retrieveAuthTokens()
+      if (!tokens) {
+        throw new SyncApiError('Not authenticated', 401, 'UNAUTHORIZED')
+      }
+
+      console.info('[SyncApi] CRDT pull snapshot:', { noteId })
+
+      const response = await fetch(`${baseUrl}/api/v1/sync/crdt/snapshot/${noteId}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${tokens.accessToken}`
+        }
+      })
+      return handleResponse<GetCrdtSnapshotResponse>(response)
     }
   }
 }

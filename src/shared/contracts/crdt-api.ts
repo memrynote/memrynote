@@ -1,7 +1,7 @@
 /**
- * CRDT API Contracts
+ * CRDT API Contracts (Client-side)
  *
- * Defines all types and schemas for CRDT sync endpoints.
+ * Types for CRDT sync endpoints - mirrors server contracts.
  * Used for storing and retrieving encrypted Yjs CRDT updates and snapshots.
  *
  * @module contracts/crdt-api
@@ -12,25 +12,13 @@ import { z } from 'zod'
 const NoteIdSchema = z.string().min(1).max(128)
 const Base64Schema = z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/, 'Invalid Base64 string')
 
-const MAX_SNAPSHOT_BASE64_SIZE = 10 * 1024 * 1024
-
-// =============================================================================
-// Push CRDT Updates (T135)
-// =============================================================================
-
-export const CrdtUpdateSchema = z.object({
+export const CrdtUpdatePushSchema = z.object({
   noteId: NoteIdSchema,
   updateData: Base64Schema,
   sequenceNum: z.number().int().positive()
 })
 
-export type CrdtUpdate = z.infer<typeof CrdtUpdateSchema>
-
-export const PushCrdtUpdatesRequestSchema = z.object({
-  updates: z.array(CrdtUpdateSchema).min(1).max(100)
-})
-
-export type PushCrdtUpdatesRequest = z.infer<typeof PushCrdtUpdatesRequestSchema>
+export type CrdtUpdatePush = z.infer<typeof CrdtUpdatePushSchema>
 
 export const PushCrdtUpdatesResponseSchema = z.object({
   accepted: z.array(
@@ -51,18 +39,6 @@ export const PushCrdtUpdatesResponseSchema = z.object({
 
 export type PushCrdtUpdatesResponse = z.infer<typeof PushCrdtUpdatesResponseSchema>
 
-// =============================================================================
-// Get CRDT Updates (T136)
-// =============================================================================
-
-export const GetCrdtUpdatesQuerySchema = z.object({
-  noteId: NoteIdSchema,
-  sinceSequence: z.coerce.number().int().nonnegative().default(0),
-  limit: z.coerce.number().int().positive().max(100).default(50)
-})
-
-export type GetCrdtUpdatesQuery = z.infer<typeof GetCrdtUpdatesQuerySchema>
-
 export const CrdtUpdateResponseSchema = z.object({
   sequenceNum: z.number().int().positive(),
   updateData: Base64Schema,
@@ -81,19 +57,6 @@ export const GetCrdtUpdatesResponseSchema = z.object({
 
 export type GetCrdtUpdatesResponse = z.infer<typeof GetCrdtUpdatesResponseSchema>
 
-// =============================================================================
-// Push CRDT Snapshot (T137)
-// =============================================================================
-
-export const PushCrdtSnapshotRequestSchema = z.object({
-  noteId: NoteIdSchema,
-  snapshotData: Base64Schema.max(MAX_SNAPSHOT_BASE64_SIZE, 'Snapshot data exceeds 10MB limit'),
-  sequenceNum: z.number().int().positive(),
-  sizeBytes: z.number().int().positive()
-})
-
-export type PushCrdtSnapshotRequest = z.infer<typeof PushCrdtSnapshotRequestSchema>
-
 export const PushCrdtSnapshotResponseSchema = z.object({
   success: z.boolean(),
   noteId: NoteIdSchema,
@@ -104,16 +67,6 @@ export const PushCrdtSnapshotResponseSchema = z.object({
 })
 
 export type PushCrdtSnapshotResponse = z.infer<typeof PushCrdtSnapshotResponseSchema>
-
-// =============================================================================
-// Get CRDT Snapshot (T138)
-// =============================================================================
-
-export const GetCrdtSnapshotParamsSchema = z.object({
-  noteId: NoteIdSchema
-})
-
-export type GetCrdtSnapshotParams = z.infer<typeof GetCrdtSnapshotParamsSchema>
 
 export const GetCrdtSnapshotResponseSchema = z.object({
   noteId: NoteIdSchema,

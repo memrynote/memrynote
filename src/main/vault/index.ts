@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { dialog, BrowserWindow } from 'electron'
 import type {
   VaultInfo,
@@ -26,7 +27,8 @@ import {
   writeVaultConfig,
   countMarkdownFiles,
   getDataDbPath,
-  getIndexDbPath
+  getIndexDbPath,
+  getMemryDir
 } from './init'
 import {
   initDatabase,
@@ -50,6 +52,7 @@ import { flushFtsUpdates, hasPendingFtsUpdates } from '../database'
 import { clearEmbeddingQueue, hasPendingEmbeddings } from '../inbox/embedding-queue'
 import { initSyncSubsystem } from '../sync/orchestrator'
 import { initializeCrdtProvider, shutdownCrdtProvider } from '../sync/crdt-provider'
+import { shutdownCrdtSyncBridge } from '../sync/crdt-sync-bridge'
 
 /**
  * Current vault status
@@ -203,7 +206,8 @@ async function openVault(vaultPath: string): Promise<void> {
   initDatabase(dataDbPath)
 
   // Initialize CRDT provider for Yjs document sync
-  await initializeCrdtProvider(dataDbPath)
+  const yjsStorePath = path.join(getMemryDir(vaultPath), 'yjs-store')
+  await initializeCrdtProvider(yjsStorePath)
 
   // Seed default data (inbox project, etc.)
   seedDefaults(getDatabase())
@@ -405,7 +409,8 @@ export async function closeVault(): Promise<void> {
     console.log(`[Vault] Cleared pending embedding updates before close`)
   }
 
-  // Shutdown CRDT provider before closing database
+  // Shutdown CRDT sync bridge and provider before closing database
+  shutdownCrdtSyncBridge()
   await shutdownCrdtProvider()
 
   // Close databases
