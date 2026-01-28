@@ -43,19 +43,26 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   private docCreationLocks: Map<string, Promise<Y.Doc>> = new Map()
   private persistence: LeveldbPersistence | null = null
   private dbPath: string = ''
+  private dbReady: Promise<void> | null = null
   private initialized = false
   private shuttingDown = false
   private syncEngine: SyncEngine | null = null
 
-  initialize(customDbPath?: string): void {
-    if (this.initialized) {
-      return
-    }
+  async initialize(customDbPath?: string): Promise<void> {
+    if (this.initialized) return
 
     this.dbPath = customDbPath ?? path.join(app.getPath('userData'), 'yjs-store')
     this.persistence = new LeveldbPersistence(this.dbPath)
-    this.initialized = true
 
+    this.dbReady = (async () => {
+      const docNames = await this.persistence!.getAllDocNames()
+      if (docNames.length > 0) {
+        await this.persistence!.getYDoc(docNames[0])
+      }
+    })()
+    await this.dbReady
+
+    this.initialized = true
     console.info('[CrdtProvider] Initialized at', this.dbPath)
   }
 
@@ -63,8 +70,11 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     this.syncEngine = engine
   }
 
-  private canPersist(): boolean {
-    return this.initialized && this.persistence !== null && !this.shuttingDown
+  private async waitForDb(): Promise<LeveldbPersistence | null> {
+    if (!this.initialized || !this.persistence || this.shuttingDown) return null
+    if (this.dbReady) await this.dbReady
+    if (this.shuttingDown) return null
+    return this.persistence
   }
 
   async getOrCreateDoc(noteId: string): Promise<Y.Doc> {
@@ -94,10 +104,16 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   private async createDoc(noteId: string): Promise<Y.Doc> {
     const doc = new Y.Doc({ guid: noteId })
 
-    const storedDoc = await this.persistence!.getYDoc(noteId)
-    if (storedDoc) {
-      const update = Y.encodeStateAsUpdate(storedDoc)
-      Y.applyUpdate(doc, update)
+    const persistence = await this.waitForDb()
+    if (persistence) {
+      const storedDoc = await persistence.getYDoc(noteId)
+      if (storedDoc) {
+        const update = Y.encodeStateAsUpdate(storedDoc)
+        Y.applyUpdate(doc, update)
+      } else {
+        doc.getXmlFragment('document-store')
+        doc.getMap('meta').set('created', Date.now())
+      }
     } else {
       doc.getXmlFragment('document-store')
       doc.getMap('meta').set('created', Date.now())
@@ -124,14 +140,17 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     entry.lastActivity = Date.now()
 
     if (origin !== 'remote' && origin !== 'persistence') {
-      if (this.canPersist()) {
-        this.persistence!.storeUpdate(noteId, update).catch((error) => {
-          if (!this.shuttingDown) {
-            console.error('[CrdtProvider] storeUpdate failed:', noteId, error)
-            this.emit('crdt:error', { noteId, error: error as Error })
-          }
-        })
-      }
+      void this.waitForDb().then((persistence) => {
+        if (persistence) {
+          persistence.storeUpdate(noteId, update).catch((error) => {
+            if (!this.shuttingDown) {
+              console.error('[CrdtProvider] storeUpdate failed:', noteId, error)
+              this.emit('crdt:error', { noteId, error: error as Error })
+            }
+          })
+        }
+      })
+
       this.emit('crdt:doc-updated', {
         noteId,
         update,
@@ -158,13 +177,15 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
 
     Y.applyUpdate(entry.doc, update, origin)
 
-    if (this.canPersist()) {
-      this.persistence!.storeUpdate(noteId, update).catch((error) => {
-        if (!this.shuttingDown) {
-          console.error('[CrdtProvider] storeUpdate failed:', noteId, error)
-        }
-      })
-    }
+    void this.waitForDb().then((persistence) => {
+      if (persistence) {
+        persistence.storeUpdate(noteId, update).catch((error) => {
+          if (!this.shuttingDown) {
+            console.error('[CrdtProvider] storeUpdate failed:', noteId, error)
+          }
+        })
+      }
+    })
 
     this.broadcastToWindows(noteId, update, sourceWindowId)
   }
@@ -212,16 +233,16 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   }
 
   async compactDoc(noteId: string): Promise<void> {
-    if (!this.canPersist()) return
+    const persistence = await this.waitForDb()
+    if (!persistence) return
 
     const entry = this.docs.get(noteId)
     if (!entry) return
 
     try {
-      await this.persistence!.flushDocument(noteId)
+      await persistence.flushDocument(noteId)
       entry.updateCount = 0
       console.info('[CrdtProvider] Compacted doc:', noteId)
-
       this.queueSnapshotForSync(noteId)
     } catch (error) {
       if (!this.shuttingDown) {
@@ -250,7 +271,10 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
 
   async clearDoc(noteId: string): Promise<void> {
     this.destroyDoc(noteId)
-    await this.persistence?.clearDocument(noteId)
+    const persistence = await this.waitForDb()
+    if (persistence) {
+      await persistence.clearDocument(noteId)
+    }
   }
 
   getDoc(noteId: string): Y.Doc | undefined {
@@ -261,9 +285,11 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     return this.docs.has(noteId)
   }
 
-  getAllDocNames(): Promise<string[]> {
+  async getAllDocNames(): Promise<string[]> {
     this.ensureInitialized()
-    return this.persistence!.getAllDocNames()
+    const persistence = await this.waitForDb()
+    if (!persistence) return []
+    return persistence.getAllDocNames()
   }
 
   async shutdown(): Promise<void> {
@@ -304,11 +330,11 @@ export function getCrdtProvider(): CrdtProvider | null {
   return crdtProviderInstance
 }
 
-export function initializeCrdtProvider(customDbPath?: string): CrdtProvider {
+export async function initializeCrdtProvider(customDbPath?: string): Promise<CrdtProvider> {
   if (!crdtProviderInstance) {
     crdtProviderInstance = new CrdtProvider()
   }
-  crdtProviderInstance.initialize(customDbPath)
+  await crdtProviderInstance.initialize(customDbPath)
   return crdtProviderInstance
 }
 
