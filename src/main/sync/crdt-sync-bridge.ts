@@ -116,7 +116,10 @@ export class CrdtSyncBridge {
         return false
       }
 
-      const keyPair = await retrieveDeviceKeyPair().catch(() => null)
+      const keyPair = await retrieveDeviceKeyPair().catch((err) => {
+        console.warn(`${LOG_PREFIX} Failed to retrieve device keypair:`, err)
+        return null
+      })
       if (!keyPair?.deviceId) {
         console.warn(`${LOG_PREFIX} No device keypair, cannot sync note ${noteId}`)
         return false
@@ -160,7 +163,10 @@ export class CrdtSyncBridge {
         return false
       }
 
-      const keyPair = await retrieveDeviceKeyPair().catch(() => null)
+      const keyPair = await retrieveDeviceKeyPair().catch((err) => {
+        console.warn(`${LOG_PREFIX} Failed to retrieve device keypair:`, err)
+        return null
+      })
       if (!keyPair?.deviceId) {
         console.warn(`${LOG_PREFIX} No device keypair, cannot sync journal ${journalId}`)
         return false
@@ -525,8 +531,6 @@ export class CrdtSyncBridge {
     this.recentUpdateHashes.clear()
     this.syncedNotes.clear()
     this.pendingNoteSyncs.clear()
-    this.lastRefreshAttempt = 0
-    this.refreshPromise = null
     this.initialized = false
     this.crdtProvider = null
 

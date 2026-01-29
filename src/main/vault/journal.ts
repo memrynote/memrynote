@@ -249,7 +249,11 @@ export async function readJournalEntry(date: string): Promise<JournalEntry | nul
   }
 }
 
-
+/**
+ * Get a journal entry by its ID.
+ * @param id - Journal ID in format 'jYYYY-MM-DD'
+ * @returns Journal entry or null if not found or invalid ID format
+ */
 export async function getJournalEntryById(id: string): Promise<JournalEntry | null> {
   if (!id.startsWith('j')) return null
   const date = id.slice(1)
