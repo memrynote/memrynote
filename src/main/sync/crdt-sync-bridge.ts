@@ -153,8 +153,11 @@ export class CrdtSyncBridge {
       return
     }
 
+    console.debug(`${LOG_PREFIX} onDocUpdated:`, { noteId, updateSize: update.length })
+
     const hash = this.computeUpdateHash(noteId, update)
     if (this.recentUpdateHashes.has(hash)) {
+      console.debug(`${LOG_PREFIX} Skipping duplicate update:`, { noteId, hash })
       return
     }
 
