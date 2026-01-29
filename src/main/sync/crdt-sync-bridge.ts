@@ -11,8 +11,15 @@
 import type { CrdtProvider } from './crdt-provider'
 import { getSyncApiClient, isSyncApiError } from './api-client'
 import { getNetworkMonitor } from './network'
+import { getSyncQueue } from './queue'
+import { getSyncEngine } from './engine'
 import { uint8ArrayToBase64, base64ToUint8Array } from '@shared/utils/encoding'
 import type { CrdtUpdatePush } from '@shared/contracts/crdt-api'
+import { getNoteById } from '../vault/notes'
+import { retrieveDeviceKeyPair, retrieveAuthTokens, storeAuthTokens } from '../crypto/keychain'
+import { emptyClock, incrementClock } from './vector-clock'
+
+const TOKEN_REFRESH_COOLDOWN_MS = 5000
 
 const LOG_PREFIX = '[CrdtSyncBridge]'
 const DEBOUNCE_MS = 1500
@@ -40,6 +47,10 @@ export class CrdtSyncBridge {
   private offlineQueue: CrdtUpdatePush[] = []
   private initialized = false
   private recentUpdateHashes: Set<string> = new Set()
+  private syncedNotes: Set<string> = new Set()
+  private pendingNoteSyncs: Map<string, Promise<boolean>> = new Map()
+  private lastRefreshAttempt = 0
+  private refreshPromise: Promise<boolean> | null = null
 
   initialize(crdtProvider: CrdtProvider): void {
     if (this.initialized) {
@@ -71,6 +82,70 @@ export class CrdtSyncBridge {
     const prefix = Array.from(update.slice(0, 8)).join(',')
     const suffix = Array.from(update.slice(-8)).join(',')
     return `${noteId}:${update.length}:${prefix}:${suffix}`
+  }
+
+  private async ensureNoteSynced(noteId: string): Promise<boolean> {
+    if (this.syncedNotes.has(noteId)) {
+      return true
+    }
+
+    const existing = this.pendingNoteSyncs.get(noteId)
+    if (existing) {
+      return existing
+    }
+
+    const syncPromise = this.syncNoteToServer(noteId)
+    this.pendingNoteSyncs.set(noteId, syncPromise)
+
+    try {
+      const result = await syncPromise
+      if (result) {
+        this.syncedNotes.add(noteId)
+      }
+      return result
+    } finally {
+      this.pendingNoteSyncs.delete(noteId)
+    }
+  }
+
+  private async syncNoteToServer(noteId: string): Promise<boolean> {
+    try {
+      const note = await getNoteById(noteId)
+      if (!note) {
+        console.warn(`${LOG_PREFIX} Note ${noteId} not found locally, cannot sync`)
+        return false
+      }
+
+      const keyPair = await retrieveDeviceKeyPair().catch(() => null)
+      if (!keyPair?.deviceId) {
+        console.warn(`${LOG_PREFIX} No device keypair, cannot sync note ${noteId}`)
+        return false
+      }
+
+      const clock = incrementClock(emptyClock(), keyPair.deviceId)
+      const payload = {
+        id: note.id,
+        title: note.title,
+        path: note.path,
+        created: note.created.toISOString(),
+        modified: note.modified.toISOString(),
+        clock
+      }
+
+      const queue = getSyncQueue()
+      await queue.add('note', noteId, 'create', JSON.stringify(payload), 10)
+
+      const engine = getSyncEngine()
+      if (engine && this.isOnline()) {
+        console.info(`${LOG_PREFIX} Syncing note ${noteId} before CRDT updates`)
+        await engine.push()
+      }
+
+      return true
+    } catch (error) {
+      console.error(`${LOG_PREFIX} Failed to sync note ${noteId}:`, error)
+      return false
+    }
   }
 
   private onDocUpdated(noteId: string, update: Uint8Array): void {
@@ -111,9 +186,32 @@ export class CrdtSyncBridge {
     this.flushInProgress = true
 
     try {
+      const noteIds = [...this.pendingUpdates.keys()]
+      const syncResults = await Promise.all(
+        noteIds.map(async (noteId) => ({
+          noteId,
+          synced: await this.ensureNoteSynced(noteId)
+        }))
+      )
+
+      const failedNotes = new Set(
+        syncResults.filter((r) => !r.synced).map((r) => r.noteId)
+      )
+
+      if (failedNotes.size > 0) {
+        console.warn(
+          `${LOG_PREFIX} Skipping CRDT updates for unsynced notes:`,
+          [...failedNotes]
+        )
+      }
+
       const allUpdates: CrdtUpdatePush[] = []
 
       for (const [noteId, updates] of this.pendingUpdates) {
+        if (failedNotes.has(noteId)) {
+          continue
+        }
+
         const state = this.getSequenceState(noteId)
 
         for (const pending of updates) {
@@ -129,6 +227,10 @@ export class CrdtSyncBridge {
       }
 
       this.pendingUpdates.clear()
+
+      if (allUpdates.length === 0) {
+        return
+      }
 
       if (!this.isOnline()) {
         console.info(`${LOG_PREFIX} Offline, queueing ${allUpdates.length} updates`)
@@ -156,6 +258,7 @@ export class CrdtSyncBridge {
 
     for (const batch of batches) {
       let retries = 0
+      let authRefreshed = false
 
       while (retries < MAX_RETRIES) {
         try {
@@ -174,13 +277,19 @@ export class CrdtSyncBridge {
           console.info(`${LOG_PREFIX} Pushed ${result.accepted.length} updates`)
           break
         } catch (error) {
-          retries++
-
-          if (isSyncApiError(error) && error.status === 401) {
-            console.warn(`${LOG_PREFIX} Auth expired, queueing updates offline`)
+          if (this.isAuthError(error) && !authRefreshed) {
+            console.info(`${LOG_PREFIX} Auth expired, attempting refresh`)
+            const refreshed = await this.tryRefreshSession()
+            if (refreshed) {
+              authRefreshed = true
+              continue
+            }
+            console.warn(`${LOG_PREFIX} Auth refresh failed, queueing updates offline`)
             this.offlineQueue.push(...batch)
             return
           }
+
+          retries++
 
           if (retries >= MAX_RETRIES) {
             console.error(`${LOG_PREFIX} Max retries reached, queueing offline:`, error)
@@ -215,11 +324,13 @@ export class CrdtSyncBridge {
     const client = getSyncApiClient()
 
     try {
-      const result = await client.pushCrdtSnapshot(
-        noteId,
-        uint8ArrayToBase64(snapshot),
-        state.localSequence,
-        snapshot.length
+      const result = await this.withAuthRefresh(() =>
+        client.pushCrdtSnapshot(
+          noteId,
+          uint8ArrayToBase64(snapshot),
+          state.localSequence,
+          snapshot.length
+        )
       )
 
       state.serverSequence = result.sequenceNum
@@ -243,7 +354,9 @@ export class CrdtSyncBridge {
     const client = getSyncApiClient()
 
     try {
-      const result = await client.pullCrdtUpdates(noteId, state.serverSequence)
+      const result = await this.withAuthRefresh(() =>
+        client.pullCrdtUpdates(noteId, state.serverSequence)
+      )
 
       if (result.updates.length === 0) {
         return
@@ -271,7 +384,9 @@ export class CrdtSyncBridge {
     const client = getSyncApiClient()
 
     try {
-      const result = await client.pullCrdtSnapshot(noteId)
+      const result = await this.withAuthRefresh(() =>
+        client.pullCrdtSnapshot(noteId)
+      )
 
       if (!result.exists || !result.snapshotData) {
         return false
@@ -335,6 +450,68 @@ export class CrdtSyncBridge {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
+  private isAuthError(error: unknown): boolean {
+    return isSyncApiError(error) && error.status === 401
+  }
+
+  private async tryRefreshSession(): Promise<boolean> {
+    if (this.refreshPromise) {
+      return this.refreshPromise
+    }
+
+    const now = Date.now()
+    if (now - this.lastRefreshAttempt < TOKEN_REFRESH_COOLDOWN_MS) {
+      console.info(`${LOG_PREFIX} Token refresh skipped: within cooldown period`)
+      return false
+    }
+
+    this.lastRefreshAttempt = now
+
+    const refreshOperation = (async () => {
+      const tokens = await retrieveAuthTokens()
+      if (!tokens?.refreshToken) {
+        return false
+      }
+
+      try {
+        const client = getSyncApiClient()
+        const response = await client.refreshToken(tokens.refreshToken)
+        await storeAuthTokens({
+          ...tokens,
+          accessToken: response.accessToken,
+          refreshToken: response.refreshToken
+        })
+        console.info(`${LOG_PREFIX} Token refreshed successfully`)
+        return true
+      } catch (error) {
+        console.warn(`${LOG_PREFIX} Token refresh failed`, error)
+        return false
+      }
+    })()
+
+    this.refreshPromise = refreshOperation
+    try {
+      return await refreshOperation
+    } finally {
+      this.refreshPromise = null
+    }
+  }
+
+  private async withAuthRefresh<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation()
+    } catch (error) {
+      if (!this.isAuthError(error)) {
+        throw error
+      }
+      const refreshed = await this.tryRefreshSession()
+      if (!refreshed) {
+        throw error
+      }
+      return operation()
+    }
+  }
+
   shutdown(): void {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer)
@@ -344,6 +521,10 @@ export class CrdtSyncBridge {
     this.pendingUpdates.clear()
     this.offlineQueue = []
     this.recentUpdateHashes.clear()
+    this.syncedNotes.clear()
+    this.pendingNoteSyncs.clear()
+    this.lastRefreshAttempt = 0
+    this.refreshPromise = null
     this.initialized = false
     this.crdtProvider = null
 
