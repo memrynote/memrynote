@@ -16,7 +16,9 @@ import {
   InboxChannels,
   SavedFiltersChannels,
   SettingsChannels,
-  TasksChannels
+  TasksChannels,
+  NotesChannels,
+  JournalChannels
 } from '@shared/ipc-channels'
 import type {
   GetSyncStatusResponse,
@@ -126,6 +128,24 @@ import { inboxItems } from '@shared/db/schema/inbox'
 import { savedFilters } from '@shared/db/schema/settings'
 import { tasks } from '@shared/db/schema/tasks'
 import { devices as devicesTable } from '@shared/db/schema/sync-schema'
+import {
+  parseNoteSyncPayload,
+  parseJournalSyncPayload
+} from '@shared/contracts/note-sync-payload'
+import type { NoteSyncPayload, JournalSyncPayload } from '@shared/contracts/note-sync-payload'
+import { getIndexDatabase } from '../database/client'
+import { getNoteCacheById, getJournalEntryByDate } from '@shared/db/queries/notes'
+import { syncNoteToCache, deleteNoteFromCache } from '../vault/note-sync'
+import { parseNote, serializeNote } from '../vault/frontmatter'
+import type { NoteFrontmatter } from '../vault/frontmatter'
+import { atomicWrite, ensureDirectory, deleteFile } from '../vault/file-ops'
+import { getJournalPath, serializeJournalEntry, deleteJournalEntryFile } from '../vault/journal'
+import type { JournalFrontmatter } from '../vault/journal'
+import { getCrdtSyncBridge } from '../sync/crdt-sync-bridge'
+import { getConfig as getVaultConfig } from '../vault'
+import { getVaultPath, toAbsolutePath } from '../vault/notes'
+import * as fs from 'node:fs/promises'
+import path from 'node:path'
 
 function emitSyncEvent(channel: string, data: unknown): void {
   BrowserWindow.getAllWindows().forEach((win) => {
@@ -277,6 +297,183 @@ function decodeDeviceIdFromAccessToken(token?: string): string | null {
   }
 }
 
+// =============================================================================
+// File-based Sync Helpers (Notes & Journal)
+// =============================================================================
+
+function getJournalDir(): string {
+  const config = getVaultConfig()
+  return path.join(getVaultPath(), config.journalFolder)
+}
+
+interface CreateOrUpdateNoteResult {
+  id: string
+  path: string
+  isNew: boolean
+}
+
+async function createOrUpdateNoteFromSync(
+  payload: NoteSyncPayload
+): Promise<CreateOrUpdateNoteResult> {
+  const db = getIndexDatabase()
+  const cached = getNoteCacheById(db, payload.id)
+
+  const isNew = !cached
+  let relativePath: string
+
+  if (cached) {
+    relativePath = cached.path
+  } else {
+    relativePath = payload.path
+  }
+
+  const absolutePath = toAbsolutePath(relativePath)
+
+  await ensureDirectory(path.dirname(absolutePath))
+
+  const frontmatter: NoteFrontmatter = {
+    id: payload.id,
+    title: payload.title,
+    created: payload.created,
+    modified: payload.modified,
+    tags: payload.tags,
+    aliases: payload.aliases
+  }
+
+  if (payload.emoji) {
+    ;(frontmatter as NoteFrontmatter & { emoji: string }).emoji = payload.emoji
+  }
+
+  if (Object.keys(payload.properties).length > 0) {
+    ;(frontmatter as NoteFrontmatter & { properties: Record<string, unknown> }).properties =
+      payload.properties
+  }
+
+  const fileContent = serializeNote(frontmatter, '')
+  await atomicWrite(absolutePath, fileContent)
+
+  syncNoteToCache(
+    db,
+    {
+      id: payload.id,
+      path: relativePath,
+      fileContent,
+      frontmatter,
+      parsedContent: ''
+    },
+    { isNew, skipFts: true, skipLinks: true }
+  )
+
+  return { id: payload.id, path: relativePath, isNew }
+}
+
+interface CreateOrUpdateJournalResult {
+  id: string
+  date: string
+  isNew: boolean
+}
+
+async function createOrUpdateJournalFromSync(
+  payload: JournalSyncPayload
+): Promise<CreateOrUpdateJournalResult> {
+  const db = getIndexDatabase()
+  const cached = getJournalEntryByDate(db, payload.date)
+
+  const isNew = !cached
+  const filePath = getJournalPath(payload.date)
+  const journalDir = getJournalDir()
+
+  await ensureDirectory(journalDir)
+
+  const frontmatter: JournalFrontmatter = {
+    id: payload.id,
+    date: payload.date,
+    created: payload.created,
+    modified: payload.modified,
+    tags: payload.tags
+  }
+
+  if (Object.keys(payload.properties).length > 0) {
+    ;(frontmatter as JournalFrontmatter & { properties: Record<string, unknown> }).properties =
+      payload.properties
+  }
+
+  const fileContent = serializeJournalEntry(frontmatter, '')
+  await atomicWrite(filePath, fileContent)
+
+  const config = getVaultConfig()
+  const relativePath = path.join(config.journalFolder, `${payload.date}.md`)
+
+  syncNoteToCache(
+    db,
+    {
+      id: payload.id,
+      path: relativePath,
+      fileContent,
+      frontmatter: frontmatter as unknown as NoteFrontmatter,
+      parsedContent: ''
+    },
+    { isNew, skipFts: true, skipLinks: true }
+  )
+
+  return { id: payload.id, date: payload.date, isNew }
+}
+
+async function resyncNoteContentFromCrdt(noteId: string): Promise<void> {
+  const db = getIndexDatabase()
+  const crdtProvider = getCrdtProvider()
+  if (!crdtProvider) return
+
+  const cached = getNoteCacheById(db, noteId)
+  if (!cached) return
+
+  const doc = await crdtProvider.getOrCreateDoc(noteId)
+  const yText = doc.getText('content')
+  const content = yText.toString()
+  if (!content) return
+
+  const absolutePath = toAbsolutePath(cached.path)
+  const currentFile = await fs.readFile(absolutePath, 'utf-8')
+  const parsed = parseNote(currentFile, cached.path)
+
+  const newFileContent = serializeNote(parsed.frontmatter, content)
+  await atomicWrite(absolutePath, newFileContent)
+
+  syncNoteToCache(
+    db,
+    {
+      id: noteId,
+      path: cached.path,
+      fileContent: newFileContent,
+      frontmatter: parsed.frontmatter,
+      parsedContent: content
+    },
+    { isNew: false, skipFts: false, skipLinks: false }
+  )
+}
+
+async function deleteNoteFromSync(noteId: string): Promise<void> {
+  const db = getIndexDatabase()
+  const cached = getNoteCacheById(db, noteId)
+  if (!cached) return
+
+  const absolutePath = toAbsolutePath(cached.path)
+  try {
+    await deleteFile(absolutePath)
+  } catch (err) {
+    console.debug('[Sync] Note file already deleted or missing:', noteId, err)
+  }
+
+  deleteNoteFromCache(db, noteId)
+
+  const crdtProvider = getCrdtProvider()
+  if (crdtProvider) {
+    crdtProvider.clearDoc(noteId).catch((err) => {
+      console.warn('[Sync] Failed to clear CRDT doc for deleted note:', noteId, err)
+    })
+  }
+}
+
 async function handleDecryptedSyncItem(item: DecryptedSyncItem): Promise<void> {
   try {
     if (item.itemType === 'inbox') {
@@ -386,6 +583,94 @@ async function handleDecryptedSyncItem(item: DecryptedSyncItem): Promise<void> {
         itemId: item.itemId,
         itemType: 'task',
         operation: 'updated',
+        timestamp: Date.now()
+      })
+      return
+    }
+
+    if (item.itemType === 'note') {
+      const payload = parseNoteSyncPayload(item.data)
+      if (!payload) {
+        console.warn('[Sync] Invalid note payload:', item.itemId)
+        return
+      }
+
+      if (item.deleted) {
+        await deleteNoteFromSync(payload.id)
+        emitSyncEvent(NotesChannels.events.DELETED, { id: item.itemId, source: 'sync' })
+        emitSyncEvent(SyncChannels.events.ITEM_SYNCED, {
+          itemId: item.itemId,
+          itemType: 'note',
+          operation: 'deleted',
+          timestamp: Date.now()
+        })
+        return
+      }
+
+      const result = await createOrUpdateNoteFromSync(payload)
+
+      const crdtBridge = getCrdtSyncBridge()
+      if (crdtBridge) {
+        const pulled = await crdtBridge.pullSnapshotForNote(payload.id)
+        if (pulled) {
+          await resyncNoteContentFromCrdt(payload.id)
+        }
+      }
+
+      emitSyncEvent(
+        result.isNew ? NotesChannels.events.CREATED : NotesChannels.events.UPDATED,
+        { id: payload.id, path: result.path, title: payload.title, source: 'sync' }
+      )
+      emitSyncEvent(SyncChannels.events.ITEM_SYNCED, {
+        itemId: item.itemId,
+        itemType: 'note',
+        operation: result.isNew ? 'created' : 'updated',
+        timestamp: Date.now()
+      })
+      return
+    }
+
+    if (item.itemType === 'journal') {
+      const payload = parseJournalSyncPayload(item.data)
+      if (!payload) {
+        console.warn('[Sync] Invalid journal payload:', item.itemId)
+        return
+      }
+
+      if (item.deleted) {
+        await deleteJournalEntryFile(payload.date)
+        const db = getIndexDatabase()
+        const cached = getJournalEntryByDate(db, payload.date)
+        if (cached) deleteNoteFromCache(db, cached.id)
+
+        emitSyncEvent(JournalChannels.events.ENTRY_DELETED, { date: payload.date })
+        emitSyncEvent(SyncChannels.events.ITEM_SYNCED, {
+          itemId: item.itemId,
+          itemType: 'journal',
+          operation: 'deleted',
+          timestamp: Date.now()
+        })
+        return
+      }
+
+      const result = await createOrUpdateJournalFromSync(payload)
+
+      const crdtBridge = getCrdtSyncBridge()
+      if (crdtBridge) {
+        const pulled = await crdtBridge.pullSnapshotForNote(payload.id)
+        if (pulled) {
+          await resyncNoteContentFromCrdt(payload.id)
+        }
+      }
+
+      emitSyncEvent(
+        result.isNew ? JournalChannels.events.ENTRY_CREATED : JournalChannels.events.ENTRY_UPDATED,
+        { date: payload.date, source: 'sync' }
+      )
+      emitSyncEvent(SyncChannels.events.ITEM_SYNCED, {
+        itemId: item.itemId,
+        itemType: 'journal',
+        operation: result.isNew ? 'created' : 'updated',
         timestamp: Date.now()
       })
       return

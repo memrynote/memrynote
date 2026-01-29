@@ -524,16 +524,16 @@ All D1 tables include explicit PKs, FKs, indexes, and constraints.
 
 ### Server CRDT Endpoints for US5
 
-- [ ] T135 [P] [US5] Implement note update push endpoint POST /sync/crdt/updates in sync-server/src/routes/sync.ts
-- [ ] T136 [P] [US5] Implement note updates get endpoint GET /sync/crdt/updates?note_id=X&since=Y in sync-server/src/routes/sync.ts
-- [ ] T137 [US5] Implement note snapshot push endpoint POST /sync/crdt/snapshot in sync-server/src/routes/sync.ts
-- [ ] T137a [US5] Implement CRDT update pruning: delete incremental updates older than latest snapshot in sync-server/src/services/cleanup.ts
-- [ ] T138 [US5] Implement note snapshot get endpoint GET /sync/crdt/snapshot/:note_id in sync-server/src/routes/sync.ts
+- [x] T135 [P] [US5] Implement note update push endpoint POST /sync/crdt/updates in sync-server/src/routes/sync.ts
+- [x] T136 [P] [US5] Implement note updates get endpoint GET /sync/crdt/updates?note_id=X&since=Y in sync-server/src/routes/sync.ts
+- [x] T137 [US5] Implement note snapshot push endpoint POST /sync/crdt/snapshot in sync-server/src/routes/sync.ts
+- [x] T137a [US5] Implement CRDT update pruning: delete incremental updates older than latest snapshot in sync-server/src/services/cleanup.ts
+- [x] T138 [US5] Implement note snapshot get endpoint GET /sync/crdt/snapshot/:note_id in sync-server/src/routes/sync.ts
 
 ### Notes Integration for US5
 
-- [ ] T139 [US5] Update notes file operations to trigger CRDT sync in src/main/vault/notes.ts
-- [ ] T140 [US5] Integrate Yjs with BlockNote collaboration extension using IPC provider in src/renderer/src/components/note/content-area/ContentArea.tsx (includes configuring collaboration extension for TipTap - consolidates T140t)
+- [x] T139 [US5] Update notes file operations to trigger CRDT sync in src/main/vault/notes.ts
+- [x] T140 [US5] Integrate Yjs with BlockNote collaboration extension using IPC provider in src/renderer/src/components/note/content-area/ContentArea.tsx (includes configuring collaboration extension for TipTap - consolidates T140t)
 
 **Checkpoint**: User Story 5 complete - note edits merge automatically via CRDT
 
@@ -549,11 +549,11 @@ All D1 tables include explicit PKs, FKs, indexes, and constraints.
 
 ### CRDT → File Write-Back for US5
 
-- [ ] T140a [US5] Implement Yjs-to-markdown conversion (BlockNote JSON → MD) in src/main/sync/crdt-provider.ts
-- [ ] T140b [US5] Write markdown file when receiving CRDT updates from other devices in src/main/vault/notes.ts
-- [ ] T140c [US5] Handle new note creation on sync (create .md file with frontmatter if doesn't exist) in src/main/vault/notes.ts
-- [ ] T140d [US5] Handle note deletion on sync (remove .md file or move to trash folder) in src/main/vault/notes.ts
-- [ ] T140e [US5] Preserve frontmatter (id, tags, properties) during CRDT → file write-back in src/main/vault/notes.ts
+- [x] T140a [US5] Implement Yjs-to-markdown conversion (BlockNote JSON → MD) in src/main/sync/crdt-provider.ts
+- [x] T140b [US5] Write markdown file when receiving CRDT updates from other devices in src/main/vault/notes.ts
+- [x] T140c [US5] Handle new note creation on sync (create .md file with frontmatter if doesn't exist) in src/main/vault/notes.ts
+- [x] T140d [US5] Handle note deletion on sync (remove .md file or move to trash folder) in src/main/vault/notes.ts
+- [x] T140e [US5] Preserve frontmatter (id, tags, properties) during CRDT → file write-back in src/main/vault/notes.ts
 
 ### Journal Sync for US5
 

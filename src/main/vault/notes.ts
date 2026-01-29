@@ -199,7 +199,7 @@ const SIGNIFICANT_WORD_CHANGE = 10
 /**
  * Get the vault path, throwing if no vault is open.
  */
-function getVaultPath(): string {
+export function getVaultPath(): string {
   const status = getStatus()
   if (!status.path) {
     throw new VaultError('No vault is currently open', VaultErrorCode.NOT_INITIALIZED)
@@ -219,7 +219,7 @@ function getNotesDir(): string {
 /**
  * Convert relative path to absolute path.
  */
-function toAbsolutePath(relativePath: string): string {
+export function toAbsolutePath(relativePath: string): string {
   const vaultPath = getVaultPath()
   return path.join(vaultPath, relativePath)
 }
