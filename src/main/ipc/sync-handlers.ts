@@ -158,6 +158,11 @@ function emitSyncEvent(channel: string, data: unknown): void {
 // =============================================================================
 // Sync Progress Tracking
 // =============================================================================
+//
+// Progress is tracked for notes and journals only (items that require indexing).
+// Other item types (inbox, tasks, filters, settings) sync instantly without
+// progress visibility since they don't require FTS indexing.
+// =============================================================================
 
 interface SyncProgressState {
   totalItems: number
@@ -167,10 +172,23 @@ interface SyncProgressState {
 
 let syncProgressState: SyncProgressState | null = null
 
-export function initSyncProgress(totalItems: number): void {
-  syncProgressState = { totalItems, processedItems: 0, indexedItems: 0 }
+/**
+ * Initialize or accumulate sync progress tracking for a pull batch.
+ * Called for each batch in a paginated pull - accumulates totals rather than resetting.
+ * @param batchSize - Number of items in the current batch
+ */
+export function initSyncProgress(batchSize: number): void {
+  if (syncProgressState) {
+    syncProgressState.totalItems += batchSize
+  } else {
+    syncProgressState = { totalItems: batchSize, processedItems: 0, indexedItems: 0 }
+  }
 }
 
+/**
+ * Emit progress event to all renderer windows.
+ * @param phase - Current sync phase (pulling, indexing, complete)
+ */
 function emitProgress(phase: SyncProgressUpdateEvent['phase']): void {
   if (!syncProgressState) return
   emitSyncEvent(SyncChannels.events.PROGRESS_UPDATE, {
@@ -181,6 +199,10 @@ function emitProgress(phase: SyncProgressUpdateEvent['phase']): void {
   } satisfies SyncProgressUpdateEvent)
 }
 
+/**
+ * Increment the count of processed (downloaded) items and emit progress.
+ * Called after each note or journal is processed from sync.
+ */
 export function incrementProcessedItems(): void {
   if (syncProgressState) {
     syncProgressState.processedItems++
@@ -188,6 +210,10 @@ export function incrementProcessedItems(): void {
   }
 }
 
+/**
+ * Increment the count of indexed items and emit progress.
+ * Called after each note's cache/FTS index is updated.
+ */
 export function incrementIndexedItems(): void {
   if (syncProgressState) {
     syncProgressState.indexedItems++
@@ -195,6 +221,10 @@ export function incrementIndexedItems(): void {
   }
 }
 
+/**
+ * Complete sync progress tracking, flush FTS updates, and emit completion event.
+ * Resets progress state for the next sync operation.
+ */
 export function completeSyncProgress(): void {
   if (!syncProgressState) return
   const db = getIndexDatabase()
@@ -203,9 +233,9 @@ export function completeSyncProgress(): void {
 
   emitSyncEvent(SyncChannels.events.PROGRESS_UPDATE, {
     phase: 'complete',
-    current: syncProgressState.totalItems,
+    current: syncProgressState.processedItems,
     total: syncProgressState.totalItems,
-    message: `Synced ${syncProgressState.totalItems} items`
+    message: `Synced ${syncProgressState.processedItems} items`
   } satisfies SyncProgressUpdateEvent)
 
   syncProgressState = null
