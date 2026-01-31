@@ -263,6 +263,21 @@ export async function getJournalEntryById(id: string): Promise<JournalEntry | nu
   return readJournalEntry(date)
 }
 
+export async function getJournalEntriesByIds(ids: string[]): Promise<JournalEntry[]> {
+  const results: JournalEntry[] = []
+
+  await Promise.all(
+    ids.map(async (id) => {
+      const entry = await getJournalEntryById(id)
+      if (entry) {
+        results.push(entry)
+      }
+    })
+  )
+
+  return results
+}
+
 /**
  * Write a journal entry to the file system.
  * Creates the file if it doesn't exist, updates it if it does.

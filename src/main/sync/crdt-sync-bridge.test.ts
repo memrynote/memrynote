@@ -1,13 +1,24 @@
 /**
  * Tests for crdt-sync-bridge.ts
- * Tests CRDT sync bridge functionality including journal sync.
+ * Tests CRDT sync bridge functionality including journal sync and signature verification.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('./api-client', () => ({
   getSyncApiClient: vi.fn(() => ({
-    pushCrdtUpdates: vi.fn().mockResolvedValue({ success: true }),
+    pushCrdtUpdates: vi.fn().mockResolvedValue({
+      accepted: [],
+      rejected: [],
+      serverTime: Date.now()
+    }),
+    pullCrdtUpdates: vi.fn().mockResolvedValue({
+      noteId: 'test-note',
+      updates: [],
+      hasMore: false,
+      latestSequence: 0,
+      serverTime: Date.now()
+    }),
     pullCrdtSnapshot: vi.fn().mockResolvedValue(null)
   })),
   isSyncApiError: vi.fn(() => false)
@@ -37,19 +48,36 @@ vi.mock('./engine', () => ({
 }))
 
 vi.mock('../vault/notes', () => ({
-  getNoteById: vi.fn().mockResolvedValue(null)
+  getNotesByIds: vi.fn().mockResolvedValue([])
 }))
 
 vi.mock('../vault/journal', () => ({
-  getJournalEntryById: vi.fn().mockResolvedValue(null)
+  getJournalEntriesByIds: vi.fn().mockResolvedValue([])
 }))
 
 vi.mock('../crypto/keychain', () => ({
   retrieveDeviceKeyPair: vi.fn().mockResolvedValue({
     deviceId: 'test-device-123',
-    publicKey: new Uint8Array(32),
-    privateKey: new Uint8Array(64)
+    publicKey: new Uint8Array(32).fill(1),
+    privateKey: new Uint8Array(64).fill(2)
   })
+}))
+
+vi.mock('../crypto/signatures', () => ({
+  sign: vi.fn().mockResolvedValue(new Uint8Array(64).fill(3)),
+  verify: vi.fn().mockResolvedValue(true)
+}))
+
+vi.mock('../database', () => ({
+  getDatabase: vi.fn(() => ({
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => [])
+        }))
+      }))
+    }))
+  }))
 }))
 
 vi.mock('./token-refresh', () => ({
@@ -59,8 +87,10 @@ vi.mock('./token-refresh', () => ({
 import { CrdtSyncBridge } from './crdt-sync-bridge'
 import type { CrdtProvider } from './crdt-provider'
 import { getSyncQueue } from './queue'
-import { getNoteById } from '../vault/notes'
-import { getJournalEntryById } from '../vault/journal'
+import { getNotesByIds } from '../vault/notes'
+import { getJournalEntriesByIds } from '../vault/journal'
+import { getSyncApiClient } from './api-client'
+import { sign, verify } from '../crypto/signatures'
 
 describe('CrdtSyncBridge', () => {
   let bridge: CrdtSyncBridge
@@ -72,7 +102,7 @@ describe('CrdtSyncBridge', () => {
     mockCrdtProvider = {
       on: vi.fn(),
       off: vi.fn(),
-      onDocUpdated: vi.fn(),
+      applyUpdate: vi.fn(),
       getOrCreateDoc: vi.fn().mockResolvedValue({
         getText: vi.fn(() => ({ toString: () => 'content' }))
       }),
@@ -88,8 +118,8 @@ describe('CrdtSyncBridge', () => {
   })
 
   describe('isJournalId detection', () => {
-    it('T140f: detects valid journal ID format', () => {
-      // #given - Access the private method via type assertion
+    it('detects valid journal ID format', () => {
+      // #given
       const isJournalId = (
         bridge as unknown as { isJournalId: (id: string) => boolean }
       ).isJournalId.bind(bridge)
@@ -100,7 +130,7 @@ describe('CrdtSyncBridge', () => {
       expect(isJournalId('j1999-06-01')).toBe(true)
     })
 
-    it('T140f: rejects invalid formats', () => {
+    it('rejects invalid formats', () => {
       // #given
       const isJournalId = (
         bridge as unknown as { isJournalId: (id: string) => boolean }
@@ -115,8 +145,8 @@ describe('CrdtSyncBridge', () => {
     })
   })
 
-  describe('syncJournalToServer', () => {
-    it('T140f: queues journal entry with correct type', async () => {
+  describe('syncItemToServer', () => {
+    it('queues journal entry with correct type', async () => {
       // #given
       const journalEntry = {
         id: 'j2024-01-15',
@@ -130,18 +160,16 @@ describe('CrdtSyncBridge', () => {
         modifiedAt: '2024-01-15T10:00:00.000Z'
       }
 
-      vi.mocked(getJournalEntryById).mockResolvedValueOnce(journalEntry)
-
       // #when
-      const syncJournalToServer = (
-        bridge as unknown as { syncJournalToServer: (id: string) => Promise<boolean> }
-      ).syncJournalToServer.bind(bridge)
-      const result = await syncJournalToServer('j2024-01-15')
+      const syncItemToServer = (
+        bridge as unknown as {
+          syncItemToServer: (id: string, data: unknown) => Promise<boolean>
+        }
+      ).syncItemToServer.bind(bridge)
+      const result = await syncItemToServer('j2024-01-15', journalEntry)
 
       // #then
       expect(result).toBe(true)
-      expect(getJournalEntryById).toHaveBeenCalledWith('j2024-01-15')
-
       const queue = getSyncQueue()
       expect(queue.add).toHaveBeenCalledWith(
         'journal',
@@ -152,67 +180,170 @@ describe('CrdtSyncBridge', () => {
       )
     })
 
-    it('T140f: returns false when journal not found', async () => {
-      // #given
-      vi.mocked(getJournalEntryById).mockResolvedValueOnce(null)
-
-      // #when
-      const syncJournalToServer = (
-        bridge as unknown as { syncJournalToServer: (id: string) => Promise<boolean> }
-      ).syncJournalToServer.bind(bridge)
-      const result = await syncJournalToServer('j2024-01-15')
-
-      // #then
-      expect(result).toBe(false)
-    })
-  })
-
-  describe('ensureNoteSynced routing', () => {
-    it('T140f: routes journal ID to syncJournalToServer', async () => {
-      // #given
-      const journalEntry = {
-        id: 'j2024-01-15',
-        date: '2024-01-15',
-        content: 'Test',
-        wordCount: 1,
-        characterCount: 4,
-        tags: [],
-        createdAt: '2024-01-15T08:00:00.000Z',
-        modifiedAt: '2024-01-15T10:00:00.000Z'
-      }
-      vi.mocked(getJournalEntryById).mockResolvedValueOnce(journalEntry)
-
-      // #when
-      const ensureNoteSynced = (
-        bridge as unknown as { ensureNoteSynced: (id: string) => Promise<boolean> }
-      ).ensureNoteSynced.bind(bridge)
-      await ensureNoteSynced('j2024-01-15')
-
-      // #then
-      expect(getJournalEntryById).toHaveBeenCalledWith('j2024-01-15')
-      expect(getNoteById).not.toHaveBeenCalled()
-    })
-
-    it('T140f: routes note ID to syncNoteToServer', async () => {
+    it('queues note entry with correct type', async () => {
       // #given
       const note = {
         id: 'abc123',
         title: 'Test Note',
         path: 'notes/test.md',
+        content: 'Test content',
+        frontmatter: {},
         created: new Date('2024-01-15T08:00:00.000Z'),
-        modified: new Date('2024-01-15T10:00:00.000Z')
+        modified: new Date('2024-01-15T10:00:00.000Z'),
+        tags: [],
+        aliases: [],
+        wordCount: 2,
+        properties: {}
       }
-      vi.mocked(getNoteById).mockResolvedValueOnce(note)
 
       // #when
-      const ensureNoteSynced = (
-        bridge as unknown as { ensureNoteSynced: (id: string) => Promise<boolean> }
-      ).ensureNoteSynced.bind(bridge)
-      await ensureNoteSynced('abc123')
+      const syncItemToServer = (
+        bridge as unknown as {
+          syncItemToServer: (id: string, data: unknown) => Promise<boolean>
+        }
+      ).syncItemToServer.bind(bridge)
+      const result = await syncItemToServer('abc123', note)
 
       // #then
-      expect(getNoteById).toHaveBeenCalledWith('abc123')
-      expect(getJournalEntryById).not.toHaveBeenCalled()
+      expect(result).toBe(true)
+      const queue = getSyncQueue()
+      expect(queue.add).toHaveBeenCalledWith(
+        'note',
+        'abc123',
+        'create',
+        expect.stringContaining('"id":"abc123"'),
+        10
+      )
+    })
+  })
+
+  describe('Signature verification', () => {
+    it('should sign updates when pushing', async () => {
+      // #given
+      const note = {
+        id: 'test-note',
+        title: 'Test',
+        path: 'test.md',
+        content: '',
+        frontmatter: {},
+        created: new Date(),
+        modified: new Date(),
+        tags: [],
+        aliases: [],
+        wordCount: 0,
+        properties: {}
+      }
+      vi.mocked(getNotesByIds).mockResolvedValueOnce([note])
+
+      // Access private method via type assertion
+      const flushUpdates = (
+        bridge as unknown as {
+          flushUpdates: () => Promise<void>
+          pendingUpdates: Map<string, Array<{ noteId: string; update: Uint8Array; timestamp: number }>>
+          syncedNotes: Set<string>
+        }
+      )
+
+      // Add pending update
+      flushUpdates.pendingUpdates.set('test-note', [
+        { noteId: 'test-note', update: new Uint8Array([1, 2, 3]), timestamp: Date.now() }
+      ])
+      flushUpdates.syncedNotes.add('test-note')
+
+      // #when
+      await flushUpdates.flushUpdates.call(bridge)
+
+      // #then
+      expect(sign).toHaveBeenCalled()
+    })
+
+    it('should verify signatures when pulling updates', async () => {
+      // #given
+      const mockClient = {
+        pullCrdtUpdates: vi.fn().mockResolvedValue({
+          noteId: 'test-note',
+          updates: [
+            {
+              sequenceNum: 1,
+              updateData: 'AQID', // base64 for [1,2,3]
+              signature: 'AAAA', // mock signature
+              signerDeviceId: 'test-device-123',
+              createdAt: Date.now()
+            }
+          ],
+          hasMore: false,
+          latestSequence: 1,
+          serverTime: Date.now()
+        }),
+        pushCrdtUpdates: vi.fn()
+      }
+      vi.mocked(getSyncApiClient).mockReturnValue(mockClient as ReturnType<typeof getSyncApiClient>)
+
+      // #when
+      await bridge.pullUpdatesForNote('test-note')
+
+      // #then
+      expect(verify).toHaveBeenCalled()
+    })
+
+    it('should reject updates with invalid signatures', async () => {
+      // #given
+      vi.mocked(verify).mockResolvedValueOnce(false)
+
+      const mockClient = {
+        pullCrdtUpdates: vi.fn().mockResolvedValue({
+          noteId: 'test-note',
+          updates: [
+            {
+              sequenceNum: 1,
+              updateData: 'AQID',
+              signature: 'invalid',
+              signerDeviceId: 'unknown-device',
+              createdAt: Date.now()
+            }
+          ],
+          hasMore: false,
+          latestSequence: 1,
+          serverTime: Date.now()
+        }),
+        pushCrdtUpdates: vi.fn()
+      }
+      vi.mocked(getSyncApiClient).mockReturnValue(mockClient as ReturnType<typeof getSyncApiClient>)
+
+      // #when
+      await bridge.pullUpdatesForNote('test-note')
+
+      // #then
+      expect(mockCrdtProvider.applyUpdate).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Batch database queries', () => {
+    it('should separate journal and note IDs for batch fetching', () => {
+      // #given
+      const isJournalId = (
+        bridge as unknown as { isJournalId: (id: string) => boolean }
+      ).isJournalId.bind(bridge)
+
+      const noteIds = ['note-1', 'note-2', 'j2024-01-15', 'j2024-01-16']
+
+      // #when
+      const journalIds = noteIds.filter((id) => isJournalId(id))
+      const regularNoteIds = noteIds.filter((id) => !isJournalId(id))
+
+      // #then
+      expect(journalIds).toEqual(['j2024-01-15', 'j2024-01-16'])
+      expect(regularNoteIds).toEqual(['note-1', 'note-2'])
+    })
+  })
+
+  describe('Listener cleanup', () => {
+    it('should remove listeners on shutdown', () => {
+      // #given
+      bridge.shutdown()
+
+      // #then
+      expect(mockCrdtProvider.off).toHaveBeenCalledWith('crdt:doc-updated', expect.any(Function))
     })
   })
 })

@@ -35,6 +35,7 @@ import {
   updateNoteCache,
   deleteNoteCache,
   getNoteCacheById,
+  getNoteCacheByIds,
   getNoteCacheByPath,
   listNotesFromCache,
   countNotes,
@@ -430,6 +431,50 @@ export async function getNoteById(id: string): Promise<Note | null> {
     properties, // T013: Include properties
     emoji: cached.emoji ?? (parsed.frontmatter as { emoji?: string }).emoji ?? null // T028: Include emoji from cache or frontmatter
   }
+}
+
+export async function getNotesByIds(ids: string[]): Promise<Note[]> {
+  if (ids.length === 0) return []
+
+  const db = getIndexDatabase()
+  const cached = getNoteCacheByIds(db, ids)
+
+  if (cached.length === 0) return []
+
+  const results: Note[] = []
+
+  await Promise.all(
+    cached.map(async (cacheEntry) => {
+      const absolutePath = toAbsolutePath(cacheEntry.path)
+      const fileContent = await safeRead(absolutePath)
+
+      if (!fileContent) {
+        deleteNoteCache(db, cacheEntry.id)
+        return
+      }
+
+      const parsed = parseNote(fileContent, cacheEntry.path)
+      const tags = getNoteTags(db, cacheEntry.id)
+      const properties = getNotePropertiesAsRecord(db, cacheEntry.id)
+
+      results.push({
+        id: cacheEntry.id,
+        path: cacheEntry.path,
+        title: parsed.frontmatter.title ?? cacheEntry.title,
+        content: parsed.content,
+        frontmatter: parsed.frontmatter,
+        created: new Date(parsed.frontmatter.created),
+        modified: new Date(parsed.frontmatter.modified),
+        tags,
+        aliases: parsed.frontmatter.aliases ?? [],
+        wordCount: cacheEntry.wordCount ?? 0,
+        properties,
+        emoji: cacheEntry.emoji ?? (parsed.frontmatter as { emoji?: string }).emoji ?? null
+      })
+    })
+  )
+
+  return results
 }
 
 /**

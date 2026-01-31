@@ -78,6 +78,11 @@ export function getNoteCacheById(db: DrizzleDb, id: string): NoteCache | undefin
   return db.select().from(noteCache).where(eq(noteCache.id, id)).get()
 }
 
+export function getNoteCacheByIds(db: DrizzleDb, ids: string[]): NoteCache[] {
+  if (ids.length === 0) return []
+  return db.select().from(noteCache).where(inArray(noteCache.id, ids)).all()
+}
+
 /**
  * Get a note from cache by path.
  */

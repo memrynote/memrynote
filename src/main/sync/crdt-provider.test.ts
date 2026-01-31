@@ -226,4 +226,91 @@ describe('CrdtProvider', () => {
       expect(() => provider.applySnapshot('invalid-test', invalidData)).toThrow()
     })
   })
+
+  describe('Security', () => {
+    it('should reject oversized updates', async () => {
+      // #given
+      await provider.getOrCreateDoc('oversized-test')
+      const oversizedUpdate = new Uint8Array(11 * 1024 * 1024) // 11MB, exceeds 10MB limit
+
+      // #when / #then
+      expect(() => provider.applyUpdate('oversized-test', oversizedUpdate, 'remote')).toThrow(
+        /CRDT update exceeds maximum size/
+      )
+    })
+
+    it('should accept updates within size limit', async () => {
+      // #given
+      const doc = await provider.getOrCreateDoc('valid-size-test')
+      const validUpdate = Y.encodeStateAsUpdate(doc)
+
+      // #when / #then
+      expect(() => provider.applyUpdate('valid-size-test', validUpdate, 'remote')).not.toThrow()
+    })
+
+    it('should cleanup all Maps on destroy', async () => {
+      // #given
+      await provider.getOrCreateDoc('cleanup-test-1')
+      await provider.getOrCreateDoc('cleanup-test-2')
+
+      // #when
+      provider.destroyDoc('cleanup-test-1')
+
+      // #then
+      expect(provider.hasDoc('cleanup-test-1')).toBe(false)
+      expect(provider.hasDoc('cleanup-test-2')).toBe(true)
+    })
+  })
+
+  describe('Document Eviction', () => {
+    it('should not evict when under MAX_LOADED_DOCS limit', async () => {
+      // #given
+      await provider.getOrCreateDoc('eviction-test-1')
+      await provider.getOrCreateDoc('eviction-test-2')
+
+      // #when - manually trigger eviction
+      const evictInactiveDocs = (
+        provider as unknown as { evictInactiveDocs: () => Promise<void> }
+      ).evictInactiveDocs.bind(provider)
+      await evictInactiveDocs()
+
+      // #then - both docs should still exist
+      expect(provider.hasDoc('eviction-test-1')).toBe(true)
+      expect(provider.hasDoc('eviction-test-2')).toBe(true)
+    })
+  })
+
+  describe('Conflict Detection', () => {
+    it('should detect conflict within 5s window', async () => {
+      // #given
+      await provider.getOrCreateDoc('conflict-test')
+
+      // Record an external update (simulates file watcher change)
+      provider.recordExternalChange('conflict-test')
+
+      // Record a remote update shortly after (simulates sync from server)
+      provider.recordRemoteUpdate('conflict-test')
+
+      // #when - check if external source sees conflict with remote
+      const detectConflict = (
+        provider as unknown as { detectConflict: (noteId: string, source: 'external' | 'remote') => boolean }
+      ).detectConflict.bind(provider)
+
+      // #then - external source should detect conflict because remote was just updated
+      expect(detectConflict('conflict-test', 'external')).toBe(true)
+    })
+
+    it('should not detect conflict when no timing recorded', async () => {
+      // #given
+      await provider.getOrCreateDoc('no-conflict-test')
+
+      // #when - no updates recorded, detectConflict should return false
+      const detectConflict = (
+        provider as unknown as { detectConflict: (noteId: string, source: 'external' | 'remote') => boolean }
+      ).detectConflict.bind(provider)
+
+      // #then
+      expect(detectConflict('no-conflict-test', 'external')).toBe(false)
+    })
+  })
 })

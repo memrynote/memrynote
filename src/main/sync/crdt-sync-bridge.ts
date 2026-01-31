@@ -15,9 +15,14 @@ import { getSyncQueue } from './queue'
 import { getSyncEngine } from './engine'
 import { uint8ArrayToBase64, base64ToUint8Array } from '@shared/utils/encoding'
 import type { CrdtUpdatePush } from '@shared/contracts/crdt-api'
-import { getNoteById } from '../vault/notes'
-import { getJournalEntryById } from '../vault/journal'
+import { getNotesByIds, type Note } from '../vault/notes'
+import { getJournalEntriesByIds } from '../vault/journal'
+import type { JournalEntry } from '@shared/contracts/journal-api'
 import { retrieveDeviceKeyPair } from '../crypto/keychain'
+import { sign, verify } from '../crypto/signatures'
+import { getDatabase } from '../database'
+import { devices } from '@shared/db/schema/sync-schema'
+import { eq } from 'drizzle-orm'
 import { refreshAccessToken } from './token-refresh'
 import { emptyClock, incrementClock } from './vector-clock'
 
@@ -49,6 +54,8 @@ export class CrdtSyncBridge {
   private recentUpdateHashes: Set<string> = new Set()
   private syncedNotes: Set<string> = new Set()
   private pendingNoteSyncs: Map<string, Promise<boolean>> = new Map()
+  private docUpdatedListener: ((payload: { noteId: string; update: Uint8Array; origin: string }) => void) | null = null
+  private connectivityListener: ((isOnline: boolean) => void) | null = null
 
   initialize(crdtProvider: CrdtProvider): void {
     if (this.initialized) {
@@ -59,19 +66,21 @@ export class CrdtSyncBridge {
     this.crdtProvider = crdtProvider
     this.initialized = true
 
-    crdtProvider.on('crdt:doc-updated', (payload) => {
+    this.docUpdatedListener = (payload) => {
       if (payload.origin !== 'remote') {
         this.onDocUpdated(payload.noteId, payload.update)
       }
-    })
+    }
+    crdtProvider.on('crdt:doc-updated', this.docUpdatedListener)
 
     const networkMonitor = getNetworkMonitor()
-    networkMonitor.on('sync:connectivity-changed', (isOnline) => {
+    this.connectivityListener = (isOnline) => {
       if (isOnline && this.offlineQueue.length > 0) {
         console.info(`${LOG_PREFIX} Back online, flushing offline queue`)
         void this.flushOfflineQueue()
       }
-    })
+    }
+    networkMonitor.on('sync:connectivity-changed', this.connectivityListener)
 
     console.info(`${LOG_PREFIX} Initialized`)
   }
@@ -82,119 +91,58 @@ export class CrdtSyncBridge {
     return `${noteId}:${update.length}:${prefix}:${suffix}`
   }
 
-  private async ensureNoteSynced(docId: string): Promise<boolean> {
-    if (this.syncedNotes.has(docId)) {
-      return true
-    }
-
-    const existing = this.pendingNoteSyncs.get(docId)
-    if (existing) {
-      return existing
-    }
-
-    const syncPromise = this.isJournalId(docId)
-      ? this.syncJournalToServer(docId)
-      : this.syncNoteToServer(docId)
-    this.pendingNoteSyncs.set(docId, syncPromise)
-
-    try {
-      const result = await syncPromise
-      if (result) {
-        this.syncedNotes.add(docId)
-      }
-      return result
-    } finally {
-      this.pendingNoteSyncs.delete(docId)
-    }
-  }
-
-  private async syncNoteToServer(noteId: string): Promise<boolean> {
-    try {
-      const note = await getNoteById(noteId)
-      if (!note) {
-        console.warn(`${LOG_PREFIX} Note ${noteId} not found locally, cannot sync`)
-        return false
-      }
-
-      const keyPair = await retrieveDeviceKeyPair().catch((err) => {
-        console.warn(`${LOG_PREFIX} Failed to retrieve device keypair:`, err)
-        return null
-      })
-      if (!keyPair?.deviceId) {
-        console.warn(`${LOG_PREFIX} No device keypair, cannot sync note ${noteId}`)
-        return false
-      }
-
-      const clock = incrementClock(emptyClock(), keyPair.deviceId)
-      const payload = {
-        id: note.id,
-        title: note.title,
-        path: note.path,
-        created: note.created.toISOString(),
-        modified: note.modified.toISOString(),
-        clock
-      }
-
-      const queue = getSyncQueue()
-      await queue.add('note', noteId, 'create', JSON.stringify(payload), 10)
-
-      const engine = getSyncEngine()
-      if (engine && this.isOnline()) {
-        console.info(`${LOG_PREFIX} Syncing note ${noteId} before CRDT updates`)
-        await engine.push()
-      }
-
-      return true
-    } catch (error) {
-      console.error(`${LOG_PREFIX} Failed to sync note ${noteId}:`, error)
-      return false
-    }
-  }
-
   private isJournalId(docId: string): boolean {
     return /^j\d{4}-\d{2}-\d{2}$/.test(docId)
   }
 
-  private async syncJournalToServer(journalId: string): Promise<boolean> {
+  private async syncItemToServer(itemId: string, data: Note | JournalEntry): Promise<boolean> {
     try {
-      const entry = await getJournalEntryById(journalId)
-      if (!entry) {
-        console.warn(`${LOG_PREFIX} Journal ${journalId} not found locally, cannot sync`)
-        return false
-      }
-
       const keyPair = await retrieveDeviceKeyPair().catch((err) => {
         console.warn(`${LOG_PREFIX} Failed to retrieve device keypair:`, err)
         return null
       })
       if (!keyPair?.deviceId) {
-        console.warn(`${LOG_PREFIX} No device keypair, cannot sync journal ${journalId}`)
+        console.warn(`${LOG_PREFIX} No device keypair, cannot sync item ${itemId}`)
         return false
       }
 
       const clock = incrementClock(emptyClock(), keyPair.deviceId)
-      const payload = {
-        id: entry.id,
-        date: entry.date,
-        created: entry.createdAt,
-        modified: entry.modifiedAt,
-        tags: entry.tags,
-        properties: entry.properties ?? {},
-        clock
-      }
-
       const queue = getSyncQueue()
-      await queue.add('journal', journalId, 'create', JSON.stringify(payload), 10)
+
+      if (this.isJournalId(itemId)) {
+        const entry = data as JournalEntry
+        const payload = {
+          id: entry.id,
+          date: entry.date,
+          created: entry.createdAt,
+          modified: entry.modifiedAt,
+          tags: entry.tags,
+          properties: entry.properties ?? {},
+          clock
+        }
+        await queue.add('journal', itemId, 'create', JSON.stringify(payload), 10)
+      } else {
+        const note = data as Note
+        const payload = {
+          id: note.id,
+          title: note.title,
+          path: note.path,
+          created: note.created.toISOString(),
+          modified: note.modified.toISOString(),
+          clock
+        }
+        await queue.add('note', itemId, 'create', JSON.stringify(payload), 10)
+      }
 
       const engine = getSyncEngine()
       if (engine && this.isOnline()) {
-        console.info(`${LOG_PREFIX} Syncing journal ${journalId} before CRDT updates`)
+        console.info(`${LOG_PREFIX} Syncing item ${itemId} before CRDT updates`)
         await engine.push()
       }
 
       return true
     } catch (error) {
-      console.error(`${LOG_PREFIX} Failed to sync journal ${journalId}:`, error)
+      console.error(`${LOG_PREFIX} Failed to sync item ${itemId}:`, error)
       return false
     }
   }
@@ -240,15 +188,47 @@ export class CrdtSyncBridge {
     this.flushInProgress = true
 
     try {
-      const noteIds = [...this.pendingUpdates.keys()]
-      const syncResults = await Promise.all(
-        noteIds.map(async (noteId) => ({
-          noteId,
-          synced: await this.ensureNoteSynced(noteId)
-        }))
-      )
+      const keyPair = await retrieveDeviceKeyPair().catch(() => null)
+      if (!keyPair?.deviceId) {
+        console.warn(`${LOG_PREFIX} No device keypair, cannot sign CRDT updates`)
+        return
+      }
 
-      const failedNotes = new Set(syncResults.filter((r) => !r.synced).map((r) => r.noteId))
+      const noteIds = [...this.pendingUpdates.keys()]
+
+      const journalIds = noteIds.filter((id) => this.isJournalId(id))
+      const regularNoteIds = noteIds.filter((id) => !this.isJournalId(id))
+
+      const [notes, journals] = await Promise.all([
+        getNotesByIds(regularNoteIds),
+        getJournalEntriesByIds(journalIds)
+      ])
+
+      const notesMap = new Map(notes.map((n) => [n.id, n]))
+      const journalsMap = new Map(journals.map((j) => [j.id, j]))
+
+      const failedNotes = new Set<string>()
+
+      for (const noteId of noteIds) {
+        const alreadySynced = this.syncedNotes.has(noteId)
+        if (alreadySynced) continue
+
+        const data = this.isJournalId(noteId)
+          ? journalsMap.get(noteId)
+          : notesMap.get(noteId)
+
+        if (!data) {
+          failedNotes.add(noteId)
+          continue
+        }
+
+        const synced = await this.syncItemToServer(noteId, data)
+        if (synced) {
+          this.syncedNotes.add(noteId)
+        } else {
+          failedNotes.add(noteId)
+        }
+      }
 
       if (failedNotes.size > 0) {
         console.warn(`${LOG_PREFIX} Skipping CRDT updates for unsynced notes:`, [...failedNotes])
@@ -265,10 +245,15 @@ export class CrdtSyncBridge {
 
         for (const pending of updates) {
           state.localSequence++
+
+          const signature = await sign(pending.update, keyPair.privateKey)
+
           allUpdates.push({
             noteId,
             updateData: uint8ArrayToBase64(pending.update),
-            sequenceNum: state.localSequence
+            sequenceNum: state.localSequence,
+            signature: uint8ArrayToBase64(signature),
+            signerDeviceId: keyPair.deviceId
           })
         }
 
@@ -303,54 +288,67 @@ export class CrdtSyncBridge {
       batches.push(updates.slice(i, i + MAX_BATCH_SIZE))
     }
 
+    const results = await Promise.all(
+      batches.map((batch, index) => this.processBatchWithRetry(batch, index))
+    )
+
+    const failedBatches = results.filter((r) => !r.success)
+    if (failedBatches.length > 0) {
+      console.warn(`${LOG_PREFIX} ${failedBatches.length}/${batches.length} batches failed`)
+    }
+  }
+
+  private async processBatchWithRetry(
+    batch: CrdtUpdatePush[],
+    batchIndex: number
+  ): Promise<{ success: boolean; batch: CrdtUpdatePush[] }> {
     const client = getSyncApiClient()
+    let retries = 0
+    let authRefreshed = false
 
-    for (const batch of batches) {
-      let retries = 0
-      let authRefreshed = false
+    while (retries < MAX_RETRIES) {
+      try {
+        const result = await client.pushCrdtUpdates(batch)
 
-      while (retries < MAX_RETRIES) {
-        try {
-          const result = await client.pushCrdtUpdates(batch)
-
-          if (result.rejected.length > 0) {
-            console.warn(`${LOG_PREFIX} Some updates rejected:`, result.rejected)
-          }
-
-          for (const accepted of result.accepted) {
-            const state = this.getSequenceState(accepted.noteId)
-            state.serverSequence = Math.max(state.serverSequence, accepted.sequenceNum)
-            this.sequenceState.set(accepted.noteId, state)
-          }
-
-          console.info(`${LOG_PREFIX} Pushed ${result.accepted.length} updates`)
-          break
-        } catch (error) {
-          if (this.isAuthError(error) && !authRefreshed) {
-            console.info(`${LOG_PREFIX} Auth expired, attempting refresh`)
-            const refreshed = await this.tryRefreshSession()
-            if (refreshed) {
-              authRefreshed = true
-              continue
-            }
-            console.warn(`${LOG_PREFIX} Auth refresh failed, queueing updates offline`)
-            this.offlineQueue.push(...batch)
-            return
-          }
-
-          retries++
-
-          if (retries >= MAX_RETRIES) {
-            console.error(`${LOG_PREFIX} Max retries reached, queueing offline:`, error)
-            this.offlineQueue.push(...batch)
-            return
-          }
-
-          console.warn(`${LOG_PREFIX} Push failed, retry ${retries}/${MAX_RETRIES}:`, error)
-          await this.delay(RETRY_DELAY_MS * retries)
+        if (result.rejected.length > 0) {
+          console.warn(`${LOG_PREFIX} Batch ${batchIndex}: Some updates rejected:`, result.rejected)
         }
+
+        for (const accepted of result.accepted) {
+          const state = this.getSequenceState(accepted.noteId)
+          state.serverSequence = Math.max(state.serverSequence, accepted.sequenceNum)
+          this.sequenceState.set(accepted.noteId, state)
+        }
+
+        console.info(`${LOG_PREFIX} Batch ${batchIndex}: Pushed ${result.accepted.length} updates`)
+        return { success: true, batch }
+      } catch (error) {
+        if (this.isAuthError(error) && !authRefreshed) {
+          console.info(`${LOG_PREFIX} Batch ${batchIndex}: Auth expired, attempting refresh`)
+          const refreshed = await this.tryRefreshSession()
+          if (refreshed) {
+            authRefreshed = true
+            continue
+          }
+          console.warn(`${LOG_PREFIX} Batch ${batchIndex}: Auth refresh failed, queueing offline`)
+          this.offlineQueue.push(...batch)
+          return { success: false, batch }
+        }
+
+        retries++
+
+        if (retries >= MAX_RETRIES) {
+          console.error(`${LOG_PREFIX} Batch ${batchIndex}: Max retries reached, queueing offline:`, error)
+          this.offlineQueue.push(...batch)
+          return { success: false, batch }
+        }
+
+        console.warn(`${LOG_PREFIX} Batch ${batchIndex}: Push failed, retry ${retries}/${MAX_RETRIES}:`, error)
+        await this.delay(RETRY_DELAY_MS * retries)
       }
     }
+
+    return { success: false, batch }
   }
 
   private async flushOfflineQueue(): Promise<void> {
@@ -415,6 +413,20 @@ export class CrdtSyncBridge {
 
       for (const update of result.updates) {
         const bytes = base64ToUint8Array(update.updateData)
+
+        const publicKey = await this.getDevicePublicKey(update.signerDeviceId)
+        if (!publicKey) {
+          console.error(`${LOG_PREFIX} Unknown signer device ${update.signerDeviceId}, rejecting update`)
+          continue
+        }
+
+        const signatureBytes = base64ToUint8Array(update.signature)
+        const isValid = await verify(bytes, signatureBytes, publicKey)
+        if (!isValid) {
+          console.error(`${LOG_PREFIX} Invalid signature on CRDT update from ${update.signerDeviceId}, rejecting`)
+          continue
+        }
+
         this.crdtProvider.applyUpdate(noteId, bytes, 'remote')
         state.serverSequence = Math.max(state.serverSequence, update.sequenceNum)
       }
@@ -485,6 +497,27 @@ export class CrdtSyncBridge {
     return state
   }
 
+  private async getDevicePublicKey(deviceId: string): Promise<Uint8Array | null> {
+    const deviceKeyPair = await retrieveDeviceKeyPair().catch(() => null)
+
+    if (deviceKeyPair?.deviceId === deviceId) {
+      return deviceKeyPair.publicKey
+    }
+
+    const db = getDatabase()
+    const rows = await db
+      .select({ authPublicKey: devices.authPublicKey })
+      .from(devices)
+      .where(eq(devices.id, deviceId))
+      .limit(1)
+
+    if (!rows[0]?.authPublicKey) {
+      return null
+    }
+
+    return base64ToUint8Array(rows[0].authPublicKey)
+  }
+
   private isReady(): boolean {
     return this.initialized && this.crdtProvider !== null
   }
@@ -526,11 +559,23 @@ export class CrdtSyncBridge {
       this.debounceTimer = null
     }
 
+    if (this.docUpdatedListener && this.crdtProvider) {
+      this.crdtProvider.off('crdt:doc-updated', this.docUpdatedListener)
+      this.docUpdatedListener = null
+    }
+
+    if (this.connectivityListener) {
+      const networkMonitor = getNetworkMonitor()
+      networkMonitor.off('sync:connectivity-changed', this.connectivityListener)
+      this.connectivityListener = null
+    }
+
     this.pendingUpdates.clear()
     this.offlineQueue = []
     this.recentUpdateHashes.clear()
     this.syncedNotes.clear()
     this.pendingNoteSyncs.clear()
+    this.sequenceState.clear()
     this.initialized = false
     this.crdtProvider = null
 
