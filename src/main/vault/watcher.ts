@@ -34,6 +34,8 @@ import { NotesChannels, JournalChannels } from '@shared/ipc-channels'
 import { trackPendingDelete, checkForRename, clearAllPendingDeletes } from './rename-tracker'
 import { queueEmbeddingUpdate } from '../inbox/embedding-queue'
 import { isSupportedPath, getFileType, getMimeType, getExtension } from '@shared/file-types'
+import { getSyncEngine } from '../sync/engine'
+import { getCrdtProvider } from '../sync/crdt-provider'
 
 // ============================================================================
 // Types
@@ -86,6 +88,41 @@ function createPathDebouncer(
     }, delayMs)
 
     pending.set(filePath, timeout)
+  }
+}
+
+interface CrdtSyncPayload {
+  noteId: string
+  content: string
+  frontmatter: Record<string, unknown>
+  syncWasActive: boolean
+}
+
+/**
+ * Creates a debounced function for CRDT sync updates.
+ * Uses 500ms delay to batch rapid external edits.
+ */
+function createCrdtDebouncer(
+  handler: (payload: CrdtSyncPayload) => Promise<void>,
+  delayMs: number = 500
+): (payload: CrdtSyncPayload) => void {
+  const pending = new Map<string, { timeout: NodeJS.Timeout; payload: CrdtSyncPayload }>()
+
+  return (payload: CrdtSyncPayload) => {
+    const { noteId } = payload
+    const existing = pending.get(noteId)
+    if (existing) {
+      clearTimeout(existing.timeout)
+    }
+
+    const timeout = setTimeout(() => {
+      pending.delete(noteId)
+      handler(payload).catch((error: unknown) => {
+        console.error(`[Watcher] Error processing CRDT sync for ${noteId}:`, error)
+      })
+    }, delayMs)
+
+    pending.set(noteId, { timeout, payload })
   }
 }
 
@@ -142,6 +179,7 @@ export class VaultWatcher {
 
   // Debounced handlers
   private debouncedChange: ((path: string) => void) | null = null
+  private debouncedCrdtSync: ((payload: CrdtSyncPayload) => void) | null = null
 
   /**
    * Start watching the vault for file changes.
@@ -166,7 +204,10 @@ export class VaultWatcher {
     ]
 
     // Create debounced handlers
+    // 100ms debounce for cache updates (UI responsiveness)
     this.debouncedChange = createPathDebouncer((filePath) => this.handleFileChange(filePath), 100)
+    // 500ms debounce for CRDT updates (batch rapid external edits)
+    this.debouncedCrdtSync = createCrdtDebouncer((payload) => this.applyCrdtUpdate(payload), 500)
 
     // Capture exclude patterns for use in ignored function
     const userExcludePatterns = this.excludePatterns
@@ -265,6 +306,11 @@ export class VaultWatcher {
    */
   isWatching(): boolean {
     return this.watcher !== null && this.isReady
+  }
+
+  private isSyncActive(): boolean {
+    const engine = getSyncEngine()
+    return engine?.isSyncing ?? false
   }
 
   // ==========================================================================
@@ -590,6 +636,16 @@ export class VaultWatcher {
         source: 'external'
       })
     }
+
+    // Queue CRDT update with 500ms debounce (separate from cache update)
+    // Captures sync status at time of external change detection
+    const syncWasActive = this.isSyncActive()
+    this.debouncedCrdtSync?.({
+      noteId: cached.id,
+      content: parsed.content,
+      frontmatter: parsed.frontmatter,
+      syncWasActive
+    })
   }
 
   /**
@@ -628,6 +684,30 @@ export class VaultWatcher {
       source: 'external',
       fileType
     })
+  }
+
+  /**
+   * Apply external file change to CRDT.
+   * Called after 500ms debounce to batch rapid edits.
+   */
+  private async applyCrdtUpdate(payload: CrdtSyncPayload): Promise<void> {
+    const { noteId, content, frontmatter, syncWasActive } = payload
+
+    const crdtProvider = getCrdtProvider()
+    if (!crdtProvider) {
+      return
+    }
+
+    // Check if this change was triggered by a CRDT write-back (loop prevention)
+    if (crdtProvider.wasRecentCrdtWrite?.(noteId)) {
+      return
+    }
+
+    try {
+      await crdtProvider.applyExternalFileChange(noteId, content, frontmatter, { syncWasActive })
+    } catch (error) {
+      console.error(`[Watcher] Failed to apply CRDT update for ${noteId}:`, error)
+    }
   }
 
   /**

@@ -1563,6 +1563,21 @@ const api = {
     ): void => callback(data)
     ipcRenderer.on(SyncChannels.events.YJS_DOC_SYNCED, handler)
     return () => ipcRenderer.removeListener(SyncChannels.events.YJS_DOC_SYNCED, handler)
+  },
+
+  onExternalSyncConflict: (
+    callback: (event: {
+      noteId: string
+      resolution: 'crdt-wins'
+      frontmatterSource: 'external'
+    }) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { noteId: string; resolution: 'crdt-wins'; frontmatterSource: 'external' }
+    ): void => callback(data)
+    ipcRenderer.on(SyncChannels.events.EXTERNAL_SYNC_CONFLICT, handler)
+    return () => ipcRenderer.removeListener(SyncChannels.events.EXTERNAL_SYNC_CONFLICT, handler)
   }
 }
 

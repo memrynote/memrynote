@@ -86,7 +86,10 @@ export const SyncChannels = {
 
     // Yjs CRDT Events (T129a)
     YJS_UPDATE_RECEIVED: 'yjs:update-received',
-    YJS_DOC_SYNCED: 'yjs:doc-synced'
+    YJS_DOC_SYNCED: 'yjs:doc-synced',
+
+    // External file sync events (T140n)
+    EXTERNAL_SYNC_CONFLICT: 'sync:external-sync-conflict'
   }
 } as const
 
@@ -609,6 +612,18 @@ export interface YjsDocSyncedEvent {
   timestamp: number
 }
 
+/**
+ * Event emitted when external file edit conflicts with active sync.
+ * Informs renderer of automatic resolution.
+ */
+export interface ExternalSyncConflictEvent {
+  noteId: string
+  /** How the conflict was resolved */
+  resolution: 'crdt-wins'
+  /** Source of frontmatter in merged result */
+  frontmatterSource: 'external'
+}
+
 // =============================================================================
 // Zod Schemas for Validation
 // =============================================================================
@@ -693,7 +708,13 @@ export const ResendOtpRequestSchema = z.object({
 })
 
 // Yjs CRDT Schemas (T129a)
-export const YjsUpdateOriginSchema = z.enum(['local', 'remote', 'persistence', 'renderer'])
+export const YjsUpdateOriginSchema = z.enum([
+  'local',
+  'remote',
+  'persistence',
+  'renderer',
+  'external'
+])
 export type YjsUpdateOrigin = z.infer<typeof YjsUpdateOriginSchema>
 
 export const YjsApplyUpdateRequestSchema = z.object({
