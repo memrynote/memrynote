@@ -18,6 +18,7 @@ import * as Y from 'yjs'
 import { LeveldbPersistence } from 'y-leveldb'
 import { app, BrowserWindow } from 'electron'
 import path from 'path'
+import pako from 'pako'
 
 import { SyncChannels } from '@shared/contracts/ipc-sync'
 import { uint8ArrayToBase64 } from '@shared/utils/encoding'
@@ -25,6 +26,27 @@ import { TypedEmitter } from './typed-emitter'
 import type { CrdtSyncBridge } from './crdt-sync-bridge'
 
 const SNAPSHOT_THRESHOLD = 100
+const GC_SIZE_THRESHOLD = 1024 * 1024 // 1MB - trigger GC when doc exceeds this
+const PAKO_ZLIB_HEADER = 0x78 // zlib default compression header
+
+function compressSnapshot(data: Uint8Array): Uint8Array {
+  return pako.deflate(data)
+}
+
+function decompressSnapshot(data: Uint8Array): Uint8Array {
+  return pako.inflate(data)
+}
+
+function isCompressed(data: Uint8Array): boolean {
+  return data.length > 0 && data[0] === PAKO_ZLIB_HEADER
+}
+
+function maybeDecompress(data: Uint8Array): Uint8Array {
+  if (isCompressed(data)) {
+    return decompressSnapshot(data)
+  }
+  return data
+}
 
 export interface CrdtProviderEvents extends Record<string, unknown[]> {
   'crdt:doc-updated': [payload: { noteId: string; update: Uint8Array; origin: string }]
@@ -36,6 +58,7 @@ interface DocEntry {
   doc: Y.Doc
   updateCount: number
   lastActivity: number
+  lastSize: number
 }
 
 interface NoteSyncTiming {
@@ -123,6 +146,7 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
 
   private async createDoc(noteId: string): Promise<Y.Doc> {
     const doc = new Y.Doc({ guid: noteId })
+    let initialSize = 0
 
     const persistence = await this.waitForDb()
     if (persistence) {
@@ -130,6 +154,7 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
       if (storedDoc) {
         const update = Y.encodeStateAsUpdate(storedDoc)
         Y.applyUpdate(doc, update)
+        initialSize = update.length
       } else {
         doc.getXmlFragment('document-store')
         doc.getMap('meta').set('created', Date.now())
@@ -146,7 +171,8 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     this.docs.set(noteId, {
       doc,
       updateCount: 0,
-      lastActivity: Date.now()
+      lastActivity: Date.now(),
+      lastSize: initialSize
     })
 
     return doc
@@ -158,6 +184,7 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
 
     entry.updateCount++
     entry.lastActivity = Date.now()
+    entry.lastSize += update.length
 
     if (origin !== 'remote' && origin !== 'persistence') {
       void this.waitForDb().then((persistence) => {
@@ -177,7 +204,9 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
         origin: typeof origin === 'string' ? origin : 'local'
       })
 
-      if (this.shouldCompact(noteId)) {
+      if (this.shouldGarbageCollect(noteId)) {
+        void this.garbageCollectDoc(noteId)
+      } else if (this.shouldCompact(noteId)) {
         void this.compactDoc(noteId)
       }
     }
@@ -231,12 +260,38 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     return Y.encodeStateVector(entry.doc)
   }
 
-  encodeSnapshot(noteId: string): Uint8Array {
+  encodeSnapshot(noteId: string, compress: boolean = true): Uint8Array {
     const entry = this.docs.get(noteId)
     if (!entry) {
       throw new Error(`Doc not found: ${noteId}`)
     }
-    return Y.encodeStateAsUpdate(entry.doc)
+    const rawSnapshot = Y.encodeStateAsUpdate(entry.doc)
+    return compress ? compressSnapshot(rawSnapshot) : rawSnapshot
+  }
+
+
+  applySnapshot(noteId: string, data: Uint8Array): void {
+    const entry = this.docs.get(noteId)
+    if (!entry) {
+      console.warn('[CrdtProvider] Cannot apply snapshot to unknown doc:', noteId)
+      return
+    }
+
+    try {
+      const wasCompressed = isCompressed(data)
+      const snapshot = maybeDecompress(data)
+      Y.applyUpdate(entry.doc, snapshot, 'remote')
+      entry.lastSize = snapshot.length
+
+      console.debug('[CrdtProvider] Applied snapshot:', noteId, {
+        wasCompressed,
+        originalSize: data.length,
+        decompressedSize: snapshot.length
+      })
+    } catch (error) {
+      console.error('[CrdtProvider] Failed to apply snapshot:', noteId, error)
+      throw error
+    }
   }
 
   encodeDiff(noteId: string, clientStateVector: Uint8Array): Uint8Array {
@@ -250,6 +305,51 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   private shouldCompact(noteId: string): boolean {
     const entry = this.docs.get(noteId)
     return (entry?.updateCount ?? 0) >= SNAPSHOT_THRESHOLD
+  }
+
+
+  private shouldGarbageCollect(noteId: string): boolean {
+    const entry = this.docs.get(noteId)
+    if (!entry) return false
+    return entry.lastSize > GC_SIZE_THRESHOLD
+  }
+
+
+  async garbageCollectDoc(noteId: string): Promise<void> {
+    const persistence = await this.waitForDb()
+    if (!persistence) return
+
+    const entry = this.docs.get(noteId)
+    if (!entry) return
+
+    try {
+      const freshDoc = new Y.Doc({ guid: noteId, gc: true })
+      const currentState = Y.encodeStateAsUpdate(entry.doc)
+      Y.applyUpdate(freshDoc, currentState, 'gc')
+
+      entry.doc.destroy()
+      entry.doc = freshDoc
+      entry.updateCount = 0
+      entry.lastSize = currentState.length
+
+      freshDoc.on('update', (update: Uint8Array, origin: unknown) => {
+        this.handleDocUpdate(noteId, update, origin)
+      })
+
+      await persistence.clearDocument(noteId)
+      await persistence.storeUpdate(noteId, currentState)
+
+      console.info('[CrdtProvider] GC completed for doc:', noteId, {
+        newSize: entry.lastSize
+      })
+
+      this.queueSnapshotForSync(noteId)
+    } catch (error) {
+      if (!this.shuttingDown) {
+        console.error('[CrdtProvider] GC failed:', noteId, error)
+        this.emit('crdt:error', { noteId, error: error as Error })
+      }
+    }
   }
 
   async compactDoc(noteId: string): Promise<void> {
@@ -278,8 +378,12 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     }
 
     try {
-      const snapshot = this.encodeSnapshot(noteId)
-      void this.syncBridge.pushSnapshot(noteId, snapshot)
+      const compressedSnapshot = this.encodeSnapshot(noteId, true)
+      void this.syncBridge.pushSnapshot(noteId, compressedSnapshot)
+
+      console.debug('[CrdtProvider] Snapshot queued for sync:', noteId, {
+        compressedSize: compressedSnapshot.length
+      })
     } catch (error) {
       console.error('[CrdtProvider] Failed to queue snapshot for sync:', noteId, error)
     }
