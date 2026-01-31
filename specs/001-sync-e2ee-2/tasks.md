@@ -557,19 +557,19 @@ All D1 tables include explicit PKs, FKs, indexes, and constraints.
 
 ### Journal Sync for US5
 
-- [ ] T140f [US5] Register journal entries for Yjs sync (same pattern as notes) in src/main/sync/crdt-provider.ts
-- [ ] T140g [US5] Implement journal folder structure sync (journal/YYYY/MM/DD.md) in src/main/vault/journal.ts
-- [ ] T140h [US5] Add journal entry to sync manifest in sync-server/src/services/sync.ts
-- [ ] T140i [US5] Handle journal date-based file naming during sync creation in src/main/vault/journal.ts
+- [x] T140f [US5] Register journal entries for Yjs sync (same pattern as notes) in src/main/sync/crdt-provider.ts
+- [x] T140g [US5] Implement journal folder structure sync (journal/YYYY/MM/DD.md) in src/main/vault/journal.ts
+- [x] T140h [US5] Add journal entry to sync manifest in sync-server/src/services/sync.ts
+- [x] T140i [US5] Handle journal date-based file naming during sync creation in src/main/vault/journal.ts
 
 ### External File Edit Integration for US5
 
-- [ ] T140j [US5] Integrate file watcher with sync engine in src/main/vault/watcher.ts
-- [ ] T140k [US5] Detect external file changes during active sync session in src/main/vault/watcher.ts
-- [ ] T140l [US5] Convert external markdown edits to Yjs operations (MD → BlockNote JSON → Yjs) in src/main/sync/crdt-provider.ts
-- [ ] T140m [US5] Implement merge strategy: CRDT merge for content, file wins for frontmatter metadata in src/main/sync/crdt-provider.ts
-- [ ] T140n [US5] Add conflict detection for simultaneous external edit + incoming sync in src/main/sync/crdt-provider.ts
-- [ ] T140o [US5] Implement debounce for rapid external file changes (500ms) in src/main/vault/watcher.ts
+- [x] T140j [US5] Integrate file watcher with sync engine in src/main/vault/watcher.ts
+- [x] T140k [US5] Detect external file changes during active sync session in src/main/vault/watcher.ts
+- [x] T140l [US5] Convert external markdown edits to Yjs operations (MD → BlockNote JSON → Yjs) in src/main/sync/crdt-provider.ts
+- [x] T140m [US5] Implement merge strategy: CRDT merge for content, file wins for frontmatter metadata in src/main/sync/crdt-provider.ts
+- [x] T140n [US5] Add conflict detection for simultaneous external edit + incoming sync in src/main/sync/crdt-provider.ts
+- [x] T140o [US5] Implement debounce for rapid external file changes (500ms) in src/main/vault/watcher.ts
 
 ### Incremental Index Rebuild for US2
 

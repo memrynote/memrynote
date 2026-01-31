@@ -38,6 +38,11 @@ interface DocEntry {
   lastActivity: number
 }
 
+interface NoteSyncTiming {
+  lastRemoteUpdate: number
+  lastExternalUpdate: number
+}
+
 export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   private docs: Map<string, DocEntry> = new Map()
   private docCreationLocks: Map<string, Promise<Y.Doc>> = new Map()
@@ -47,6 +52,15 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   private initialized = false
   private shuttingDown = false
   private syncBridge: CrdtSyncBridge | null = null
+
+  // T140k: External change tracking
+  private externalChangeTimes: Map<string, number> = new Map()
+
+  // T140n: Sync timing for conflict detection
+  private syncTimings: Map<string, NoteSyncTiming> = new Map()
+
+  // Loop prevention: track CRDT-originated file writes
+  private recentCrdtWrites: Map<string, number> = new Map()
 
   async initialize(customDbPath?: string): Promise<void> {
     if (this.initialized) return
@@ -300,6 +314,113 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     const persistence = await this.waitForDb()
     if (!persistence) return []
     return persistence.getAllDocNames()
+  }
+
+  // =========================================================================
+  // T140k: External Change Tracking
+  // =========================================================================
+
+  recordExternalChange(noteId: string): void {
+    this.externalChangeTimes.set(noteId, Date.now())
+  }
+
+  getLastExternalChangeTime(noteId: string): number | undefined {
+    return this.externalChangeTimes.get(noteId)
+  }
+
+  // =========================================================================
+  // T140n: Sync Timing & Conflict Detection
+  // =========================================================================
+
+  recordRemoteUpdate(noteId: string): void {
+    const existing = this.syncTimings.get(noteId) ?? { lastRemoteUpdate: 0, lastExternalUpdate: 0 }
+    existing.lastRemoteUpdate = Date.now()
+    this.syncTimings.set(noteId, existing)
+  }
+
+  private recordExternalUpdate(noteId: string): void {
+    const existing = this.syncTimings.get(noteId) ?? { lastRemoteUpdate: 0, lastExternalUpdate: 0 }
+    existing.lastExternalUpdate = Date.now()
+    this.syncTimings.set(noteId, existing)
+  }
+
+  private detectConflict(noteId: string, source: 'external' | 'remote'): boolean {
+    const timing = this.syncTimings.get(noteId)
+    if (!timing) return false
+
+    const CONFLICT_WINDOW_MS = 5000
+    const other = source === 'external' ? timing.lastRemoteUpdate : timing.lastExternalUpdate
+
+    return Date.now() - other < CONFLICT_WINDOW_MS
+  }
+
+  private emitExternalConflictEvent(noteId: string): void {
+    BrowserWindow.getAllWindows().forEach((w) => {
+      w.webContents.send(SyncChannels.events.EXTERNAL_SYNC_CONFLICT, {
+        noteId,
+        resolution: 'crdt-wins',
+        frontmatterSource: 'external'
+      })
+    })
+  }
+
+  // =========================================================================
+  // Loop Prevention
+  // =========================================================================
+
+  markCrdtWrite(noteId: string): void {
+    this.recentCrdtWrites.set(noteId, Date.now())
+    setTimeout(() => this.recentCrdtWrites.delete(noteId), 1000)
+  }
+
+  wasRecentCrdtWrite(noteId: string): boolean {
+    const writeTime = this.recentCrdtWrites.get(noteId)
+    return writeTime !== undefined && Date.now() - writeTime < 500
+  }
+
+  // =========================================================================
+  // T140l/T140m: External File Change Application
+  // =========================================================================
+
+  async applyExternalFileChange(
+    noteId: string,
+    markdownContent: string,
+    frontmatter: Record<string, unknown>,
+    options: { syncWasActive: boolean }
+  ): Promise<void> {
+    this.ensureInitialized()
+
+    // Record external change timing
+    this.recordExternalChange(noteId)
+    this.recordExternalUpdate(noteId)
+
+    // Detect conflict if sync was active
+    if (options.syncWasActive && this.detectConflict(noteId, 'external')) {
+      this.emitExternalConflictEvent(noteId)
+    }
+
+    // Get or create the Y.Doc for this note
+    const doc = await this.getOrCreateDoc(noteId)
+
+    // Apply the markdown content as a Yjs text update
+    // Since BlockNote conversion requires renderer, we store raw markdown in a text field
+    // and let the renderer convert it to blocks when the note is opened
+    const contentText = doc.getText('content')
+
+    doc.transact(() => {
+      contentText.delete(0, contentText.length)
+      contentText.insert(0, markdownContent)
+    }, 'external')
+
+    // Store frontmatter in the doc's meta map (external file wins for frontmatter)
+    const metaMap = doc.getMap('meta')
+    doc.transact(() => {
+      for (const [key, value] of Object.entries(frontmatter)) {
+        if (value !== undefined) {
+          metaMap.set(key, value)
+        }
+      }
+    }, 'external')
   }
 
   async shutdown(): Promise<void> {
