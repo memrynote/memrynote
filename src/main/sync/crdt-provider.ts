@@ -235,7 +235,9 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     sourceWindowId?: number
   ): void {
     if (update.length > CrdtProvider.MAX_UPDATE_SIZE) {
-      throw new Error(`CRDT update exceeds maximum size: ${update.length} bytes (limit: ${CrdtProvider.MAX_UPDATE_SIZE})`)
+      throw new Error(
+        `CRDT update exceeds maximum size: ${update.length} bytes (limit: ${CrdtProvider.MAX_UPDATE_SIZE})`
+      )
     }
 
     const entry = this.docs.get(noteId)
@@ -289,7 +291,6 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     return compress ? compressSnapshot(rawSnapshot) : rawSnapshot
   }
 
-
   applySnapshot(noteId: string, data: Uint8Array): void {
     const entry = this.docs.get(noteId)
     if (!entry) {
@@ -327,13 +328,11 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     return (entry?.updateCount ?? 0) >= SNAPSHOT_THRESHOLD
   }
 
-
   private shouldGarbageCollect(noteId: string): boolean {
     const entry = this.docs.get(noteId)
     if (!entry) return false
     return entry.lastSize > GC_SIZE_THRESHOLD
   }
-
 
   private async runProactiveGc(): Promise<void> {
     if (this.shuttingDown) return
@@ -358,7 +357,6 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
       }
     }
   }
-
 
   async garbageCollectDoc(noteId: string): Promise<void> {
     const persistence = await this.waitForDb()
@@ -469,10 +467,7 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
 
     candidates.sort((a, b) => a[1] - b[1])
 
-    const toEvict = Math.min(
-      candidates.length,
-      this.docs.size - CrdtProvider.MAX_LOADED_DOCS
-    )
+    const toEvict = Math.min(candidates.length, this.docs.size - CrdtProvider.MAX_LOADED_DOCS)
 
     console.info(`[CrdtProvider] Evicting ${toEvict} inactive documents`)
 

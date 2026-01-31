@@ -211,6 +211,12 @@ export function getVaultPath(): string {
 /**
  * Get the notes directory path.
  */
+
+function isVaultReady(): boolean {
+  const status = getStatus()
+  return Boolean(status.path)
+}
+
 function getNotesDir(): string {
   const vaultPath = getVaultPath()
   const config = getConfig()
@@ -876,6 +882,10 @@ export async function deleteNote(id: string): Promise<void> {
  * Optimized to use batch tag/property queries and cached snippets (no file reads).
  */
 export function listNotes(options: NoteListOptions = {}): NoteListResponse {
+  if (!isVaultReady()) {
+    return { notes: [], total: 0, hasMore: false }
+  }
+
   const db = getIndexDatabase()
   const limit = options.limit ?? 100
   const offset = options.offset ?? 0
@@ -1020,6 +1030,9 @@ export function getNoteLinks(id: string): NoteLinksResponse {
  * Get all folders in the notes directory.
  */
 export async function getFolders(): Promise<string[]> {
+  if (!isVaultReady()) {
+    return []
+  }
   const notesDir = getNotesDir()
   return listDirectories(notesDir, notesDir)
 }

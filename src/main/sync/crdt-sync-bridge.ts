@@ -54,7 +54,9 @@ export class CrdtSyncBridge {
   private recentUpdateHashes: Set<string> = new Set()
   private syncedNotes: Set<string> = new Set()
   private pendingNoteSyncs: Map<string, Promise<boolean>> = new Map()
-  private docUpdatedListener: ((payload: { noteId: string; update: Uint8Array; origin: string }) => void) | null = null
+  private docUpdatedListener:
+    | ((payload: { noteId: string; update: Uint8Array; origin: string }) => void)
+    | null = null
   private connectivityListener: ((isOnline: boolean) => void) | null = null
 
   initialize(crdtProvider: CrdtProvider): void {
@@ -213,9 +215,7 @@ export class CrdtSyncBridge {
         const alreadySynced = this.syncedNotes.has(noteId)
         if (alreadySynced) continue
 
-        const data = this.isJournalId(noteId)
-          ? journalsMap.get(noteId)
-          : notesMap.get(noteId)
+        const data = this.isJournalId(noteId) ? journalsMap.get(noteId) : notesMap.get(noteId)
 
         if (!data) {
           failedNotes.add(noteId)
@@ -338,12 +338,18 @@ export class CrdtSyncBridge {
         retries++
 
         if (retries >= MAX_RETRIES) {
-          console.error(`${LOG_PREFIX} Batch ${batchIndex}: Max retries reached, queueing offline:`, error)
+          console.error(
+            `${LOG_PREFIX} Batch ${batchIndex}: Max retries reached, queueing offline:`,
+            error
+          )
           this.offlineQueue.push(...batch)
           return { success: false, batch }
         }
 
-        console.warn(`${LOG_PREFIX} Batch ${batchIndex}: Push failed, retry ${retries}/${MAX_RETRIES}:`, error)
+        console.warn(
+          `${LOG_PREFIX} Batch ${batchIndex}: Push failed, retry ${retries}/${MAX_RETRIES}:`,
+          error
+        )
         await this.delay(RETRY_DELAY_MS * retries)
       }
     }
@@ -416,14 +422,18 @@ export class CrdtSyncBridge {
 
         const publicKey = await this.getDevicePublicKey(update.signerDeviceId)
         if (!publicKey) {
-          console.error(`${LOG_PREFIX} Unknown signer device ${update.signerDeviceId}, rejecting update`)
+          console.error(
+            `${LOG_PREFIX} Unknown signer device ${update.signerDeviceId}, rejecting update`
+          )
           continue
         }
 
         const signatureBytes = base64ToUint8Array(update.signature)
         const isValid = await verify(bytes, signatureBytes, publicKey)
         if (!isValid) {
-          console.error(`${LOG_PREFIX} Invalid signature on CRDT update from ${update.signerDeviceId}, rejecting`)
+          console.error(
+            `${LOG_PREFIX} Invalid signature on CRDT update from ${update.signerDeviceId}, rejecting`
+          )
           continue
         }
 

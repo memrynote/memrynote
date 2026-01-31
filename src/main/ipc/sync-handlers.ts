@@ -129,10 +129,7 @@ import { inboxItems } from '@shared/db/schema/inbox'
 import { savedFilters } from '@shared/db/schema/settings'
 import { tasks } from '@shared/db/schema/tasks'
 import { devices as devicesTable } from '@shared/db/schema/sync-schema'
-import {
-  parseNoteSyncPayload,
-  parseJournalSyncPayload
-} from '@shared/contracts/note-sync-payload'
+import { parseNoteSyncPayload, parseJournalSyncPayload } from '@shared/contracts/note-sync-payload'
 import type { NoteSyncPayload, JournalSyncPayload } from '@shared/contracts/note-sync-payload'
 import { getIndexDatabase } from '../database/client'
 import { getNoteCacheById, getJournalEntryByDate } from '@shared/db/queries/notes'
@@ -193,7 +190,8 @@ function emitProgress(phase: SyncProgressUpdateEvent['phase']): void {
   if (!syncProgressState) return
   emitSyncEvent(SyncChannels.events.PROGRESS_UPDATE, {
     phase,
-    current: phase === 'indexing' ? syncProgressState.indexedItems : syncProgressState.processedItems,
+    current:
+      phase === 'indexing' ? syncProgressState.indexedItems : syncProgressState.processedItems,
     total: syncProgressState.totalItems,
     itemType: 'note'
   } satisfies SyncProgressUpdateEvent)
@@ -711,10 +709,12 @@ async function handleDecryptedSyncItem(item: DecryptedSyncItem): Promise<void> {
         }
       }
 
-      emitSyncEvent(
-        result.isNew ? NotesChannels.events.CREATED : NotesChannels.events.UPDATED,
-        { id: payload.id, path: result.path, title: payload.title, source: 'sync' }
-      )
+      emitSyncEvent(result.isNew ? NotesChannels.events.CREATED : NotesChannels.events.UPDATED, {
+        id: payload.id,
+        path: result.path,
+        title: payload.title,
+        source: 'sync'
+      })
       emitSyncEvent(SyncChannels.events.ITEM_SYNCED, {
         itemId: item.itemId,
         itemType: 'note',
