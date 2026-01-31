@@ -12,10 +12,14 @@ import { z } from 'zod'
 const NoteIdSchema = z.string().min(1).max(128)
 const Base64Schema = z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/, 'Invalid Base64 string')
 
+const DeviceIdSchema = z.string().min(1).max(64)
+
 export const CrdtUpdatePushSchema = z.object({
   noteId: NoteIdSchema,
   updateData: Base64Schema,
-  sequenceNum: z.number().int().positive()
+  sequenceNum: z.number().int().positive(),
+  signature: Base64Schema,
+  signerDeviceId: DeviceIdSchema
 })
 
 export type CrdtUpdatePush = z.infer<typeof CrdtUpdatePushSchema>
@@ -42,6 +46,8 @@ export type PushCrdtUpdatesResponse = z.infer<typeof PushCrdtUpdatesResponseSche
 export const CrdtUpdateResponseSchema = z.object({
   sequenceNum: z.number().int().positive(),
   updateData: Base64Schema,
+  signature: Base64Schema,
+  signerDeviceId: DeviceIdSchema,
   createdAt: z.number().int().positive()
 })
 

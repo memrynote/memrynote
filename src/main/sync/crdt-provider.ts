@@ -68,6 +68,10 @@ interface NoteSyncTiming {
 
 export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   private static readonly CONFLICT_WINDOW_MS = 5000
+  private static readonly MAX_UPDATE_SIZE = 10 * 1024 * 1024 // 10MB limit
+  private static readonly MAX_LOADED_DOCS = 500
+  private static readonly EVICTION_THRESHOLD_MS = 10 * 60 * 1000 // 10 minutes
+  private static readonly EVICTION_CHECK_INTERVAL_MS = 60 * 1000 // 1 minute
 
   private docs: Map<string, DocEntry> = new Map()
   private docCreationLocks: Map<string, Promise<Y.Doc>> = new Map()
@@ -77,6 +81,7 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   private initialized = false
   private shuttingDown = false
   private syncBridge: CrdtSyncBridge | null = null
+  private evictionTimer: NodeJS.Timeout | null = null
 
   // T140k: External change tracking
   private externalChangeTimes: Map<string, number> = new Map()
@@ -104,6 +109,10 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
       }
     })()
     await this.dbReady
+
+    this.evictionTimer = setInterval(() => {
+      void this.evictInactiveDocs()
+    }, CrdtProvider.EVICTION_CHECK_INTERVAL_MS)
 
     this.initialized = true
     console.info('[CrdtProvider] Initialized at', this.dbPath)
@@ -218,6 +227,10 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     origin: string = 'remote',
     sourceWindowId?: number
   ): void {
+    if (update.length > CrdtProvider.MAX_UPDATE_SIZE) {
+      throw new Error(`CRDT update exceeds maximum size: ${update.length} bytes (limit: ${CrdtProvider.MAX_UPDATE_SIZE})`)
+    }
+
     const entry = this.docs.get(noteId)
     if (!entry) {
       console.warn('[CrdtProvider] Cannot apply update to unknown doc:', noteId)
@@ -404,6 +417,44 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     this.recentCrdtWrites.delete(noteId)
   }
 
+  private async evictInactiveDocs(): Promise<void> {
+    if (this.shuttingDown || this.docs.size <= CrdtProvider.MAX_LOADED_DOCS) {
+      return
+    }
+
+    const now = Date.now()
+    const candidates: Array<[string, number]> = []
+
+    for (const [noteId, entry] of this.docs) {
+      if (now - entry.lastActivity > CrdtProvider.EVICTION_THRESHOLD_MS) {
+        candidates.push([noteId, entry.lastActivity])
+      }
+    }
+
+    if (candidates.length === 0) {
+      return
+    }
+
+    candidates.sort((a, b) => a[1] - b[1])
+
+    const toEvict = Math.min(
+      candidates.length,
+      this.docs.size - CrdtProvider.MAX_LOADED_DOCS
+    )
+
+    console.info(`[CrdtProvider] Evicting ${toEvict} inactive documents`)
+
+    for (let i = 0; i < toEvict; i++) {
+      const [noteId] = candidates[i]
+      try {
+        await this.compactDoc(noteId)
+      } catch (error) {
+        console.warn('[CrdtProvider] Compact before eviction failed:', noteId, error)
+      }
+      this.destroyDoc(noteId)
+    }
+  }
+
   async clearDoc(noteId: string): Promise<void> {
     this.destroyDoc(noteId)
     const persistence = await this.waitForDb()
@@ -543,6 +594,11 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
 
     this.shuttingDown = true
 
+    if (this.evictionTimer) {
+      clearInterval(this.evictionTimer)
+      this.evictionTimer = null
+    }
+
     const flushPromises = Array.from(this.docs.keys()).map((noteId) =>
       this.persistence!.flushDocument(noteId).catch((error) => {
         console.warn('[CrdtProvider] Flush failed during shutdown:', noteId, error)
@@ -554,6 +610,10 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
       entry.doc.destroy()
     }
     this.docs.clear()
+    this.docCreationLocks.clear()
+    this.externalChangeTimes.clear()
+    this.syncTimings.clear()
+    this.recentCrdtWrites.clear()
 
     await this.persistence?.destroy()
     this.persistence = null

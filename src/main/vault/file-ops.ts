@@ -23,6 +23,24 @@ import { NoteError, NoteErrorCode } from '../lib/errors'
  * @param content - Content to write
  * @throws NoteError if write fails
  */
+// ============================================================================
+// Path Security
+// ============================================================================
+
+/**
+ * Validates that an absolute path is within the vault directory.
+ * Prevents path traversal attacks (e.g., ../../../etc/passwd).
+ *
+ * @param absolutePath - The path to validate
+ * @param vaultPath - The vault root directory
+ * @returns true if path is within vault, false otherwise
+ */
+export function isPathWithinVault(absolutePath: string, vaultPath: string): boolean {
+  const resolved = path.resolve(absolutePath)
+  const resolvedVault = path.resolve(vaultPath)
+  return resolved.startsWith(resolvedVault + path.sep) || resolved === resolvedVault
+}
+
 export async function atomicWrite(filePath: string, content: string): Promise<void> {
   const dir = path.dirname(filePath)
   const tempPath = path.join(dir, `.${randomBytes(6).toString('hex')}.tmp`)
