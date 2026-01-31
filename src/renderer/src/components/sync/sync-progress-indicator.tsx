@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { Loader2, CheckCircle } from 'lucide-react'
 import type { SyncProgressUpdateEvent } from '@shared/contracts/ipc-sync'
@@ -11,27 +11,61 @@ const PHASE_LABELS = {
   complete: 'Sync complete'
 } as const
 
+const COMPLETION_DISPLAY_DURATION_MS = 2000
+
+function isValidProgressEvent(event: unknown): event is SyncProgressUpdateEvent {
+  return (
+    typeof event === 'object' &&
+    event !== null &&
+    'phase' in event &&
+    typeof (event as SyncProgressUpdateEvent).phase === 'string' &&
+    'current' in event &&
+    typeof (event as SyncProgressUpdateEvent).current === 'number' &&
+    'total' in event &&
+    typeof (event as SyncProgressUpdateEvent).total === 'number'
+  )
+}
+
 export function SyncProgressIndicator({ className }: { className?: string }): JSX.Element | null {
   const [progress, setProgress] = useState<SyncProgressUpdateEvent | null>(null)
   const [visible, setVisible] = useState(false)
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const unsubscribe = window.api.onSyncProgressUpdate((event) => {
-      setProgress(event)
-      setVisible(true)
+      try {
+        if (!isValidProgressEvent(event)) {
+          console.warn('[SyncProgressIndicator] Invalid progress event:', event)
+          return
+        }
 
-      if (event.phase === 'complete') {
-        const timer = setTimeout(() => setVisible(false), 2000)
-        return () => clearTimeout(timer)
+        setProgress(event)
+        setVisible(true)
+
+        if (hideTimerRef.current) {
+          clearTimeout(hideTimerRef.current)
+          hideTimerRef.current = null
+        }
+
+        if (event.phase === 'complete') {
+          hideTimerRef.current = setTimeout(() => setVisible(false), COMPLETION_DISPLAY_DURATION_MS)
+        }
+      } catch (error) {
+        console.warn('[SyncProgressIndicator] Error handling progress event:', error)
       }
     })
-    return unsubscribe
+
+    return () => {
+      unsubscribe()
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current)
+      }
+    }
   }, [])
 
   if (!visible || !progress) return null
 
-  const percentage =
-    progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0
+  const percentage = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0
 
   return (
     <div className={cn('flex items-center gap-2 px-3 py-1.5 text-sm', className)}>
@@ -46,10 +80,7 @@ export function SyncProgressIndicator({ className }: { className?: string }): JS
       {progress.phase !== 'complete' && progress.total > 0 && (
         <>
           <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all"
-              style={{ width: `${percentage}%` }}
-            />
+            <div className="h-full bg-primary transition-all" style={{ width: `${percentage}%` }} />
           </div>
           <span className="text-xs text-muted-foreground tabular-nums">
             {progress.current}/{progress.total}
