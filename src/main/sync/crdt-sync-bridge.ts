@@ -445,7 +445,7 @@ export class CrdtSyncBridge {
       })
 
       const bytes = base64ToUint8Array(result.snapshotData)
-      this.crdtProvider.applyUpdate(noteId, bytes, 'remote')
+      this.crdtProvider.applySnapshot(noteId, bytes)
 
       const state = this.getSequenceState(noteId)
       state.serverSequence = result.sequenceNum
