@@ -9,8 +9,8 @@
  * @module sync/token-refresh
  */
 
-import { retrieveAuthTokens, storeAuthTokens } from '../crypto/keychain'
-import { getSyncApiClient } from './api-client'
+import { retrieveAuthTokens, storeAuthTokens, deleteAuthTokens } from '../crypto/keychain'
+import { getSyncApiClient, SyncApiError } from './api-client'
 
 const TOKEN_REFRESH_COOLDOWN_MS = 5_000
 const LOG_PREFIX = '[TokenRefresh]'
@@ -51,6 +51,17 @@ export async function refreshAccessToken(): Promise<boolean> {
       return true
     } catch (error) {
       console.warn(`${LOG_PREFIX} Token refresh failed`, error)
+
+      if (
+        error instanceof SyncApiError &&
+        (error.code === 'AUTH_REFRESH_TOKEN_INVALID' ||
+          error.code === 'AUTH_REFRESH_TOKEN_EXPIRED' ||
+          error.status === 401)
+      ) {
+        console.info(`${LOG_PREFIX} Refresh token permanently invalid, clearing stale tokens`)
+        await deleteAuthTokens().catch(() => {})
+      }
+
       return false
     }
   })()

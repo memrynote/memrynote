@@ -83,10 +83,7 @@ export async function safeWriteInVault(
   vaultPath: string
 ): Promise<void> {
   if (!isPathWithinVault(filePath, vaultPath)) {
-    throw new NoteError(
-      `Path traversal attempt blocked: ${filePath}`,
-      NoteErrorCode.INVALID_PATH
-    )
+    throw new NoteError(`Path traversal attempt blocked: ${filePath}`, NoteErrorCode.INVALID_PATH)
   }
   await atomicWrite(filePath, content)
 }

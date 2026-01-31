@@ -188,9 +188,7 @@ async function indexMarkdownFile(
       },
       { isNew: true }
     )
-    console.log(
-      `[Indexer] Indexed: ${relativePath}${result.date ? ` (journal: ${result.date})` : ''}`
-    )
+
     if (result.tags.length > 0) {
       ensureTagDefinitions(getDatabase(), result.tags)
     }
@@ -229,14 +227,7 @@ async function indexNonMarkdownFile(
     // Derive title from filename (without extension)
     const title = path.basename(absolutePath, path.extname(absolutePath))
 
-    // Sync to cache
-    console.log(`[Indexer] Syncing file to cache:`, {
-      id,
-      path: relativePath,
-      title,
-      fileType,
-      mimeType
-    })
+
     syncFileToCache(db, {
       id,
       path: relativePath,

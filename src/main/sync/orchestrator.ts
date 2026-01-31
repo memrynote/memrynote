@@ -11,7 +11,7 @@ import { initSyncQueue, getSyncQueue } from './queue'
 import { getNetworkMonitor } from './network'
 import { retrieveAuthTokens, retrieveKeyMaterial } from '../crypto/keychain'
 import { bootstrapSyncData } from './bootstrap'
-import { initAuthSyncBridge, handleSessionExpired } from './auth-bridge'
+import { initAuthSyncBridge, handleSessionExpired, getStoredUserId } from './auth-bridge'
 import { registerDecryptedItemListener } from '../ipc/sync-handlers'
 import { getCrdtProvider } from './crdt-provider'
 import { initializeCrdtSyncBridge, getCrdtSyncBridge } from './crdt-sync-bridge'
@@ -159,15 +159,19 @@ export async function initSyncSubsystem(): Promise<void> {
     console.info('[Sync] CRDT sync bridge initialized')
   }
 
-  // Pull remote changes on startup if possible
-  void runSync('startup', true)
-  void bootstrapSyncData()
-    .then((result) => {
-      console.info('[Sync] Bootstrap complete', result)
-    })
-    .catch((error) => {
-      console.warn('[Sync] Bootstrap failed:', error)
-    })
+  // Pull remote changes on startup only if session is valid
+  if (getStoredUserId()) {
+    void runSync('startup', true)
+    void bootstrapSyncData()
+      .then((result) => {
+        console.info('[Sync] Bootstrap complete', result)
+      })
+      .catch((error) => {
+        console.warn('[Sync] Bootstrap failed:', error)
+      })
+  } else {
+    console.info('[Sync] Startup sync skipped: no valid session')
+  }
 
   // Sync CRDT documents on startup
   const crdtBridge = getCrdtSyncBridge()

@@ -293,7 +293,9 @@ describe('CrdtProvider', () => {
 
       // #when - check if external source sees conflict with remote
       const detectConflict = (
-        provider as unknown as { detectConflict: (noteId: string, source: 'external' | 'remote') => boolean }
+        provider as unknown as {
+          detectConflict: (noteId: string, source: 'external' | 'remote') => boolean
+        }
       ).detectConflict.bind(provider)
 
       // #then - external source should detect conflict because remote was just updated
@@ -306,7 +308,9 @@ describe('CrdtProvider', () => {
 
       // #when - no updates recorded, detectConflict should return false
       const detectConflict = (
-        provider as unknown as { detectConflict: (noteId: string, source: 'external' | 'remote') => boolean }
+        provider as unknown as {
+          detectConflict: (noteId: string, source: 'external' | 'remote') => boolean
+        }
       ).detectConflict.bind(provider)
 
       // #then

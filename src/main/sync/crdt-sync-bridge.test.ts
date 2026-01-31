@@ -236,13 +236,14 @@ describe('CrdtSyncBridge', () => {
       vi.mocked(getNotesByIds).mockResolvedValueOnce([note])
 
       // Access private method via type assertion
-      const flushUpdates = (
-        bridge as unknown as {
-          flushUpdates: () => Promise<void>
-          pendingUpdates: Map<string, Array<{ noteId: string; update: Uint8Array; timestamp: number }>>
-          syncedNotes: Set<string>
-        }
-      )
+      const flushUpdates = bridge as unknown as {
+        flushUpdates: () => Promise<void>
+        pendingUpdates: Map<
+          string,
+          Array<{ noteId: string; update: Uint8Array; timestamp: number }>
+        >
+        syncedNotes: Set<string>
+      }
 
       // Add pending update
       flushUpdates.pendingUpdates.set('test-note', [

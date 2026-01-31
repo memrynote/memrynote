@@ -164,14 +164,13 @@ export async function triggerPostSetupSync(): Promise<void> {
 export async function initAuthSyncBridge(): Promise<void> {
   if (initialized) return
 
-  try {
-    const tokens = await retrieveAuthTokens()
-    if (tokens?.userId) {
-      lastKnownUserId = tokens.userId
-      console.info(`${LOG_PREFIX} Loaded last known user ID:`, lastKnownUserId)
-    }
-  } catch (error) {
-    console.warn(`${LOG_PREFIX} Failed to load last known user ID:`, error)
+  const tokens = await retrieveAuthTokens()
+  if (tokens?.userId) {
+    lastKnownUserId = tokens.userId
+    console.info(`${LOG_PREFIX} Found stored session for user:`, lastKnownUserId)
+  } else {
+    lastKnownUserId = null
+    console.info(`${LOG_PREFIX} No stored session`)
   }
 
   const engine = getSyncEngine()
