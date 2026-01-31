@@ -68,6 +68,29 @@ export async function atomicWrite(filePath: string, content: string): Promise<vo
   }
 }
 
+/**
+ * Write content to a file atomically, with path traversal protection.
+ * Use this for any write operation where the path could be influenced by external data.
+ *
+ * @param filePath - Absolute path to the target file
+ * @param content - Content to write
+ * @param vaultPath - The vault root directory for validation
+ * @throws NoteError if path is outside vault or write fails
+ */
+export async function safeWriteInVault(
+  filePath: string,
+  content: string,
+  vaultPath: string
+): Promise<void> {
+  if (!isPathWithinVault(filePath, vaultPath)) {
+    throw new NoteError(
+      `Path traversal attempt blocked: ${filePath}`,
+      NoteErrorCode.INVALID_PATH
+    )
+  }
+  await atomicWrite(filePath, content)
+}
+
 // ============================================================================
 // Safe Read
 // ============================================================================

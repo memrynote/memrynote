@@ -72,6 +72,8 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   private static readonly MAX_LOADED_DOCS = 500
   private static readonly EVICTION_THRESHOLD_MS = 10 * 60 * 1000 // 10 minutes
   private static readonly EVICTION_CHECK_INTERVAL_MS = 60 * 1000 // 1 minute
+  private static readonly PROACTIVE_GC_THRESHOLD = 512 * 1024 // 512KB
+  private static readonly PROACTIVE_GC_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
   private docs: Map<string, DocEntry> = new Map()
   private docCreationLocks: Map<string, Promise<Y.Doc>> = new Map()
@@ -82,6 +84,7 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
   private shuttingDown = false
   private syncBridge: CrdtSyncBridge | null = null
   private evictionTimer: NodeJS.Timeout | null = null
+  private proactiveGcTimer: NodeJS.Timeout | null = null
 
   // T140k: External change tracking
   private externalChangeTimes: Map<string, number> = new Map()
@@ -113,6 +116,10 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     this.evictionTimer = setInterval(() => {
       void this.evictInactiveDocs()
     }, CrdtProvider.EVICTION_CHECK_INTERVAL_MS)
+
+    this.proactiveGcTimer = setInterval(() => {
+      void this.runProactiveGc()
+    }, CrdtProvider.PROACTIVE_GC_INTERVAL_MS)
 
     this.initialized = true
     console.info('[CrdtProvider] Initialized at', this.dbPath)
@@ -325,6 +332,31 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     const entry = this.docs.get(noteId)
     if (!entry) return false
     return entry.lastSize > GC_SIZE_THRESHOLD
+  }
+
+
+  private async runProactiveGc(): Promise<void> {
+    if (this.shuttingDown) return
+
+    const candidates: string[] = []
+    for (const [noteId, entry] of this.docs) {
+      if (entry.lastSize > CrdtProvider.PROACTIVE_GC_THRESHOLD) {
+        candidates.push(noteId)
+      }
+    }
+
+    if (candidates.length === 0) return
+
+    console.info(`[CrdtProvider] Proactive GC: ${candidates.length} documents over threshold`)
+
+    for (const noteId of candidates) {
+      if (this.shuttingDown) break
+      try {
+        await this.garbageCollectDoc(noteId)
+      } catch (error) {
+        console.warn('[CrdtProvider] Proactive GC failed for:', noteId, error)
+      }
+    }
   }
 
 
@@ -597,6 +629,11 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     if (this.evictionTimer) {
       clearInterval(this.evictionTimer)
       this.evictionTimer = null
+    }
+
+    if (this.proactiveGcTimer) {
+      clearInterval(this.proactiveGcTimer)
+      this.proactiveGcTimer = null
     }
 
     const flushPromises = Array.from(this.docs.keys()).map((noteId) =>

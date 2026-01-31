@@ -140,7 +140,7 @@ import { syncNoteToCache, deleteNoteFromCache } from '../vault/note-sync'
 import { flushFtsUpdates } from '../database/fts-queue'
 import { parseNote, serializeNote } from '../vault/frontmatter'
 import type { NoteFrontmatter } from '../vault/frontmatter'
-import { atomicWrite, ensureDirectory, deleteFile } from '../vault/file-ops'
+import { safeWriteInVault, ensureDirectory, deleteFile } from '../vault/file-ops'
 import { getJournalPath, serializeJournalEntry, deleteJournalEntryFile } from '../vault/journal'
 import type { JournalFrontmatter } from '../vault/journal'
 import { getCrdtSyncBridge } from '../sync/crdt-sync-bridge'
@@ -438,7 +438,7 @@ async function createOrUpdateNoteFromSync(
   }
 
   const fileContent = serializeNote(frontmatter, '')
-  await atomicWrite(absolutePath, fileContent)
+  await safeWriteInVault(absolutePath, fileContent, getVaultPath())
 
   syncNoteToCache(
     db,
@@ -487,7 +487,7 @@ async function createOrUpdateJournalFromSync(
   }
 
   const fileContent = serializeJournalEntry(frontmatter, '')
-  await atomicWrite(filePath, fileContent)
+  await safeWriteInVault(filePath, fileContent, getVaultPath())
 
   const config = getVaultConfig()
   const relativePath = path.join(config.journalFolder, `${payload.date}.md`)
@@ -525,7 +525,7 @@ async function resyncNoteContentFromCrdt(noteId: string): Promise<void> {
   const parsed = parseNote(currentFile, cached.path)
 
   const newFileContent = serializeNote(parsed.frontmatter, content)
-  await atomicWrite(absolutePath, newFileContent)
+  await safeWriteInVault(absolutePath, newFileContent, getVaultPath())
 
   syncNoteToCache(
     db,
