@@ -9,10 +9,8 @@
 import { initSyncEngine, getSyncEngine } from './engine'
 import { initSyncQueue, getSyncQueue } from './queue'
 import { getNetworkMonitor } from './network'
-import { retrieveAuthTokens, retrieveKeyMaterial } from '../crypto/keychain'
 import { bootstrapSyncData } from './bootstrap'
-import { initAuthSyncBridge, handleSessionExpired } from './auth-bridge'
-import { isSyncAuthReady } from './auth-state'
+import { ensureSyncAuthReady, initAuthSyncBridge, handleSessionExpired } from './auth-bridge'
 import { registerDecryptedItemListener } from '../ipc/sync-handlers'
 import { getCrdtProvider } from './crdt-provider'
 import { initializeCrdtSyncBridge, getCrdtSyncBridge } from './crdt-sync-bridge'
@@ -40,18 +38,9 @@ async function canSync(): Promise<{ ok: boolean; reason?: string }> {
     return { ok: false, reason: 'offline' }
   }
 
-  try {
-    const [tokens, keyMaterial] = await Promise.all([retrieveAuthTokens(), retrieveKeyMaterial()])
-
-    if (!tokens?.accessToken) {
-      return { ok: false, reason: 'missing-auth-token' }
-    }
-
-    if (!keyMaterial?.masterKey) {
-      return { ok: false, reason: 'missing-key-material' }
-    }
-  } catch {
-    return { ok: false, reason: 'auth-check-failed' }
+  const authReady = await ensureSyncAuthReady()
+  if (!authReady) {
+    return { ok: false, reason: 'auth-not-ready' }
   }
 
   return { ok: true }
@@ -161,7 +150,8 @@ export async function initSyncSubsystem(): Promise<void> {
   }
 
   // Sync on startup only if session is valid
-  if (isSyncAuthReady()) {
+  const authReady = await ensureSyncAuthReady()
+  if (authReady) {
     // Bootstrap local data first (pushes existing content), then sync
     void (async () => {
       try {

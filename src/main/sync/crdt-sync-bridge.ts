@@ -387,16 +387,16 @@ export class CrdtSyncBridge {
     }
 
     const state = this.getSequenceState(noteId)
+    const sequenceNum = Math.max(state.localSequence, state.serverSequence, 1)
+    if (sequenceNum !== state.localSequence) {
+      state.localSequence = sequenceNum
+      this.sequenceState.set(noteId, state)
+    }
     const client = getSyncApiClient()
 
     try {
       const result = await this.withAuthRefresh(() =>
-        client.pushCrdtSnapshot(
-          noteId,
-          uint8ArrayToBase64(snapshot),
-          state.localSequence,
-          snapshot.length
-        )
+        client.pushCrdtSnapshot(noteId, uint8ArrayToBase64(snapshot), sequenceNum, snapshot.length)
       )
 
       state.serverSequence = result.sequenceNum

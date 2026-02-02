@@ -94,8 +94,9 @@ export async function queueLocalChangesSinceLastSync(): Promise<LocalChangeQueue
     }
   }
 
-  if (!lastSyncAt) {
-    console.info(`${LOG_PREFIX} No last sync timestamp; only queuing items missing clocks`)
+  const shouldQueueAll = !lastSyncAt
+  if (shouldQueueAll) {
+    console.info(`${LOG_PREFIX} No last sync timestamp; queuing all local items`)
   }
 
   const queue = getSyncQueue()
@@ -111,7 +112,11 @@ export async function queueLocalChangesSinceLastSync(): Promise<LocalChangeQueue
 
     const currentClock = parseClock(task.clock)
     const clockMissing = !hasClock(currentClock)
-    if (!clockMissing && !wasModifiedAfter(lastSyncAt, task.modifiedAt, task.createdAt)) {
+    if (
+      !shouldQueueAll &&
+      !clockMissing &&
+      !wasModifiedAfter(lastSyncAt, task.modifiedAt, task.createdAt)
+    ) {
       continue
     }
 
@@ -127,7 +132,7 @@ export async function queueLocalChangesSinceLastSync(): Promise<LocalChangeQueue
     }
 
     const payload = { ...task, clock: JSON.stringify(nextClock) }
-    const operation: SyncOperation = clockMissing ? 'create' : 'update'
+    const operation: SyncOperation = shouldQueueAll || clockMissing ? 'create' : 'update'
     try {
       await queue.add('task', task.id, operation, JSON.stringify(payload), 0)
       tasksQueued += 1
@@ -142,7 +147,11 @@ export async function queueLocalChangesSinceLastSync(): Promise<LocalChangeQueue
 
     const currentClock = parseClock(item.clock)
     const clockMissing = !hasClock(currentClock)
-    if (!clockMissing && !wasModifiedAfter(lastSyncAt, item.modifiedAt, item.createdAt)) {
+    if (
+      !shouldQueueAll &&
+      !clockMissing &&
+      !wasModifiedAfter(lastSyncAt, item.modifiedAt, item.createdAt)
+    ) {
       continue
     }
 
@@ -155,7 +164,7 @@ export async function queueLocalChangesSinceLastSync(): Promise<LocalChangeQueue
     }
 
     const payload = { ...item, clock: nextClock }
-    const operation: SyncOperation = clockMissing ? 'create' : 'update'
+    const operation: SyncOperation = shouldQueueAll || clockMissing ? 'create' : 'update'
     try {
       await queue.add('inbox', item.id, operation, JSON.stringify(payload), 0)
       inboxQueued += 1
@@ -170,7 +179,11 @@ export async function queueLocalChangesSinceLastSync(): Promise<LocalChangeQueue
 
     const currentClock = parseClock(filter.clock)
     const clockMissing = !hasClock(currentClock)
-    if (!clockMissing && !wasModifiedAfter(lastSyncAt, filter.createdAt, filter.createdAt)) {
+    if (
+      !shouldQueueAll &&
+      !clockMissing &&
+      !wasModifiedAfter(lastSyncAt, filter.createdAt, filter.createdAt)
+    ) {
       continue
     }
 
@@ -183,7 +196,7 @@ export async function queueLocalChangesSinceLastSync(): Promise<LocalChangeQueue
     }
 
     const payload = { ...filter, clock: nextClock }
-    const operation: SyncOperation = clockMissing ? 'create' : 'update'
+    const operation: SyncOperation = shouldQueueAll || clockMissing ? 'create' : 'update'
     try {
       await queue.add('filter', filter.id, operation, JSON.stringify(payload), 0)
       filtersQueued += 1

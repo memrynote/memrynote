@@ -22,6 +22,7 @@ import { safeRead } from '../vault/file-ops'
 import { toAbsolutePath } from '../vault/notes'
 import { readJournalEntry } from '../vault/journal'
 import { getNetworkMonitor } from './network'
+import { isSyncAuthReady } from './auth-state'
 
 const BOOTSTRAP_KEY = 'sync.bootstrap.v1'
 const CRDT_SEED_KEY = 'sync.crdt.seed.v1'
@@ -238,6 +239,8 @@ export async function bootstrapSyncData(): Promise<BootstrapResult> {
       const docNames = await crdtProvider.getAllDocNames()
       if (docNames.length === 0) {
         didBootstrapCrdt = true
+      } else if (!isSyncAuthReady()) {
+        console.info('[SyncBootstrap] CRDT bootstrap deferred: auth not ready')
       } else if (getNetworkMonitor().isOnline()) {
         const crdtBridge = getCrdtSyncBridge()
         if (crdtBridge) {
