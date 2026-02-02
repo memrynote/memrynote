@@ -544,40 +544,65 @@ async function resyncNoteContentFromCrdt(noteId: string): Promise<void> {
   const doc = await crdtProvider.getOrCreateDoc(noteId)
   const yText = doc.getText('content')
   const content = yText.toString()
-  if (!content) return
+  const fragment = doc.getXmlFragment('document-store')
+
+  if (!content && fragment.length === 0) {
+    return
+  }
 
   const absolutePath = toAbsolutePath(cached.path)
   const currentFile = await fs.readFile(absolutePath, 'utf-8')
   const parsed = parseNote(currentFile, cached.path)
 
-  const newFileContent = serializeNote(parsed.frontmatter, content, { updateModified: false })
-  crdtProvider.markCrdtWrite(noteId)
-  await safeWriteInVault(absolutePath, newFileContent, getVaultPath())
+  if (content) {
+    const newFileContent = serializeNote(parsed.frontmatter, content, { updateModified: false })
+    crdtProvider.markCrdtWrite(noteId)
+    await safeWriteInVault(absolutePath, newFileContent, getVaultPath())
 
-  syncNoteToCache(
-    db,
-    {
-      id: noteId,
-      path: cached.path,
-      fileContent: newFileContent,
-      frontmatter: parsed.frontmatter,
-      parsedContent: content
-    },
-    {
-      isNew: false,
-      skipFts: false,
-      skipLinks: false,
-      onIndexed: incrementIndexedItems
-    }
-  )
+    syncNoteToCache(
+      db,
+      {
+        id: noteId,
+        path: cached.path,
+        fileContent: newFileContent,
+        frontmatter: parsed.frontmatter,
+        parsedContent: content
+      },
+      {
+        isNew: false,
+        skipFts: false,
+        skipLinks: false,
+        onIndexed: incrementIndexedItems
+      }
+    )
+  }
 }
 
-async function syncNoteContentFromCrdt(noteId: string): Promise<void> {
+const CRDT_PULL_RETRY_DELAYS_MS = [1000, 3000, 6000]
+const CRDT_PULL_MAX_RETRIES = CRDT_PULL_RETRY_DELAYS_MS.length
+
+async function syncNoteContentFromCrdt(noteId: string, attempt = 0): Promise<void> {
   const crdtBridge = getCrdtSyncBridge()
-  if (!crdtBridge) return
+  const crdtProvider = getCrdtProvider()
+  if (!crdtBridge || !crdtProvider) return
 
   await crdtBridge.pullSnapshotForNote(noteId)
   await crdtBridge.pullUpdatesForNote(noteId)
+  const doc = await crdtProvider.getOrCreateDoc(noteId)
+  const hasContent =
+    doc.getText('content').toString().length > 0 ||
+    doc.getXmlFragment('document-store').length > 0
+
+  if (!hasContent) {
+    if (attempt < CRDT_PULL_MAX_RETRIES) {
+      const delay = CRDT_PULL_RETRY_DELAYS_MS[attempt] ?? CRDT_PULL_RETRY_DELAYS_MS.at(-1) ?? 1000
+      setTimeout(() => {
+        void syncNoteContentFromCrdt(noteId, attempt + 1)
+      }, delay)
+    }
+    return
+  }
+
   await resyncNoteContentFromCrdt(noteId)
 }
 
@@ -1930,6 +1955,12 @@ export function registerSyncHandlers(): void {
         const provider = getCrdtProvider()
         if (!provider) {
           throw new Error('CrdtProvider not initialized')
+        }
+
+        const crdtBridge = getCrdtSyncBridge()
+        if (crdtBridge) {
+          await crdtBridge.pullSnapshotForNote(noteId)
+          await crdtBridge.pullUpdatesForNote(noteId)
         }
 
         try {

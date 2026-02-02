@@ -11,6 +11,7 @@ import { z } from 'zod'
 
 const NoteIdSchema = z.string().min(1).max(128)
 const Base64Schema = z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/, 'Invalid Base64 string')
+const DeviceIdSchema = z.string().min(1).max(64)
 
 const MAX_SNAPSHOT_BASE64_SIZE = 10 * 1024 * 1024
 
@@ -21,7 +22,9 @@ const MAX_SNAPSHOT_BASE64_SIZE = 10 * 1024 * 1024
 export const CrdtUpdateSchema = z.object({
   noteId: NoteIdSchema,
   updateData: Base64Schema,
-  sequenceNum: z.number().int().positive()
+  sequenceNum: z.number().int().positive(),
+  signature: Base64Schema,
+  signerDeviceId: DeviceIdSchema
 })
 
 export type CrdtUpdate = z.infer<typeof CrdtUpdateSchema>
@@ -66,6 +69,8 @@ export type GetCrdtUpdatesQuery = z.infer<typeof GetCrdtUpdatesQuerySchema>
 export const CrdtUpdateResponseSchema = z.object({
   sequenceNum: z.number().int().positive(),
   updateData: Base64Schema,
+  signature: Base64Schema,
+  signerDeviceId: DeviceIdSchema,
   createdAt: z.number().int().positive()
 })
 
