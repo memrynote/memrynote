@@ -101,12 +101,16 @@ export const buildSnapshotMetadata = (
 // Database Row Types
 // =============================================================================
 
+type SnapshotBlob = ArrayBuffer | ArrayBufferView | number[] | string
+
 interface CrdtUpdateRow {
   id: string
   user_id: string
   note_id: string
-  update_data: ArrayBuffer
+  update_data: ArrayBuffer | ArrayBufferView | number[]
   sequence_num: number
+  signer_device_id: string
+  signature: ArrayBuffer | ArrayBufferView | number[]
   created_at: number
 }
 
@@ -114,7 +118,7 @@ interface CrdtSnapshotRow {
   id: string
   user_id: string
   note_id: string
-  snapshot_data: ArrayBuffer
+  snapshot_data: SnapshotBlob
   sequence_num: number
   size_bytes: number
   created_at: number
@@ -129,9 +133,27 @@ interface SyncItemOwnershipRow {
 // =============================================================================
 
 const R2_PREFIX = 'r2:'
+const R2_PREFIX_BYTES = [0x72, 0x32, 0x3a]
 
-export const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
-  const bytes = new Uint8Array(buffer)
+const toUint8Array = (data: ArrayBuffer | ArrayBufferView | number[]): Uint8Array => {
+  if (data instanceof Uint8Array) return data
+  if (data instanceof ArrayBuffer) return new Uint8Array(data)
+  if (ArrayBuffer.isView(data)) {
+    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+  }
+  return Uint8Array.from(data)
+}
+
+const bytesToAsciiString = (bytes: Uint8Array): string => {
+  let text = ''
+  for (let i = 0; i < bytes.length; i++) {
+    text += String.fromCharCode(bytes[i])
+  }
+  return text
+}
+
+export const arrayBufferToBase64 = (buffer: ArrayBuffer | ArrayBufferView | number[]): string => {
+  const bytes = toUint8Array(buffer)
   let binary = ''
   for (let i = 0; i < bytes.byteLength; i++) {
     binary += String.fromCharCode(bytes[i])
@@ -150,21 +172,35 @@ export const base64ToUint8Array = (base64: string): Uint8Array => {
 
 const generateId = (): string => crypto.randomUUID()
 
-const isR2Reference = (data: ArrayBuffer): boolean => {
-  const decoder = new TextDecoder()
-  const text = decoder.decode(data)
-  return text.startsWith(R2_PREFIX)
+const isR2Reference = (data: SnapshotBlob): boolean => {
+  if (typeof data === 'string') {
+    return data.startsWith(R2_PREFIX)
+  }
+  const bytes = toUint8Array(data)
+  if (bytes.length < R2_PREFIX_BYTES.length) {
+    return false
+  }
+  return (
+    bytes[0] === R2_PREFIX_BYTES[0] &&
+    bytes[1] === R2_PREFIX_BYTES[1] &&
+    bytes[2] === R2_PREFIX_BYTES[2]
+  )
 }
 
-const getR2KeyFromReference = (data: ArrayBuffer): string => {
-  const decoder = new TextDecoder()
-  const text = decoder.decode(data)
-  return text.slice(R2_PREFIX.length)
+const getR2KeyFromReference = (data: SnapshotBlob): string => {
+  if (typeof data === 'string') {
+    return data.slice(R2_PREFIX.length)
+  }
+  const bytes = toUint8Array(data)
+  if (bytes.length <= R2_PREFIX.length) {
+    return ''
+  }
+  return bytesToAsciiString(bytes.subarray(R2_PREFIX.length))
 }
 
-const createR2Reference = (key: string): ArrayBuffer => {
+const createR2Reference = (key: string): Uint8Array => {
   const encoder = new TextEncoder()
-  return encoder.encode(`${R2_PREFIX}${key}`).buffer as ArrayBuffer
+  return encoder.encode(`${R2_PREFIX}${key}`)
 }
 
 // =============================================================================
@@ -245,11 +281,20 @@ export const storeCrdtUpdates = async (
     try {
       await db
         .prepare(
-          `INSERT INTO crdt_updates (id, user_id, note_id, update_data, sequence_num, created_at)
-           VALUES (?, ?, ?, ?, ?, ?)
+          `INSERT INTO crdt_updates (id, user_id, note_id, update_data, sequence_num, signer_device_id, signature, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (user_id, note_id, sequence_num) DO NOTHING`
         )
-        .bind(id, userId, update.noteId, updateData, update.sequenceNum, now)
+        .bind(
+          id,
+          userId,
+          update.noteId,
+          updateData,
+          update.sequenceNum,
+          update.signerDeviceId,
+          base64ToUint8Array(update.signature),
+          now
+        )
         .run()
 
       accepted.push({ noteId: update.noteId, sequenceNum: update.sequenceNum })
@@ -274,19 +319,26 @@ export const getCrdtUpdates = async (
 ): Promise<GetCrdtUpdatesResponse> => {
   const rows = await db
     .prepare(
-      `SELECT update_data, sequence_num, created_at
+      `SELECT update_data, sequence_num, signer_device_id, signature, created_at
        FROM crdt_updates
        WHERE user_id = ? AND note_id = ? AND sequence_num > ?
        ORDER BY sequence_num ASC
        LIMIT ?`
     )
     .bind(userId, noteId, sinceSequence, limit + 1)
-    .all<Pick<CrdtUpdateRow, 'update_data' | 'sequence_num' | 'created_at'>>()
+    .all<
+      Pick<
+        CrdtUpdateRow,
+        'update_data' | 'sequence_num' | 'signer_device_id' | 'signature' | 'created_at'
+      >
+    >()
 
   const hasMore = rows.results.length > limit
   const updates: CrdtUpdateResponse[] = rows.results.slice(0, limit).map((row) => ({
     sequenceNum: row.sequence_num,
     updateData: arrayBufferToBase64(row.update_data),
+    signature: arrayBufferToBase64(row.signature),
+    signerDeviceId: row.signer_device_id,
     createdAt: row.created_at
   }))
 
@@ -334,7 +386,7 @@ export const storeCrdtSnapshot = async (
   const now = Date.now()
   const useR2 = shouldUseR2Storage(sizeBytes)
   let storageType: 'd1' | 'r2' = 'd1'
-  let dataToStore: ArrayBuffer
+  let dataToStore: Uint8Array
 
   if (useR2) {
     const r2Key = R2_CRDT_PATHS.snapshot(userId, noteId)
@@ -353,7 +405,7 @@ export const storeCrdtSnapshot = async (
     dataToStore = createR2Reference(r2Key)
     storageType = 'r2'
   } else {
-    dataToStore = base64ToUint8Array(snapshotData).buffer as ArrayBuffer
+    dataToStore = base64ToUint8Array(snapshotData)
   }
 
   const id = generateId()
@@ -428,7 +480,11 @@ export const getCrdtSnapshot = async (
     const arrayBuffer = await r2Object.arrayBuffer()
     snapshotData = arrayBufferToBase64(arrayBuffer)
   } else {
-    snapshotData = arrayBufferToBase64(row.snapshot_data)
+    if (typeof row.snapshot_data === 'string') {
+      snapshotData = row.snapshot_data
+    } else {
+      snapshotData = arrayBufferToBase64(row.snapshot_data)
+    }
   }
 
   return {

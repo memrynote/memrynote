@@ -168,6 +168,8 @@ CREATE TABLE IF NOT EXISTS crdt_updates (
   note_id TEXT NOT NULL,
   update_data BLOB NOT NULL,
   sequence_num INTEGER NOT NULL,
+  signer_device_id TEXT NOT NULL REFERENCES devices(id),
+  signature BLOB NOT NULL,
   created_at INTEGER NOT NULL,
   UNIQUE(user_id, note_id, sequence_num)
 );
