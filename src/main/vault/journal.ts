@@ -147,12 +147,18 @@ export function parseJournalEntry(rawContent: string, date: string): ParsedJourn
  * @param content - Markdown content (without frontmatter)
  * @returns Complete markdown file content with YAML frontmatter
  */
-export function serializeJournalEntry(frontmatter: JournalFrontmatter, content: string): string {
-  // Update modified timestamp
-  const updatedFrontmatter = {
-    ...frontmatter,
-    modified: new Date().toISOString()
-  }
+export function serializeJournalEntry(
+  frontmatter: JournalFrontmatter,
+  content: string,
+  options?: { updateModified?: boolean }
+): string {
+  const shouldUpdateModified = options?.updateModified !== false
+  const updatedFrontmatter = shouldUpdateModified
+    ? {
+        ...frontmatter,
+        modified: new Date().toISOString()
+      }
+    : { ...frontmatter }
 
   return matter.stringify(content.trim(), updatedFrontmatter)
 }

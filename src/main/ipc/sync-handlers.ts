@@ -463,7 +463,7 @@ async function createOrUpdateNoteFromSync(
       payload.properties
   }
 
-  const fileContent = serializeNote(frontmatter, '')
+  const fileContent = serializeNote(frontmatter, '', { updateModified: false })
   await safeWriteInVault(absolutePath, fileContent, getVaultPath())
 
   syncNoteToCache(
@@ -512,7 +512,7 @@ async function createOrUpdateJournalFromSync(
       payload.properties
   }
 
-  const fileContent = serializeJournalEntry(frontmatter, '')
+  const fileContent = serializeJournalEntry(frontmatter, '', { updateModified: false })
   await safeWriteInVault(filePath, fileContent, getVaultPath())
 
   const config = getVaultConfig()
@@ -550,7 +550,8 @@ async function resyncNoteContentFromCrdt(noteId: string): Promise<void> {
   const currentFile = await fs.readFile(absolutePath, 'utf-8')
   const parsed = parseNote(currentFile, cached.path)
 
-  const newFileContent = serializeNote(parsed.frontmatter, content)
+  const newFileContent = serializeNote(parsed.frontmatter, content, { updateModified: false })
+  crdtProvider.markCrdtWrite(noteId)
   await safeWriteInVault(absolutePath, newFileContent, getVaultPath())
 
   syncNoteToCache(
@@ -569,6 +570,15 @@ async function resyncNoteContentFromCrdt(noteId: string): Promise<void> {
       onIndexed: incrementIndexedItems
     }
   )
+}
+
+async function syncNoteContentFromCrdt(noteId: string): Promise<void> {
+  const crdtBridge = getCrdtSyncBridge()
+  if (!crdtBridge) return
+
+  await crdtBridge.pullSnapshotForNote(noteId)
+  await crdtBridge.pullUpdatesForNote(noteId)
+  await resyncNoteContentFromCrdt(noteId)
 }
 
 async function deleteNoteFromSync(noteId: string): Promise<void> {
@@ -729,13 +739,7 @@ async function handleDecryptedSyncItem(item: DecryptedSyncItem): Promise<void> {
 
       const result = await createOrUpdateNoteFromSync(payload)
 
-      const crdtBridge = getCrdtSyncBridge()
-      if (crdtBridge) {
-        const pulled = await crdtBridge.pullSnapshotForNote(payload.id)
-        if (pulled) {
-          await resyncNoteContentFromCrdt(payload.id)
-        }
-      }
+      await syncNoteContentFromCrdt(payload.id)
 
       emitSyncEvent(result.isNew ? NotesChannels.events.CREATED : NotesChannels.events.UPDATED, {
         id: payload.id,
@@ -779,13 +783,7 @@ async function handleDecryptedSyncItem(item: DecryptedSyncItem): Promise<void> {
 
       const result = await createOrUpdateJournalFromSync(payload)
 
-      const crdtBridge = getCrdtSyncBridge()
-      if (crdtBridge) {
-        const pulled = await crdtBridge.pullSnapshotForNote(payload.id)
-        if (pulled) {
-          await resyncNoteContentFromCrdt(payload.id)
-        }
-      }
+      await syncNoteContentFromCrdt(payload.id)
 
       emitSyncEvent(
         result.isNew ? JournalChannels.events.ENTRY_CREATED : JournalChannels.events.ENTRY_UPDATED,

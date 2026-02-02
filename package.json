@@ -13,6 +13,8 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
+    "dev:deviceA": "MEMRY_USER_DATA_DIR=/tmp/memry-device-A electron-vite dev",
+    "dev:deviceB": "MEMRY_USER_DATA_DIR=/tmp/memry-device-B ELECTRON_RENDERER_URL=${ELECTRON_RENDERER_URL:-http://localhost:5173} electron .",
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "rebuild": "npx @electron/rebuild -f -o better-sqlite3",
