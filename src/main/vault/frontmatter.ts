@@ -125,12 +125,18 @@ function stripTrailingNewlines(value: string): string {
  * @param content - Markdown content (without frontmatter)
  * @returns Complete markdown file content with YAML frontmatter
  */
-export function serializeNote(frontmatter: NoteFrontmatter, content: string): string {
-  // Update modified timestamp
-  const updatedFrontmatter = {
-    ...frontmatter,
-    modified: new Date().toISOString()
-  }
+export function serializeNote(
+  frontmatter: NoteFrontmatter,
+  content: string,
+  options?: { updateModified?: boolean }
+): string {
+  const shouldUpdateModified = options?.updateModified !== false
+  const updatedFrontmatter = shouldUpdateModified
+    ? {
+        ...frontmatter,
+        modified: new Date().toISOString()
+      }
+    : { ...frontmatter }
 
   const serialized = matter.stringify(content.trim(), updatedFrontmatter)
   return stripTrailingNewlines(serialized)

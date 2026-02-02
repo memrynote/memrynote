@@ -12,7 +12,7 @@ import {
   Menu,
   MenuItem
 } from 'electron'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import { homedir } from 'node:os'
 import { existsSync, readdirSync } from 'node:fs'
 import { config } from 'dotenv'
@@ -32,6 +32,34 @@ const envResult = config({ path: envPath })
 if (envResult.error) {
   // Try loading from current working directory as fallback
   config()
+}
+
+function resolveUserDataOverride(): string | null {
+  const envOverride = process.env.MEMRY_USER_DATA_DIR?.trim()
+  if (envOverride) {
+    return envOverride
+  }
+
+  const flagWithValue = process.argv.find((arg) => arg.startsWith('--user-data-dir='))
+  if (flagWithValue) {
+    const [, value] = flagWithValue.split('=')
+    return value?.trim() ?? null
+  }
+
+  const flagIndex = process.argv.indexOf('--user-data-dir')
+  if (flagIndex !== -1) {
+    const value = process.argv[flagIndex + 1]
+    return value?.trim() ?? null
+  }
+
+  return null
+}
+
+const userDataOverride = resolveUserDataOverride()
+if (userDataOverride) {
+  const resolvedPath = resolve(userDataOverride)
+  app.setPath('userData', resolvedPath)
+  console.log(`[Config] userData override: ${resolvedPath}`)
 }
 
 // Register custom protocol as privileged before app is ready

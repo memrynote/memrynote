@@ -132,6 +132,10 @@ export class CrdtSyncBridge {
           path: note.path,
           created: note.created.toISOString(),
           modified: note.modified.toISOString(),
+          tags: note.tags,
+          aliases: note.aliases,
+          emoji: note.emoji ?? null,
+          properties: note.properties ?? {},
           clock
         }
         await queue.add('note', itemId, 'create', JSON.stringify(payload), 10)
@@ -424,6 +428,8 @@ export class CrdtSyncBridge {
     const client = getSyncApiClient()
 
     try {
+      await this.crdtProvider.getOrCreateDoc(noteId)
+
       const result = await this.withAuthRefresh(() =>
         client.pullCrdtUpdates(noteId, state.serverSequence)
       )
@@ -476,6 +482,8 @@ export class CrdtSyncBridge {
     const client = getSyncApiClient()
 
     try {
+      await this.crdtProvider.getOrCreateDoc(noteId)
+
       const result = await this.withAuthRefresh(() => client.pullCrdtSnapshot(noteId))
 
       if (!result.exists || !result.snapshotData) {
