@@ -16,11 +16,16 @@ import { getSetting } from '@shared/db/queries/settings'
 import { queueLocalChangesSinceLastSync } from './local-changes'
 import { bootstrapSyncData } from './bootstrap'
 import { getSyncUserId, setSyncAuthState, SYNC_SETUP_PENDING_KEY } from './auth-state'
+import { refreshAccessToken } from './token-refresh'
+import { isAccessTokenExpired } from './token-utils'
+import { getCrdtSyncBridge } from './crdt-sync-bridge'
 
 const LOG_PREFIX = '[AuthSyncBridge]'
 
 let initialized = false
 let pendingSync = false
+
+type StoredAuthTokens = Awaited<ReturnType<typeof retrieveAuthTokens>>
 
 function readSyncSetupComplete(): boolean {
   try {
@@ -33,6 +38,56 @@ function readSyncSetupComplete(): boolean {
   } catch {
     return false
   }
+}
+
+async function getFreshAuthTokens(
+  initialTokens?: StoredAuthTokens | null
+): Promise<StoredAuthTokens | null> {
+  let tokens = initialTokens ?? (await retrieveAuthTokens().catch(() => null))
+
+  if (!tokens?.accessToken) {
+    return null
+  }
+
+  if (!isAccessTokenExpired(tokens.accessToken)) {
+    return tokens
+  }
+
+  const networkMonitor = getNetworkMonitor()
+  if (!networkMonitor.isOnline()) {
+    console.info(`${LOG_PREFIX} Access token expired while offline`)
+    return null
+  }
+
+  console.info(`${LOG_PREFIX} Access token expired, attempting refresh`)
+  const refreshed = await refreshAccessToken().catch(() => false)
+  if (!refreshed) {
+    return null
+  }
+
+  tokens = await retrieveAuthTokens().catch(() => null)
+  if (!tokens?.accessToken || isAccessTokenExpired(tokens.accessToken)) {
+    return null
+  }
+
+  return tokens
+}
+
+export async function ensureSyncAuthReady(): Promise<boolean> {
+  const setupComplete = readSyncSetupComplete()
+  const keyMaterial = await retrieveKeyMaterial().catch(() => null)
+  const storedTokens = await retrieveAuthTokens().catch(() => null)
+  const tokens = await getFreshAuthTokens(storedTokens)
+  const userId = tokens?.userId ?? storedTokens?.userId ?? null
+
+  const authReady = !!tokens?.accessToken && !!keyMaterial?.masterKey
+  setSyncAuthState({
+    userId,
+    authReady,
+    syncEnabled: setupComplete
+  })
+
+  return authReady && setupComplete && !!userId
 }
 
 async function canTriggerSync(): Promise<{ ok: boolean; reason?: string }> {
@@ -141,6 +196,11 @@ export async function handleSessionChanged(
   await bootstrapSyncData()
   await queueLocalChangesSinceLastSync()
   await triggerSync()
+
+  const crdtBridge = getCrdtSyncBridge()
+  if (crdtBridge) {
+    await crdtBridge.syncAllDocs()
+  }
 }
 
 /**
@@ -184,6 +244,11 @@ export async function triggerPostSetupSync(): Promise<void> {
   await bootstrapSyncData()
   await queueLocalChangesSinceLastSync()
   await triggerSync()
+
+  const crdtBridge = getCrdtSyncBridge()
+  if (crdtBridge) {
+    await crdtBridge.syncAllDocs()
+  }
 }
 
 /**
@@ -194,17 +259,25 @@ export async function triggerPostSetupSync(): Promise<void> {
 export async function initAuthSyncBridge(): Promise<void> {
   if (initialized) return
 
-  const tokens = await retrieveAuthTokens()
+  const storedTokens = await retrieveAuthTokens().catch(() => null)
+  const tokens = await getFreshAuthTokens(storedTokens)
   const keyMaterial = await retrieveKeyMaterial().catch(() => null)
 
-  if (tokens?.userId) {
-    console.info(`${LOG_PREFIX} Found stored session for user:`, tokens.userId)
+  if (storedTokens?.userId) {
+    if (tokens) {
+      console.info(`${LOG_PREFIX} Found stored session for user:`, storedTokens.userId)
+    } else {
+      console.info(
+        `${LOG_PREFIX} Stored session found but access token expired or invalid`,
+        storedTokens.userId
+      )
+    }
   } else {
     console.info(`${LOG_PREFIX} No stored session`)
   }
 
   setSyncAuthState({
-    userId: tokens?.userId ?? null,
+    userId: tokens?.userId ?? storedTokens?.userId ?? null,
     authReady: !!tokens?.accessToken && !!keyMaterial?.masterKey,
     syncEnabled: readSyncSetupComplete()
   })

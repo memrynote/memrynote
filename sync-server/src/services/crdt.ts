@@ -179,7 +179,7 @@ export const verifyNoteOwnership = async (
   const result = await db
     .prepare(
       `SELECT id FROM sync_items
-       WHERE user_id = ? AND item_id = ? AND item_type = 'note' AND deleted = 0`
+       WHERE user_id = ? AND item_id = ? AND item_type IN ('note', 'journal') AND deleted = 0`
     )
     .bind(userId, noteId)
     .first<SyncItemOwnershipRow>()
@@ -200,7 +200,7 @@ export const verifyBulkNoteOwnership = async (
   const result = await db
     .prepare(
       `SELECT item_id FROM sync_items
-       WHERE user_id = ? AND item_id IN (${placeholders}) AND item_type = 'note' AND deleted = 0`
+       WHERE user_id = ? AND item_id IN (${placeholders}) AND item_type IN ('note', 'journal') AND deleted = 0`
     )
     .bind(userId, ...noteIds)
     .all<{ item_id: string }>()
