@@ -4,13 +4,54 @@
  * Implements secure storage of key material using the OS keychain via keytar.
  */
 
+import { createHash } from 'node:crypto'
+import { resolve } from 'node:path'
 import keytar from 'keytar'
 import { CryptoError, CryptoErrorCode } from './errors'
 import { uint8ArrayToBase64, base64ToUint8Array } from './keys'
 import type { StoredKeyMaterial, DeviceSigningKeyPair } from '@shared/contracts/crypto'
 
 /** Service name for keychain storage */
-const SERVICE_NAME = 'com.memry.app'
+const DEFAULT_SERVICE_NAME = 'com.memry.app'
+
+function resolveUserDataOverride(): string | null {
+  const envOverride = process.env.MEMRY_USER_DATA_DIR?.trim()
+  if (envOverride) {
+    return envOverride
+  }
+
+  const flagWithValue = process.argv.find((arg) => arg.startsWith('--user-data-dir='))
+  if (flagWithValue) {
+    const [, value] = flagWithValue.split('=')
+    return value?.trim() ?? null
+  }
+
+  const flagIndex = process.argv.indexOf('--user-data-dir')
+  if (flagIndex !== -1) {
+    const value = process.argv[flagIndex + 1]
+    return value?.trim() ?? null
+  }
+
+  return null
+}
+
+function resolveServiceName(): string {
+  const explicitService = process.env.MEMRY_KEYCHAIN_SERVICE?.trim()
+  if (explicitService) {
+    return explicitService
+  }
+
+  const userDataOverride = resolveUserDataOverride()
+  if (!userDataOverride) {
+    return DEFAULT_SERVICE_NAME
+  }
+
+  const normalizedPath = resolve(userDataOverride)
+  const suffix = createHash('sha256').update(normalizedPath).digest('hex').slice(0, 12)
+  return `${DEFAULT_SERVICE_NAME}.${suffix}`
+}
+
+const SERVICE_NAME = resolveServiceName()
 
 /** Account names for different key types */
 const ACCOUNTS = {
