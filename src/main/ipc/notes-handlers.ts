@@ -60,6 +60,7 @@ import {
   resolveNoteByTitle
 } from '@shared/db/queries/notes'
 import { getIndexDatabase, getDatabase } from '../database'
+import { getStatus } from '../vault'
 import {
   getNotesInFolder,
   reorderNotesInFolder,
@@ -257,6 +258,9 @@ export function registerNotesHandlers(): void {
   ipcMain.handle(
     NotesChannels.invoke.GET_TAGS,
     createHandler(() => {
+      if (!getStatus().isOpen) {
+        return []
+      }
       return getTagsWithCounts()
     })
   )
