@@ -99,6 +99,11 @@ vi.mock('@shared/db/queries/note-positions', () => ({
   getAllNotePositions: vi.fn()
 }))
 
+// Mock vault module for getStatus
+vi.mock('../vault', () => ({
+  getStatus: vi.fn(() => ({ isOpen: true }))
+}))
+
 // Import the module after mocking
 import { registerNotesHandlers, unregisterNotesHandlers } from './notes-handlers'
 import { getIndexDatabase, getDatabase } from '../database'
@@ -642,6 +647,16 @@ describe('notes-handlers', () => {
       const result = await invokeHandler(NotesChannels.invoke.GET_TAGS)
 
       expect(result).toEqual(mockTags)
+    })
+
+    it('should return empty array when vault is not open', async () => {
+      const { getStatus } = await import('../vault')
+      ;(getStatus as Mock).mockReturnValue({ isOpen: false })
+
+      const result = await invokeHandler(NotesChannels.invoke.GET_TAGS)
+
+      expect(result).toEqual([])
+      expect(notesVault.getTagsWithCounts).not.toHaveBeenCalled()
     })
   })
 

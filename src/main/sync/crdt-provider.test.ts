@@ -227,6 +227,39 @@ describe('CrdtProvider', () => {
     })
   })
 
+
+  describe('Snapshot Broadcasting', () => {
+    it('should broadcast snapshot to windows after applying', async () => {
+      // #given
+      const { BrowserWindow } = await import('electron')
+      const mockSend = vi.fn()
+      const mockWindow = { id: 1, webContents: { send: mockSend } }
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([mockWindow as never])
+
+      const doc = await provider.getOrCreateDoc('broadcast-test')
+      doc.getXmlFragment('document-store').insert(0, [new Y.XmlText('test content')])
+      const snapshot = provider.encodeSnapshot('broadcast-test', true)
+
+      const newProvider = new CrdtProvider()
+      await newProvider.initialize()
+      await newProvider.getOrCreateDoc('broadcast-test')
+
+      // #when
+      newProvider.applySnapshot('broadcast-test', snapshot)
+
+      // #then
+      expect(mockSend).toHaveBeenCalledWith(
+        'yjs:update-received',
+        expect.objectContaining({
+          noteId: 'broadcast-test',
+          update: expect.any(String)
+        })
+      )
+
+      await newProvider.shutdown()
+    })
+  })
+
   describe('Security', () => {
     it('should reject oversized updates', async () => {
       // #given

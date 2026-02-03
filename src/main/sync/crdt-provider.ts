@@ -316,6 +316,8 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
         originalSize: data.length,
         decompressedSize: snapshot.length
       })
+
+      this.broadcastToWindows(noteId, snapshot)
     } catch (error) {
       console.error('[CrdtProvider] Failed to apply snapshot:', noteId, error)
       throw error
