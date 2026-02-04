@@ -24,3 +24,37 @@ export function mergeFrontmatterFromCrdt(
 
   return result
 }
+
+
+export interface CrdtMetaChanges {
+  title?: string
+  tags?: string[]
+  aliases?: string[]
+  emoji?: string | null
+  properties?: Record<string, unknown>
+}
+
+export async function updateCrdtMeta(noteId: string, changes: CrdtMetaChanges): Promise<void> {
+  const { getCrdtProvider } = await import('./crdt-provider')
+  const crdtProvider = getCrdtProvider()
+
+  if (!crdtProvider) {
+    return
+  }
+
+  const doc = await crdtProvider.getOrCreateDoc(noteId)
+  const metaMap = doc.getMap('meta')
+
+  doc.transact(() => {
+    for (const key of SYNCABLE_META_KEYS) {
+      if (key in changes) {
+        const value = changes[key as keyof CrdtMetaChanges]
+        if (value !== undefined) {
+          metaMap.set(key, value)
+        }
+      }
+    }
+  }, 'internal')
+
+  crdtProvider.markCrdtWrite(noteId)
+}
