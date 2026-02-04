@@ -65,6 +65,7 @@ import { generateNoteId } from '../lib/id'
 import { NotesChannels } from '@shared/contracts/notes-api'
 import { queueEmbeddingUpdate } from '../inbox/embedding-queue'
 import { getCrdtProvider } from '../sync/crdt-provider'
+import { updateCrdtMeta } from '../sync/crdt-sync-utils'
 
 // ============================================================================
 // Types
@@ -351,12 +352,20 @@ export async function createNote(input: NoteCreateInput): Promise<Note> {
   // Queue embedding update (batched for performance)
   queueEmbeddingUpdate(note.id)
 
-  // T139: Initialize Y.Doc for new note
+  // T139: Initialize Y.Doc for new note with frontmatter
   const crdtProvider = getCrdtProvider()
   if (crdtProvider) {
-    void crdtProvider.getOrCreateDoc(frontmatter.id).catch((err) => {
-      console.error('[Notes] Failed to initialize Y.Doc for new note:', err)
-    })
+    void crdtProvider
+      .seedDocFromMarkdown(frontmatter.id, content, {
+        title: input.title,
+        tags: mergedTags,
+        aliases: frontmatter.aliases ?? [],
+        emoji: null,
+        properties
+      })
+      .catch((err) => {
+        console.error('[Notes] Failed to seed Y.Doc for new note:', err)
+      })
   }
 
   return note
@@ -709,6 +718,20 @@ export async function updateNote(input: NoteUpdateInput): Promise<Note> {
     queueEmbeddingUpdate(input.id)
   }
 
+  // Sync frontmatter changes to CRDT for device sync
+  const crdtProvider = getCrdtProvider()
+  if (crdtProvider) {
+    void updateCrdtMeta(input.id, {
+      title: newTitle,
+      tags: newTags,
+      aliases: newFrontmatter.aliases ?? [],
+      emoji: newEmoji,
+      properties: newProperties
+    }).catch((err) => {
+      console.error('[Notes] Failed to sync frontmatter to CRDT:', err)
+    })
+  }
+
   return note
 }
 
@@ -770,6 +793,14 @@ export async function renameNote(id: string, newTitle: string): Promise<Note> {
     oldTitle: existing.title,
     newTitle
   })
+
+  // Sync title change to CRDT for device sync
+  const crdtProvider = getCrdtProvider()
+  if (crdtProvider) {
+    void updateCrdtMeta(id, { title: newTitle }).catch((err) => {
+      console.error('[Notes] Failed to sync title to CRDT:', err)
+    })
+  }
 
   return note
 }

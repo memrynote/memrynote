@@ -1,7 +1,20 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import * as Y from 'yjs'
-import { mergeFrontmatterFromCrdt } from './crdt-sync-utils'
+import { mergeFrontmatterFromCrdt, updateCrdtMeta } from './crdt-sync-utils'
 import type { NoteFrontmatter } from '../vault/frontmatter'
+
+vi.mock('./crdt-provider', () => {
+  const mockDoc = new Y.Doc()
+  const mockProvider = {
+    getOrCreateDoc: vi.fn().mockResolvedValue(mockDoc),
+    markCrdtWrite: vi.fn()
+  }
+  return {
+    getCrdtProvider: vi.fn(() => mockProvider),
+    mockProvider,
+    mockDoc
+  }
+})
 
 describe('mergeFrontmatterFromCrdt', () => {
   function createMetaMap(data: Record<string, unknown>): Y.Map<unknown> {
@@ -104,5 +117,111 @@ describe('mergeFrontmatterFromCrdt', () => {
 
     expect(result.title).toBe('Original Title')
     expect(result.tags).toEqual(['old-tag'])
+  })
+})
+
+describe('updateCrdtMeta', () => {
+  let mockDoc: Y.Doc
+  let mockProvider: { getOrCreateDoc: ReturnType<typeof vi.fn>; markCrdtWrite: ReturnType<typeof vi.fn> }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    mockDoc = new Y.Doc()
+    mockProvider = {
+      getOrCreateDoc: vi.fn().mockResolvedValue(mockDoc),
+      markCrdtWrite: vi.fn()
+    }
+    vi.doMock('./crdt-provider', () => ({
+      getCrdtProvider: vi.fn(() => mockProvider)
+    }))
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('updates title in meta map', async () => {
+    // #given
+    const { updateCrdtMeta: updateFn } = await import('./crdt-sync-utils')
+
+    // #when
+    await updateFn('note-123', { title: 'New Title' })
+
+    // #then
+    const metaMap = mockDoc.getMap('meta')
+    expect(metaMap.get('title')).toBe('New Title')
+  })
+
+  it('updates tags in meta map', async () => {
+    // #given
+    const { updateCrdtMeta: updateFn } = await import('./crdt-sync-utils')
+
+    // #when
+    await updateFn('note-123', { tags: ['tag1', 'tag2'] })
+
+    // #then
+    const metaMap = mockDoc.getMap('meta')
+    expect(metaMap.get('tags')).toEqual(['tag1', 'tag2'])
+  })
+
+  it('updates multiple fields in single transaction', async () => {
+    // #given
+    const { updateCrdtMeta: updateFn } = await import('./crdt-sync-utils')
+
+    // #when
+    await updateFn('note-123', {
+      title: 'Updated Title',
+      tags: ['new-tag'],
+      aliases: ['alias1'],
+      emoji: '📝',
+      properties: { status: 'done' }
+    })
+
+    // #then
+    const metaMap = mockDoc.getMap('meta')
+    expect(metaMap.get('title')).toBe('Updated Title')
+    expect(metaMap.get('tags')).toEqual(['new-tag'])
+    expect(metaMap.get('aliases')).toEqual(['alias1'])
+    expect(metaMap.get('emoji')).toBe('📝')
+    expect(metaMap.get('properties')).toEqual({ status: 'done' })
+  })
+
+  it('calls markCrdtWrite to prevent file watcher loop', async () => {
+    // #given
+    const { updateCrdtMeta: updateFn } = await import('./crdt-sync-utils')
+
+    // #when
+    await updateFn('note-123', { title: 'New Title' })
+
+    // #then
+    expect(mockProvider.markCrdtWrite).toHaveBeenCalledWith('note-123')
+  })
+
+  it('does nothing when provider is null', async () => {
+    // #given
+    vi.doMock('./crdt-provider', () => ({
+      getCrdtProvider: vi.fn(() => null)
+    }))
+    const { updateCrdtMeta: updateFn } = await import('./crdt-sync-utils')
+
+    // #when - should not throw
+    await updateFn('note-123', { title: 'New Title' })
+
+    // #then - no assertions needed, just verify no error
+  })
+
+  it('only updates provided fields', async () => {
+    // #given
+    const { updateCrdtMeta: updateFn } = await import('./crdt-sync-utils')
+    const metaMap = mockDoc.getMap('meta')
+    metaMap.set('title', 'Original Title')
+    metaMap.set('tags', ['existing-tag'])
+
+    // #when
+    await updateFn('note-123', { title: 'New Title' })
+
+    // #then
+    expect(metaMap.get('title')).toBe('New Title')
+    expect(metaMap.get('tags')).toEqual(['existing-tag'])
   })
 })
