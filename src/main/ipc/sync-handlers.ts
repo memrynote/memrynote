@@ -621,7 +621,13 @@ export async function resyncNoteContentFromCrdt(noteId: string): Promise<void> {
 
   emitSyncEvent(NotesChannels.events.UPDATED, {
     id: noteId,
-    changes: { title: mergedFrontmatter.title, tags: mergedFrontmatter.tags },
+    changes: {
+      title: mergedFrontmatter.title,
+      tags: mergedFrontmatter.tags,
+      emoji: mergedFrontmatter.emoji,
+      aliases: mergedFrontmatter.aliases,
+      properties: mergedFrontmatter.properties
+    },
     source: 'sync'
   })
 }
