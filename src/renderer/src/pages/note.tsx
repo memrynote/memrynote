@@ -15,6 +15,7 @@ import { TagsRow, Tag } from '@/components/note/tags-row'
 import { InfoSection } from '@/components/note/info-section'
 import { BacklinksSection, Backlink } from '@/components/note/backlinks'
 import { LinkedTasksSection } from '@/components/note/linked-tasks'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useNote,
   useNoteMutations,
@@ -97,6 +98,7 @@ export function NotePage({ noteId }: NotePageProps) {
   const { tags: allAvailableTags } = useNoteTagsQuery()
   const { openTab, setTabDeleted } = useTabs()
   const activeTab = useActiveTab()
+  const queryClient = useQueryClient()
 
   // Extract highlight info from tab viewState (from reminder navigation)
   const initialHighlight = useMemo(() => {
@@ -146,7 +148,8 @@ export function NotePage({ noteId }: NotePageProps) {
     handleAddProperty,
     handleDeleteProperty,
     handlePropertyNameChange,
-    handlePropertyOrderChange
+    handlePropertyOrderChange,
+    refreshProperties
   } = usePropertySection({
     entityId: noteId ?? null,
     canEdit: () => !isDeleted,
@@ -252,6 +255,42 @@ export function NotePage({ noteId }: NotePageProps) {
       unsubUpdated()
     }
   }, [noteId])
+
+  // T140: Listen for remote CRDT meta changes for instant UI updates
+  useEffect(() => {
+    if (!ydoc || !noteId) return
+
+    const metaMap = ydoc.getMap('meta')
+
+    const handleMetaChange = (_event: unknown, transaction: { origin: unknown }): void => {
+      if (transaction.origin === 'local' || transaction.origin === 'internal') return
+
+      const title = metaMap.get('title') as string | undefined
+      const tags = metaMap.get('tags') as string[] | undefined
+      const emoji = metaMap.get('emoji') as string | undefined
+      const aliases = metaMap.get('aliases') as string[] | undefined
+      const properties = metaMap.get('properties') as Record<string, unknown> | undefined
+
+      queryClient.setQueryData(['notes', 'note', noteId], (oldData: Note | undefined) => {
+        if (!oldData) return oldData
+        return {
+          ...oldData,
+          ...(title !== undefined && { title }),
+          ...(tags !== undefined && { tags }),
+          ...(emoji !== undefined && { emoji }),
+          ...(aliases !== undefined && { aliases }),
+          ...(properties !== undefined && { properties })
+        }
+      })
+
+      if (properties !== undefined) {
+        refreshProperties()
+      }
+    }
+
+    metaMap.observe(handleMetaChange)
+    return () => metaMap.unobserve(handleMetaChange)
+  }, [ydoc, noteId, queryClient, refreshProperties])
 
   // ============================================================================
   // Tags - Convert between string[] and Tag[]

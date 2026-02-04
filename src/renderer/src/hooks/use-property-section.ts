@@ -20,6 +20,7 @@ export interface UsePropertySectionResult {
   handleDeleteProperty: (propertyId: string) => void
   handlePropertyNameChange: (propertyId: string, newName: string) => void
   handlePropertyOrderChange: (newOrder: string[]) => void
+  refreshProperties: () => Promise<void>
 }
 
 export function usePropertySection({
@@ -35,7 +36,8 @@ export function usePropertySection({
     addProperty,
     removeProperty,
     renameProperty,
-    reorderProperties
+    reorderProperties,
+    refresh
   } = useProperties(entityId)
 
   const properties: Property[] = useMemo(() => {
@@ -129,6 +131,7 @@ export function usePropertySection({
     handleAddProperty,
     handleDeleteProperty,
     handlePropertyNameChange,
-    handlePropertyOrderChange
+    handlePropertyOrderChange,
+    refreshProperties: refresh
   }
 }

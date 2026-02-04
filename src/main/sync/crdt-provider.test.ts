@@ -227,7 +227,6 @@ describe('CrdtProvider', () => {
     })
   })
 
-
   describe('Snapshot Broadcasting', () => {
     it('should broadcast snapshot to windows after applying', async () => {
       // #given
