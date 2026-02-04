@@ -128,6 +128,7 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
   private onlineHandler = (): void => this.handleOnline()
   private offlineHandler = (): void => this.handleOffline()
   private messageHandler = (message: WebSocketMessage): void => {
+    console.info('[SyncEngine] WebSocket message received:', { type: message.type, noteIds: (message as { noteIds?: string[] }).noteIds })
     if (message.type === 'sync') {
       this.handleSyncNotification()
     } else if (message.type === 'crdt' && message.noteIds) {
@@ -1096,19 +1097,28 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
   }
 
   private handleCrdtNotification(noteIds: string[]): void {
+    console.info('[SyncEngine] handleCrdtNotification called:', { noteIds })
     const crdtBridge = getCrdtSyncBridge()
-    if (!crdtBridge) return
+    if (!crdtBridge) {
+      console.warn('[SyncEngine] CRDT bridge not available')
+      return
+    }
 
     for (const noteId of noteIds) {
+      console.info('[SyncEngine] Pulling updates for note:', noteId)
       crdtBridge
         .pullUpdatesForNote(noteId)
-        .catch((err) =>
+        .then(() => {
+          console.info('[SyncEngine] Successfully pulled updates for note:', noteId)
+        })
+        .catch((err) => {
+          console.error('[SyncEngine] Failed to pull updates for note:', noteId, err)
           this.emit(
             'sync:error',
             err instanceof Error ? err : new Error(String(err)),
             'handleCrdtNotification'
           )
-        )
+        })
     }
   }
 
