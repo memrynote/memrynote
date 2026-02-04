@@ -73,7 +73,8 @@ export class CrdtSyncBridge {
     this.initialized = true
 
     this.docUpdatedListener = (payload) => {
-      if (payload.origin !== 'remote') {
+      // Skip 'remote' (received from server) and 'external' (file watcher after resync write)
+      if (payload.origin !== 'remote' && payload.origin !== 'external') {
         this.onDocUpdated(payload.noteId, payload.update)
       }
     }
