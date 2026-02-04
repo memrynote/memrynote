@@ -149,7 +149,7 @@ export function NotePage({ noteId }: NotePageProps) {
     handleDeleteProperty,
     handlePropertyNameChange,
     handlePropertyOrderChange,
-    refreshProperties
+    setPropertiesFromCrdt
   } = usePropertySection({
     entityId: noteId ?? null,
     canEdit: () => !isDeleted,
@@ -284,13 +284,13 @@ export function NotePage({ noteId }: NotePageProps) {
       })
 
       if (properties !== undefined) {
-        refreshProperties()
+        setPropertiesFromCrdt(properties)
       }
     }
 
     metaMap.observe(handleMetaChange)
     return () => metaMap.unobserve(handleMetaChange)
-  }, [ydoc, noteId, queryClient, refreshProperties])
+  }, [ydoc, noteId, queryClient, setPropertiesFromCrdt])
 
   // ============================================================================
   // Tags - Convert between string[] and Tag[]
