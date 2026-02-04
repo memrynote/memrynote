@@ -128,13 +128,17 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
   private onlineHandler = (): void => this.handleOnline()
   private offlineHandler = (): void => this.handleOffline()
   private messageHandler = (message: WebSocketMessage): void => {
-    console.info('[SyncEngine] WebSocket message received:', { type: message.type, noteIds: (message as { noteIds?: string[] }).noteIds })
+    console.info('[SyncEngine] WebSocket message received:', {
+      type: message.type,
+      noteIds: (message as { noteIds?: string[] }).noteIds
+    })
     if (message.type === 'sync') {
       this.handleSyncNotification()
     } else if (message.type === 'crdt' && message.noteIds) {
       this.handleCrdtNotification(message.noteIds)
     }
   }
+  private wsConnectedHandler = (): void => this.handleWsConnected()
 
   async initialize(): Promise<void> {
     if (this.initialized) return
@@ -146,6 +150,7 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
     const wsManager = getWebSocketManager()
     if (wsManager) {
       wsManager.on('sync:ws-message', this.messageHandler)
+      wsManager.on('sync:ws-connected', this.wsConnectedHandler)
     }
 
     await this.loadStatus()
@@ -160,6 +165,7 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
     const wsManager = getWebSocketManager()
     if (wsManager) {
       wsManager.off('sync:ws-message', this.messageHandler)
+      wsManager.off('sync:ws-connected', this.wsConnectedHandler)
     }
 
     this.initialized = false
@@ -1077,6 +1083,16 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
       this.sync().catch((err) =>
         this.emit('sync:error', err instanceof Error ? err : new Error(String(err)), 'handleOnline')
       )
+    }
+  }
+
+  private handleWsConnected(): void {
+    console.info('[SyncEngine] WebSocket connected, pulling CRDT updates for loaded docs')
+    const crdtBridge = getCrdtSyncBridge()
+    if (crdtBridge) {
+      crdtBridge.pullUpdatesForAllLoadedDocs().catch((err) => {
+        console.error('[SyncEngine] Failed to pull updates after WS connect:', err)
+      })
     }
   }
 
