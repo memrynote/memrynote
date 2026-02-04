@@ -146,13 +146,19 @@ import { syncNoteToCache, deleteNoteFromCache } from '../vault/note-sync'
 import { flushFtsUpdates } from '../database/fts-queue'
 import { parseNote, serializeNote } from '../vault/frontmatter'
 import type { NoteFrontmatter } from '../vault/frontmatter'
-import { safeWriteInVault, ensureDirectory, deleteFile } from '../vault/file-ops'
+import {
+  safeWriteInVault,
+  ensureDirectory,
+  deleteFile,
+  sanitizeFilename,
+  generateUniquePath
+} from '../vault/file-ops'
 import { getJournalPath, serializeJournalEntry, deleteJournalEntryFile } from '../vault/journal'
 import type { JournalFrontmatter } from '../vault/journal'
 import { getCrdtSyncBridge } from '../sync/crdt-sync-bridge'
 import { mergeFrontmatterFromCrdt } from '../sync/crdt-sync-utils'
 import { getConfig as getVaultConfig } from '../vault'
-import { getVaultPath, toAbsolutePath } from '../vault/notes'
+import { getVaultPath, toAbsolutePath, toRelativePath } from '../vault/notes'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -592,6 +598,11 @@ export async function resyncNoteContentFromCrdt(noteId: string): Promise<void> {
   const metaMap = doc.getMap('meta')
   const mergedFrontmatter = mergeFrontmatterFromCrdt(metaMap, parsed.frontmatter)
 
+  const currentFilename = path.basename(cached.path, '.md')
+  const newTitle = mergedFrontmatter.title
+  const expectedFilename = newTitle ? sanitizeFilename(newTitle) : currentFilename
+  const titleRequiresRename = expectedFilename !== currentFilename
+
   const newContent = content || parsed.content
 
   if (!newContent && fragment.length === 0) {
@@ -600,13 +611,27 @@ export async function resyncNoteContentFromCrdt(noteId: string): Promise<void> {
 
   const newFileContent = serializeNote(mergedFrontmatter, newContent, { updateModified: false })
   crdtProvider.markCrdtWrite(noteId)
-  await safeWriteInVault(absolutePath, newFileContent, getVaultPath())
+
+  let finalPath = cached.path
+
+  if (titleRequiresRename) {
+    const dir = path.dirname(absolutePath)
+    let newAbsolutePath = path.join(dir, expectedFilename + '.md')
+    newAbsolutePath = await generateUniquePath(newAbsolutePath)
+
+    await safeWriteInVault(newAbsolutePath, newFileContent, getVaultPath())
+    await deleteFile(absolutePath)
+
+    finalPath = toRelativePath(newAbsolutePath)
+  } else {
+    await safeWriteInVault(absolutePath, newFileContent, getVaultPath())
+  }
 
   syncNoteToCache(
     db,
     {
       id: noteId,
-      path: cached.path,
+      path: finalPath,
       fileContent: newFileContent,
       frontmatter: mergedFrontmatter,
       parsedContent: newContent
@@ -619,17 +644,27 @@ export async function resyncNoteContentFromCrdt(noteId: string): Promise<void> {
     }
   )
 
-  emitSyncEvent(NotesChannels.events.UPDATED, {
-    id: noteId,
-    changes: {
-      title: mergedFrontmatter.title,
-      tags: mergedFrontmatter.tags,
-      emoji: mergedFrontmatter.emoji,
-      aliases: mergedFrontmatter.aliases,
-      properties: mergedFrontmatter.properties
-    },
-    source: 'sync'
-  })
+  if (titleRequiresRename) {
+    emitSyncEvent(NotesChannels.events.RENAMED, {
+      id: noteId,
+      oldPath: cached.path,
+      newPath: finalPath,
+      oldTitle: currentFilename,
+      newTitle: mergedFrontmatter.title
+    })
+  } else {
+    emitSyncEvent(NotesChannels.events.UPDATED, {
+      id: noteId,
+      changes: {
+        title: mergedFrontmatter.title,
+        tags: mergedFrontmatter.tags,
+        emoji: mergedFrontmatter.emoji,
+        aliases: mergedFrontmatter.aliases,
+        properties: mergedFrontmatter.properties
+      },
+      source: 'sync'
+    })
+  }
 }
 
 const CRDT_PULL_RETRY_DELAYS_MS = [1000, 3000, 6000]

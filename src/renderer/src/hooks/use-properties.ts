@@ -33,6 +33,8 @@ export interface UsePropertiesReturn {
   reorderProperties: (orderedNames: string[]) => Promise<void>
   /** Refresh properties from server */
   refresh: () => Promise<void>
+  /** Set properties directly from CRDT values (synchronous, no fetch) */
+  setPropertiesFromCrdt: (crdtProperties: Record<string, unknown>) => void
 }
 
 /**
@@ -258,6 +260,17 @@ export function useProperties(entityId: string | null): UsePropertiesReturn {
     [entityId, properties, fetchProperties]
   )
 
+  const setPropertiesFromCrdt = useCallback((crdtProperties: Record<string, unknown>) => {
+    const newProperties: PropertyValue[] = Object.entries(crdtProperties).map(
+      ([name, value]) => ({
+        name,
+        value,
+        type: inferType(value)
+      })
+    )
+    setProperties(newProperties)
+  }, [])
+
   return {
     properties,
     propertiesRecord,
@@ -268,6 +281,7 @@ export function useProperties(entityId: string | null): UsePropertiesReturn {
     removeProperty,
     renameProperty,
     reorderProperties,
-    refresh: fetchProperties
+    refresh: fetchProperties,
+    setPropertiesFromCrdt
   }
 }

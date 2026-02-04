@@ -21,6 +21,7 @@ export interface UsePropertySectionResult {
   handlePropertyNameChange: (propertyId: string, newName: string) => void
   handlePropertyOrderChange: (newOrder: string[]) => void
   refreshProperties: () => Promise<void>
+  setPropertiesFromCrdt: (crdtProperties: Record<string, unknown>) => void
 }
 
 export function usePropertySection({
@@ -37,7 +38,8 @@ export function usePropertySection({
     removeProperty,
     renameProperty,
     reorderProperties,
-    refresh
+    refresh,
+    setPropertiesFromCrdt
   } = useProperties(entityId)
 
   const properties: Property[] = useMemo(() => {
@@ -132,6 +134,7 @@ export function usePropertySection({
     handleDeleteProperty,
     handlePropertyNameChange,
     handlePropertyOrderChange,
-    refreshProperties: refresh
+    refreshProperties: refresh,
+    setPropertiesFromCrdt
   }
 }

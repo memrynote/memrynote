@@ -235,7 +235,7 @@ export function toAbsolutePath(relativePath: string): string {
 /**
  * Convert absolute path to relative path (from vault root).
  */
-function toRelativePath(absolutePath: string): string {
+export function toRelativePath(absolutePath: string): string {
   const vaultPath = getVaultPath()
   return path.relative(vaultPath, absolutePath)
 }
