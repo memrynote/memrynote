@@ -434,6 +434,7 @@ export class CrdtSyncBridge {
 
       console.info(`${LOG_PREFIX} Pulled ${result.updates.length} updates for ${noteId}`)
 
+      let appliedCount = 0
       for (const update of result.updates) {
         const bytes = base64ToUint8Array(update.updateData)
 
@@ -462,10 +463,16 @@ export class CrdtSyncBridge {
 
         this.crdtProvider.applyUpdate(noteId, bytes, 'remote')
         state.lastKnownSequence = Math.max(state.lastKnownSequence, update.sequenceNum)
+        appliedCount++
       }
 
       this.sequenceState.set(noteId, state)
       this.persistSequenceState(noteId, state)
+
+      if (appliedCount > 0) {
+        const { resyncNoteContentFromCrdt } = await import('../ipc/sync-handlers')
+        await resyncNoteContentFromCrdt(noteId)
+      }
     } catch (error) {
       if (this.isForbiddenError(error)) {
         console.info(`${LOG_PREFIX} Pull updates skipped for ${noteId}: note not on server yet`)

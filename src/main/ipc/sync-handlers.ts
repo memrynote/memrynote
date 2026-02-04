@@ -572,7 +572,7 @@ async function createOrUpdateJournalFromSync(
   return { id: payload.id, date: payload.date, isNew }
 }
 
-async function resyncNoteContentFromCrdt(noteId: string): Promise<void> {
+export async function resyncNoteContentFromCrdt(noteId: string): Promise<void> {
   const db = getIndexDatabase()
   const crdtProvider = getCrdtProvider()
   if (!crdtProvider) return
@@ -585,10 +585,6 @@ async function resyncNoteContentFromCrdt(noteId: string): Promise<void> {
   const content = yText.toString()
   const fragment = doc.getXmlFragment('document-store')
 
-  if (!content && fragment.length === 0) {
-    return
-  }
-
   const absolutePath = toAbsolutePath(cached.path)
   const currentFile = await fs.readFile(absolutePath, 'utf-8')
   const parsed = parseNote(currentFile, cached.path)
@@ -596,28 +592,38 @@ async function resyncNoteContentFromCrdt(noteId: string): Promise<void> {
   const metaMap = doc.getMap('meta')
   const mergedFrontmatter = mergeFrontmatterFromCrdt(metaMap, parsed.frontmatter)
 
-  if (content) {
-    const newFileContent = serializeNote(mergedFrontmatter, content, { updateModified: false })
-    crdtProvider.markCrdtWrite(noteId)
-    await safeWriteInVault(absolutePath, newFileContent, getVaultPath())
+  const newContent = content || parsed.content
 
-    syncNoteToCache(
-      db,
-      {
-        id: noteId,
-        path: cached.path,
-        fileContent: newFileContent,
-        frontmatter: mergedFrontmatter,
-        parsedContent: content
-      },
-      {
-        isNew: false,
-        skipFts: false,
-        skipLinks: false,
-        onIndexed: incrementIndexedItems
-      }
-    )
+  if (!newContent && fragment.length === 0) {
+    return
   }
+
+  const newFileContent = serializeNote(mergedFrontmatter, newContent, { updateModified: false })
+  crdtProvider.markCrdtWrite(noteId)
+  await safeWriteInVault(absolutePath, newFileContent, getVaultPath())
+
+  syncNoteToCache(
+    db,
+    {
+      id: noteId,
+      path: cached.path,
+      fileContent: newFileContent,
+      frontmatter: mergedFrontmatter,
+      parsedContent: newContent
+    },
+    {
+      isNew: false,
+      skipFts: false,
+      skipLinks: false,
+      onIndexed: incrementIndexedItems
+    }
+  )
+
+  emitSyncEvent(NotesChannels.events.UPDATED, {
+    id: noteId,
+    changes: { title: mergedFrontmatter.title, tags: mergedFrontmatter.tags },
+    source: 'sync'
+  })
 }
 
 const CRDT_PULL_RETRY_DELAYS_MS = [1000, 3000, 6000]
