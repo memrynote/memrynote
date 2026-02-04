@@ -122,7 +122,10 @@ describe('mergeFrontmatterFromCrdt', () => {
 
 describe('updateCrdtMeta', () => {
   let mockDoc: Y.Doc
-  let mockProvider: { getOrCreateDoc: ReturnType<typeof vi.fn>; markCrdtWrite: ReturnType<typeof vi.fn> }
+  let mockProvider: {
+    getOrCreateDoc: ReturnType<typeof vi.fn>
+    markCrdtWrite: ReturnType<typeof vi.fn>
+  }
 
   beforeEach(async () => {
     vi.resetModules()

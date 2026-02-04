@@ -227,7 +227,6 @@ async function indexNonMarkdownFile(
     // Derive title from filename (without extension)
     const title = path.basename(absolutePath, path.extname(absolutePath))
 
-
     syncFileToCache(db, {
       id,
       path: relativePath,
