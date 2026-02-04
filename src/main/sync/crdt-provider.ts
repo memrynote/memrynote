@@ -507,6 +507,10 @@ export class CrdtProvider extends TypedEmitter<CrdtProviderEvents> {
     return this.docs.has(noteId)
   }
 
+  getLoadedDocIds(): string[] {
+    return Array.from(this.docs.keys())
+  }
+
   async getAllDocNames(): Promise<string[]> {
     this.ensureInitialized()
     const persistence = await this.waitForDb()

@@ -468,9 +468,7 @@ export class CrdtSyncBridge {
       this.persistSequenceState(noteId, state)
     } catch (error) {
       if (this.isForbiddenError(error)) {
-        console.info(
-          `${LOG_PREFIX} Pull updates skipped for ${noteId}: note not on server yet`
-        )
+        console.info(`${LOG_PREFIX} Pull updates skipped for ${noteId}: note not on server yet`)
         return
       }
       console.error(`${LOG_PREFIX} Pull updates failed for ${noteId}:`, error)
@@ -513,14 +511,28 @@ export class CrdtSyncBridge {
       return true
     } catch (error) {
       if (this.isForbiddenError(error)) {
-        console.info(
-          `${LOG_PREFIX} Pull snapshot skipped for ${noteId}: note not on server yet`
-        )
+        console.info(`${LOG_PREFIX} Pull snapshot skipped for ${noteId}: note not on server yet`)
         return false
       }
       console.error(`${LOG_PREFIX} Pull snapshot failed for ${noteId}:`, error)
       return false
     }
+  }
+
+  async pullUpdatesForAllLoadedDocs(): Promise<void> {
+    if (!this.crdtProvider || !this.isOnline() || !this.isAuthReady()) {
+      return
+    }
+
+    const loadedDocIds = this.crdtProvider.getLoadedDocIds()
+
+    if (loadedDocIds.length === 0) {
+      return
+    }
+
+    console.info(`${LOG_PREFIX} Pulling updates for ${loadedDocIds.length} loaded docs`)
+
+    await Promise.all(loadedDocIds.map((noteId) => this.pullUpdatesForNote(noteId)))
   }
 
   async syncAllDocs(): Promise<void> {

@@ -478,4 +478,78 @@ describe('CrdtSyncBridge', () => {
       expect(state?.lastKnownSequence).toBe(42)
     })
   })
+
+  describe('pullUpdatesForAllLoadedDocs', () => {
+    it('should pull updates for all loaded docs', async () => {
+      // #given
+      const mockPullCrdtUpdates = vi.fn().mockResolvedValue({
+        noteId: 'note-1',
+        updates: [],
+        hasMore: false,
+        latestSequence: 0,
+        serverTime: Date.now()
+      })
+
+      vi.mocked(getSyncApiClient).mockReturnValue({
+        pushCrdtUpdates: vi.fn(),
+        pullCrdtUpdates: mockPullCrdtUpdates,
+        pullCrdtSnapshot: vi.fn(),
+        pushCrdtSnapshot: vi.fn()
+      } as unknown as ReturnType<typeof getSyncApiClient>)
+
+      const loadedDocIds = ['note-1', 'note-2', 'note-3']
+      mockCrdtProvider.getLoadedDocIds = vi.fn().mockReturnValue(loadedDocIds)
+
+      // #when
+      await bridge.pullUpdatesForAllLoadedDocs()
+
+      // #then
+      expect(mockCrdtProvider.getLoadedDocIds).toHaveBeenCalled()
+      expect(mockPullCrdtUpdates).toHaveBeenCalledTimes(3)
+    })
+
+    it('should skip pull when offline', async () => {
+      // #given
+      const { getNetworkMonitor } = await import('./network')
+      vi.mocked(getNetworkMonitor).mockReturnValue({
+        isOnline: () => false,
+        on: vi.fn(),
+        off: vi.fn()
+      })
+
+      mockCrdtProvider.getLoadedDocIds = vi.fn().mockReturnValue(['note-1'])
+
+      // #when
+      await bridge.pullUpdatesForAllLoadedDocs()
+
+      // #then
+      expect(mockCrdtProvider.getLoadedDocIds).not.toHaveBeenCalled()
+    })
+
+    it('should not call pullCrdtUpdates when no docs are loaded', async () => {
+      // #given
+      const mockPullCrdtUpdates = vi.fn().mockResolvedValue({
+        noteId: 'test',
+        updates: [],
+        hasMore: false,
+        latestSequence: 0,
+        serverTime: Date.now()
+      })
+
+      vi.mocked(getSyncApiClient).mockReturnValue({
+        pushCrdtUpdates: vi.fn(),
+        pullCrdtUpdates: mockPullCrdtUpdates,
+        pullCrdtSnapshot: vi.fn(),
+        pushCrdtSnapshot: vi.fn()
+      } as unknown as ReturnType<typeof getSyncApiClient>)
+
+      mockCrdtProvider.getLoadedDocIds = vi.fn().mockReturnValue([])
+
+      // #when
+      await bridge.pullUpdatesForAllLoadedDocs()
+
+      // #then
+      expect(mockPullCrdtUpdates).not.toHaveBeenCalled()
+    })
+  })
 })
