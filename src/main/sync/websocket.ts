@@ -138,7 +138,7 @@ export class WebSocketManager extends TypedEmitter<WebSocketEvents> {
     this.setState('connecting')
 
     const baseUrl = this.serverUrl.replace(/\/$/, '')
-    const wsUrl = baseUrl.replace(/^http/, 'ws') + '/sync/ws'
+    const wsUrl = baseUrl.replace(/^http/, 'ws') + '/api/v1/sync/ws'
 
     try {
       this.ws = new WebSocket(wsUrl, {

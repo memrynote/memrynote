@@ -83,6 +83,14 @@ export class UserSyncState implements DurableObject {
     // from hibernation, the DO needs to restore device mappings for broadcast filtering.
     await this.state.storage.put(`connection:${deviceId}`, meta)
 
+    const existingSockets = this.state.getWebSockets()
+    const existingDevices = existingSockets.map((s) => this.state.getTags(s)[0])
+    console.log('[UserSyncState] New WebSocket connection:', {
+      deviceId,
+      existingConnections: existingSockets.length,
+      existingDevices
+    })
+
     const connectedMessage: ServerMessage = {
       type: 'connected',
       deviceId
@@ -133,23 +141,37 @@ export class UserSyncState implements DurableObject {
     }
 
     const sockets = this.state.getWebSockets()
+    const connectedDevices = sockets.map((s) => this.state.getTags(s)[0])
+    console.log('[UserSyncState] Broadcast:', {
+      type,
+      excludeDeviceId,
+      totalConnections: sockets.length,
+      connectedDevices,
+      noteIds: type === 'crdt' ? body.noteIds : undefined
+    })
+
     let sentCount = 0
+    const skippedDevices: string[] = []
 
     for (const socket of sockets) {
       const tags = this.state.getTags(socket)
       const deviceId = tags[0]
 
       if (excludeDeviceId && deviceId === excludeDeviceId) {
+        skippedDevices.push(deviceId)
         continue
       }
 
       try {
         socket.send(JSON.stringify(message))
         sentCount++
-      } catch {
-        // Socket may be closed; hibernation API handles cleanup
+        console.log('[UserSyncState] Sent to device:', deviceId)
+      } catch (err) {
+        console.log('[UserSyncState] Failed to send to device:', deviceId, err)
       }
     }
+
+    console.log('[UserSyncState] Broadcast complete:', { sentCount, skippedDevices })
 
     return new Response(JSON.stringify({ sent: sentCount }), {
       headers: { 'Content-Type': 'application/json' }
