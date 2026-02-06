@@ -739,6 +739,16 @@ export async function updateNote(input: NoteUpdateInput): Promise<Note> {
     }).catch((err) => {
       console.error('[Notes] Failed to sync frontmatter to CRDT:', err)
     })
+
+    void (async () => {
+      const { getCrdtSyncBridge } = await import('../sync/crdt-sync-bridge')
+      const bridge = getCrdtSyncBridge()
+      if (bridge) {
+        await bridge.queueNoteMetadataUpdate(input.id, note)
+      }
+    })().catch((err) => {
+      console.error('[Notes] Failed to queue metadata sync:', err)
+    })
   }
 
   return note
@@ -808,6 +818,16 @@ export async function renameNote(id: string, newTitle: string): Promise<Note> {
   if (crdtProvider) {
     void updateCrdtMeta(id, { title: newTitle }).catch((err) => {
       console.error('[Notes] Failed to sync title to CRDT:', err)
+    })
+
+    void (async () => {
+      const { getCrdtSyncBridge } = await import('../sync/crdt-sync-bridge')
+      const bridge = getCrdtSyncBridge()
+      if (bridge) {
+        await bridge.queueNoteMetadataUpdate(id, note)
+      }
+    })().catch((err) => {
+      console.error('[Notes] Failed to queue metadata sync:', err)
     })
   }
 

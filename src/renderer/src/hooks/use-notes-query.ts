@@ -209,27 +209,28 @@ export function useNotesList(options: UseNotesListOptions = {}): UseNotesListRes
   // Subscribe to note events for list invalidation
   useEffect(() => {
     const unsubCreated = onNoteCreated(() => {
-      // New note added, invalidate lists
+      void queryClient.invalidateQueries({ queryKey: notesKeys.lists() })
+    })
+
+    const unsubUpdated = onNoteUpdated(() => {
       void queryClient.invalidateQueries({ queryKey: notesKeys.lists() })
     })
 
     const unsubDeleted = onNoteDeleted(() => {
-      // Note removed, invalidate lists
       void queryClient.invalidateQueries({ queryKey: notesKeys.lists() })
     })
 
     const unsubRenamed = onNoteRenamed(() => {
-      // Title changed, may affect sort order
       void queryClient.invalidateQueries({ queryKey: notesKeys.lists() })
     })
 
     const unsubMoved = onNoteMoved(() => {
-      // Folder changed, invalidate lists
       void queryClient.invalidateQueries({ queryKey: notesKeys.lists() })
     })
 
     return () => {
       unsubCreated()
+      unsubUpdated()
       unsubDeleted()
       unsubRenamed()
       unsubMoved()
