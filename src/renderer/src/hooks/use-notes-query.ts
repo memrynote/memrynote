@@ -210,6 +210,7 @@ export function useNotesList(options: UseNotesListOptions = {}): UseNotesListRes
   useEffect(() => {
     const unsubCreated = onNoteCreated(() => {
       void queryClient.invalidateQueries({ queryKey: notesKeys.lists() })
+      void queryClient.invalidateQueries({ queryKey: notesKeys.folders() })
     })
 
     const unsubUpdated = onNoteUpdated(() => {
@@ -218,10 +219,12 @@ export function useNotesList(options: UseNotesListOptions = {}): UseNotesListRes
 
     const unsubDeleted = onNoteDeleted(() => {
       void queryClient.invalidateQueries({ queryKey: notesKeys.lists() })
+      void queryClient.invalidateQueries({ queryKey: notesKeys.folders() })
     })
 
     const unsubRenamed = onNoteRenamed(() => {
       void queryClient.invalidateQueries({ queryKey: notesKeys.lists() })
+      void queryClient.invalidateQueries({ queryKey: notesKeys.folders() })
     })
 
     const unsubMoved = onNoteMoved(() => {
