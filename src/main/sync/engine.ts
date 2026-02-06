@@ -1149,6 +1149,10 @@ export class SyncEngine extends TypedEmitter<SyncEngineEvents> {
   }
 
   private handleWsConnected(): void {
+    if (!isSyncAuthReady()) {
+      console.info('[SyncEngine] WebSocket connected, pull deferred: auth not ready')
+      return
+    }
     console.info('[SyncEngine] WebSocket connected, pulling metadata')
     this.pull().catch((err) => {
       console.error('[SyncEngine] Failed to pull after WS connect:', err)
