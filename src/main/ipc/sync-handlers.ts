@@ -684,8 +684,9 @@ async function syncNoteContentFromCrdt(noteId: string, attempt = 0): Promise<voi
     doc.getText('content').toString().length > 0 ||
     doc.getXmlFragment('document-store').length > 0
 
+  let pulledSnapshot = false
   if (!hasExistingContent) {
-    await crdtBridge.pullSnapshotForNote(noteId)
+    pulledSnapshot = await crdtBridge.pullSnapshotForNote(noteId)
   }
 
   await crdtBridge.pullUpdatesForNote(noteId)
@@ -695,7 +696,9 @@ async function syncNoteContentFromCrdt(noteId: string, attempt = 0): Promise<voi
     doc.getXmlFragment('document-store').length > 0
 
   if (!hasContent) {
-    if (attempt < CRDT_PULL_MAX_RETRIES) {
+    // Retry only when snapshot wasn't available yet (metadata can arrive before CRDT snapshot).
+    // If a snapshot was fetched successfully but content is still empty, treat as valid empty doc.
+    if (!pulledSnapshot && attempt < CRDT_PULL_MAX_RETRIES) {
       const delay = CRDT_PULL_RETRY_DELAYS_MS[attempt] ?? CRDT_PULL_RETRY_DELAYS_MS.at(-1) ?? 1000
       setTimeout(() => {
         void syncNoteContentFromCrdt(noteId, attempt + 1)
