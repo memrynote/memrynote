@@ -24,7 +24,8 @@ import { getDatabase } from '../database'
 import { devices, crdtSequenceState } from '@shared/db/schema/sync-schema'
 import { eq, inArray } from 'drizzle-orm'
 import { refreshAccessToken } from './token-refresh'
-import { emptyClock, incrementClock } from './vector-clock'
+import { emptyClock, incrementClock, type VectorClock } from './vector-clock'
+import { syncState } from '@shared/db/schema/sync-schema'
 import { isSyncAuthReady } from './auth-state'
 import { fetchAndStoreAccountDevices } from '../ipc/sync-handlers'
 
@@ -102,6 +103,45 @@ export class CrdtSyncBridge {
     return /^j\d{4}-\d{2}-\d{2}$/.test(docId)
   }
 
+  private noteClockKey(noteId: string): string {
+    return `note-clock:${noteId}`
+  }
+
+  private async getNoteMetadataClock(noteId: string): Promise<VectorClock | null> {
+    const db = getDatabase()
+    const row = db
+      .select()
+      .from(syncState)
+      .where(eq(syncState.key, this.noteClockKey(noteId)))
+      .get()
+
+    if (!row) return null
+    try {
+      return JSON.parse(row.value) as VectorClock
+    } catch {
+      return null
+    }
+  }
+
+  async setNoteMetadataClock(noteId: string, clock: VectorClock): Promise<void> {
+    const db = getDatabase()
+    const now = new Date().toISOString()
+    db.insert(syncState)
+      .values({
+        key: this.noteClockKey(noteId),
+        value: JSON.stringify(clock),
+        updatedAt: now
+      })
+      .onConflictDoUpdate({
+        target: syncState.key,
+        set: {
+          value: JSON.stringify(clock),
+          updatedAt: now
+        }
+      })
+      .run()
+  }
+
   private async syncItemToServer(itemId: string, data: Note | JournalEntry): Promise<boolean> {
     try {
       const keyPair = await retrieveDeviceKeyPair().catch((err) => {
@@ -113,7 +153,8 @@ export class CrdtSyncBridge {
         return false
       }
 
-      const clock = incrementClock(emptyClock(), keyPair.deviceId)
+      const existingClock = await this.getNoteMetadataClock(itemId)
+      const clock = incrementClock(existingClock ?? emptyClock(), keyPair.deviceId)
       const queue = getSyncQueue()
 
       if (this.isJournalId(itemId)) {
@@ -144,6 +185,8 @@ export class CrdtSyncBridge {
         }
         await queue.add('note', itemId, 'create', JSON.stringify(payload), 10)
       }
+
+      await this.setNoteMetadataClock(itemId, clock)
 
       const engine = getSyncEngine()
       if (engine && this.isOnline()) {
@@ -545,6 +588,54 @@ export class CrdtSyncBridge {
 
     this.onDocUpdated(noteId, update)
     this.scheduleFlush()
+  }
+
+  async queueNoteMetadataUpdate(noteId: string, note: Note | JournalEntry): Promise<void> {
+    if (!this.isAuthReady()) return
+
+    const keyPair = await retrieveDeviceKeyPair().catch(() => null)
+    if (!keyPair?.deviceId) return
+
+    const currentClock = await this.getNoteMetadataClock(noteId)
+    const nextClock = incrementClock(currentClock ?? emptyClock(), keyPair.deviceId)
+
+    const queue = getSyncQueue()
+
+    if (this.isJournalId(noteId)) {
+      const entry = note as JournalEntry
+      const payload = {
+        id: entry.id,
+        date: entry.date,
+        created: entry.createdAt,
+        modified: entry.modifiedAt,
+        tags: entry.tags,
+        properties: entry.properties ?? {},
+        clock: nextClock
+      }
+      await queue.add('journal', noteId, 'update', JSON.stringify(payload), 5)
+    } else {
+      const n = note as Note
+      const payload = {
+        id: n.id,
+        title: n.title,
+        path: n.path,
+        created: n.created.toISOString(),
+        modified: n.modified.toISOString(),
+        tags: n.tags,
+        aliases: n.aliases,
+        emoji: n.emoji ?? null,
+        properties: n.properties ?? {},
+        clock: nextClock
+      }
+      await queue.add('note', noteId, 'update', JSON.stringify(payload), 5)
+    }
+
+    await this.setNoteMetadataClock(noteId, nextClock)
+
+    const engine = getSyncEngine()
+    if (engine && this.isOnline()) {
+      await engine.push()
+    }
   }
 
   async pullUpdatesForAllLoadedDocs(): Promise<void> {

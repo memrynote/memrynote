@@ -509,6 +509,10 @@ async function createOrUpdateNoteFromSync(
   }
 
   const fileContent = serializeNote(frontmatter, '', { updateModified: false })
+  const crdtProvider = getCrdtProvider()
+  if (crdtProvider) {
+    crdtProvider.markCrdtWrite(payload.id)
+  }
   await safeWriteInVault(absolutePath, fileContent, getVaultPath())
 
   syncNoteToCache(
@@ -853,14 +857,39 @@ async function handleDecryptedSyncItem(item: DecryptedSyncItem): Promise<void> {
 
       const result = await createOrUpdateNoteFromSync(payload)
 
+      // Store the pulled clock so local edits increment from it
+      if (item.clock) {
+        const crdtBridge = getCrdtSyncBridge()
+        if (crdtBridge) {
+          await crdtBridge.setNoteMetadataClock(payload.id, item.clock)
+        }
+      }
+
       await syncNoteContentFromCrdt(payload.id)
 
-      emitSyncEvent(result.isNew ? NotesChannels.events.CREATED : NotesChannels.events.UPDATED, {
-        id: payload.id,
-        path: result.path,
-        title: payload.title,
-        source: 'sync'
-      })
+      // Read actual state after CRDT merge to avoid emitting stale metadata
+      const noteDb = getIndexDatabase()
+      const currentNote = getNoteCacheById(noteDb, payload.id)
+
+      if (result.isNew) {
+        emitSyncEvent(NotesChannels.events.CREATED, {
+          id: payload.id,
+          path: currentNote?.path ?? result.path,
+          title: currentNote?.title ?? payload.title,
+          source: 'sync'
+        })
+      } else {
+        emitSyncEvent(NotesChannels.events.UPDATED, {
+          id: payload.id,
+          changes: {
+            title: currentNote?.title ?? payload.title,
+            tags: payload.tags,
+            emoji: payload.emoji,
+            properties: payload.properties
+          },
+          source: 'sync'
+        })
+      }
       emitSyncEvent(SyncChannels.events.ITEM_SYNCED, {
         itemId: item.itemId,
         itemType: 'note',
@@ -896,6 +925,13 @@ async function handleDecryptedSyncItem(item: DecryptedSyncItem): Promise<void> {
       }
 
       const result = await createOrUpdateJournalFromSync(payload)
+
+      if (item.clock) {
+        const crdtBridge = getCrdtSyncBridge()
+        if (crdtBridge) {
+          await crdtBridge.setNoteMetadataClock(payload.id, item.clock)
+        }
+      }
 
       await syncNoteContentFromCrdt(payload.id)
 
