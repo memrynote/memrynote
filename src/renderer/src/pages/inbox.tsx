@@ -1392,7 +1392,6 @@ export function InboxPage({ className }: InboxPageProps): React.JSX.Element {
             </div>
           )}
         </div>
-
       </header>
 
       {/* Quick Capture Input - only in inbox view */}
