@@ -144,9 +144,9 @@
 
 **Depends on**: US1 (general section must exist)
 
-- [ ] T046 [US6] Add font size segmented control (small/medium/large), font family dropdown (system/serif/sans-serif/monospace), reduced motion toggle to GeneralSection in `apps/desktop/src/renderer/src/pages/settings/general-section.tsx`
-- [ ] T047 [US6] Apply font size and font family via CSS custom properties (--font-size-base, --font-family) on document root, respect reduced motion via prefers-reduced-motion override in `apps/desktop/src/renderer/src/hooks/use-theme-sync.ts`
-- [ ] T048 [US6] Add start-on-boot toggle to GeneralSection, wire to Electron app.setLoginItemSettings() via IPC in `apps/desktop/src/renderer/src/pages/settings/general-section.tsx`
+- [x] T046 [US6] Add font size segmented control (small/medium/large), font family dropdown (system/serif/sans-serif/monospace), reduced motion toggle to GeneralSection in `apps/desktop/src/renderer/src/pages/settings/general-section.tsx`
+- [x] T047 [US6] Apply font size and font family via CSS custom properties (--font-size-base, --font-family) on document root, respect reduced motion via prefers-reduced-motion override in `apps/desktop/src/renderer/src/hooks/use-theme-sync.ts`
+- [x] T048 [US6] Add start-on-boot toggle to GeneralSection, wire to Electron app.setLoginItemSettings() via IPC in `apps/desktop/src/renderer/src/pages/settings/general-section.tsx`
 
 **Checkpoint**: Font size changes globally. Font family applies everywhere. Reduced motion disables animations. Settings persist on restart.
 

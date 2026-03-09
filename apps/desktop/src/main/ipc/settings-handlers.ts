@@ -7,7 +7,7 @@
  * @module main/ipc/settings-handlers
  */
 
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, app } from 'electron'
 import { SettingsChannels } from '@memry/contracts/ipc-channels'
 import {
   GENERAL_SETTINGS_DEFAULTS,
@@ -505,8 +505,18 @@ export function registerSettingsHandlers(): void {
   )
   ipcMain.handle(
     SettingsChannels.invoke.SET_GENERAL_SETTINGS,
-    (_event, updates: Partial<GeneralSettings>) =>
-      writeGroupSettings('general', GENERAL_SETTINGS_DEFAULTS, updates)
+    (_event, updates: Partial<GeneralSettings>) => {
+      const result = writeGroupSettings('general', GENERAL_SETTINGS_DEFAULTS, updates)
+      if (result.success && updates.startOnBoot !== undefined) {
+        try {
+          app.setLoginItemSettings({ openAtLogin: updates.startOnBoot })
+          logger.info(`Start on boot ${updates.startOnBoot ? 'enabled' : 'disabled'}`)
+        } catch (err) {
+          logger.warn('Failed to set login item:', err)
+        }
+      }
+      return result
+    }
   )
 
   ipcMain.handle(SettingsChannels.invoke.GET_EDITOR_SETTINGS, () =>

@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Info, Sun, Moon, Monitor, Check } from 'lucide-react'
+import { Info, Sun, Moon, Monitor, Check, ALargeSmall } from 'lucide-react'
 import { useTabPreferences } from '@/hooks/use-tab-preferences'
 import { useGeneralSettings } from '@/hooks/use-general-settings'
 import { useTabs } from '@/contexts/tabs'
@@ -71,6 +71,41 @@ export function GeneralSettings() {
       setCustomHex('')
     }
   }, [customHex, handleAccentChange])
+
+  const handleFontSizeChange = useCallback(
+    async (value: string) => {
+      if (!value) return
+      const fontSize = value as 'small' | 'medium' | 'large'
+      const success = await updateGeneralSettings({ fontSize })
+      if (!success) toast.error('Failed to update font size')
+    },
+    [updateGeneralSettings]
+  )
+
+  const handleFontFamilyChange = useCallback(
+    async (value: string) => {
+      const fontFamily = value as 'system' | 'serif' | 'sans-serif' | 'monospace'
+      const success = await updateGeneralSettings({ fontFamily })
+      if (!success) toast.error('Failed to update font family')
+    },
+    [updateGeneralSettings]
+  )
+
+  const handleReducedMotionChange = useCallback(
+    async (enabled: boolean) => {
+      const success = await updateGeneralSettings({ reducedMotion: enabled })
+      if (!success) toast.error('Failed to update reduced motion')
+    },
+    [updateGeneralSettings]
+  )
+
+  const handleStartOnBootChange = useCallback(
+    async (enabled: boolean) => {
+      const success = await updateGeneralSettings({ startOnBoot: enabled })
+      if (!success) toast.error('Failed to update start on boot')
+    },
+    [updateGeneralSettings]
+  )
 
   const handlePreviewModeChange = useCallback(
     async (enabled: boolean) => {
@@ -225,6 +260,103 @@ export function GeneralSettings() {
                 </div>
               )}
           </div>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Typography Section */}
+      <div className="space-y-6">
+        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+          Typography
+        </h4>
+
+        <div className="space-y-2">
+          <Label>Font Size</Label>
+          <p className="text-sm text-muted-foreground">Adjust the base text size across the app</p>
+          <ToggleGroup
+            type="single"
+            value={generalSettings.fontSize}
+            onValueChange={handleFontSizeChange}
+            className="justify-start"
+          >
+            <ToggleGroupItem value="small" aria-label="Small font size" className="gap-2 px-4">
+              <ALargeSmall className="w-3.5 h-3.5" />
+              Small
+            </ToggleGroupItem>
+            <ToggleGroupItem value="medium" aria-label="Medium font size" className="gap-2 px-4">
+              <ALargeSmall className="w-4 h-4" />
+              Medium
+            </ToggleGroupItem>
+            <ToggleGroupItem value="large" aria-label="Large font size" className="gap-2 px-4">
+              <ALargeSmall className="w-5 h-5" />
+              Large
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Font Family</Label>
+          <p className="text-sm text-muted-foreground">
+            Choose the primary typeface for the interface
+          </p>
+          <Select value={generalSettings.fontFamily} onValueChange={handleFontFamilyChange}>
+            <SelectTrigger className="w-full max-w-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="system">System Default</SelectItem>
+              <SelectItem value="sans-serif">Sans-serif (DM Sans)</SelectItem>
+              <SelectItem value="serif">Serif (Crimson Pro)</SelectItem>
+              <SelectItem value="monospace">Monospace</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Accessibility Section */}
+      <div className="space-y-6">
+        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+          Accessibility
+        </h4>
+
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="reduced-motion">Reduced Motion</Label>
+            <p className="text-sm text-muted-foreground">
+              Minimize animations and transitions throughout the app
+            </p>
+          </div>
+          <Switch
+            id="reduced-motion"
+            checked={generalSettings.reducedMotion}
+            onCheckedChange={handleReducedMotionChange}
+          />
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Startup Section */}
+      <div className="space-y-6">
+        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+          Startup
+        </h4>
+
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="start-on-boot">Launch at Login</Label>
+            <p className="text-sm text-muted-foreground">
+              Automatically start Memry when you log in to your computer
+            </p>
+          </div>
+          <Switch
+            id="start-on-boot"
+            checked={generalSettings.startOnBoot}
+            onCheckedChange={handleStartOnBootChange}
+          />
         </div>
       </div>
 
