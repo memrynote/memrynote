@@ -10,7 +10,8 @@ import {
   Brain,
   Cloud,
   PenLine,
-  Tags
+  Tags,
+  ListChecks
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GeneralSettings } from './settings/general-section'
@@ -22,12 +23,14 @@ import { AppearanceSettings } from './settings/appearance-section'
 import { AISettings } from './settings/ai-section'
 import { SyncSettings } from './settings/sync-section'
 import { AdvancedSettings } from './settings/advanced-section'
+import { TasksSettings } from './settings/tasks-section'
 
 type SettingsSection =
   | 'general'
   | 'editor'
   | 'templates'
   | 'journal'
+  | 'tasks'
   | 'vault'
   | 'appearance'
   | 'ai'
@@ -89,6 +92,12 @@ export function SettingsPage() {
             onClick={() => setActiveSection('journal')}
           />
           <SettingsNavItem
+            icon={<ListChecks className="w-4 h-4" />}
+            label="Tasks"
+            isActive={activeSection === 'tasks'}
+            onClick={() => setActiveSection('tasks')}
+          />
+          <SettingsNavItem
             icon={<FolderOpen className="w-4 h-4" />}
             label="Vault"
             isActive={activeSection === 'vault'}
@@ -129,6 +138,7 @@ export function SettingsPage() {
             {activeSection === 'editor' && <EditorSettings />}
             {activeSection === 'templates' && <TemplatesSettings />}
             {activeSection === 'journal' && <JournalSettings />}
+            {activeSection === 'tasks' && <TasksSettings />}
             {activeSection === 'vault' && <VaultSettings />}
             {activeSection === 'appearance' && <AppearanceSettings />}
             {activeSection === 'ai' && <AISettings />}

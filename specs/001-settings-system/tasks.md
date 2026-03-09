@@ -205,8 +205,8 @@
 
 **Independent Test**: Open task settings → select default project → create new task without specifying project → verify it's assigned to default → manually select different project → verify override works.
 
-- [ ] T061 [US10] Build TasksSection component: default project dropdown (populated from project list query), sort order dropdown, week start segmented control, stale inbox threshold number input in `apps/desktop/src/renderer/src/pages/settings/tasks-section.tsx`
-- [ ] T062 [US10] Wire default project to task creation: read TaskSettings.defaultProjectId in task creation flow, pre-fill project field if set, allow manual override in `apps/desktop/src/renderer/src/hooks/use-task-settings.ts` and task creation component
+- [x] T061 [US10] Build TasksSection component: default project dropdown (populated from project list query), sort order dropdown, week start segmented control, stale inbox threshold number input in `apps/desktop/src/renderer/src/pages/settings/tasks-section.tsx`
+- [x] T062 [US10] Wire default project to task creation: read TaskSettings.defaultProjectId in task creation flow, pre-fill project field if set, allow manual override in `apps/desktop/src/renderer/src/hooks/use-task-settings.ts` and task creation component
 
 **Checkpoint**: Default project persists. New tasks auto-assigned. Manual override works. Sort order and week start applied correctly.
 
