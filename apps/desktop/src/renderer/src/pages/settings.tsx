@@ -24,7 +24,7 @@ import { AppearanceSettings } from './settings/appearance-section'
 import { AISettings } from './settings/ai-section'
 import { SyncSettings } from './settings/sync-section'
 import { IntegrationsSettings } from './settings/integrations-section'
-import { AdvancedSettings } from './settings/advanced-section'
+import { TagsSettings } from './settings/tags-section'
 import { TasksSettings } from './settings/tasks-section'
 
 type SettingsSection =
@@ -38,7 +38,7 @@ type SettingsSection =
   | 'ai'
   | 'sync'
   | 'integrations'
-  | 'advanced'
+  | 'tags'
 
 export function SettingsPage() {
   const [activeSection, setActiveSection] = useState<SettingsSection>(() => {
@@ -132,9 +132,9 @@ export function SettingsPage() {
           />
           <SettingsNavItem
             icon={<Tags className="w-4 h-4" />}
-            label="Advanced"
-            isActive={activeSection === 'advanced'}
-            onClick={() => setActiveSection('advanced')}
+            label="Tags"
+            isActive={activeSection === 'tags'}
+            onClick={() => setActiveSection('tags')}
           />
         </nav>
       </div>
@@ -153,7 +153,7 @@ export function SettingsPage() {
             {activeSection === 'ai' && <AISettings />}
             {activeSection === 'sync' && <SyncSettings />}
             {activeSection === 'integrations' && <IntegrationsSettings />}
-            {activeSection === 'advanced' && <AdvancedSettings />}
+            {activeSection === 'tags' && <TagsSettings />}
           </div>
         </ScrollArea>
       </div>
