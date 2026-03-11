@@ -465,6 +465,10 @@ export const SettingsChannels = {
     /** Trigger manual sync */
     TRIGGER_SYNC: 'settings:triggerSync'
   },
+  sync: {
+    /** Get the saved startup theme synchronously for first-paint bootstrap */
+    GET_STARTUP_THEME: 'settings:getStartupThemeSync'
+  },
   events: {
     /** Settings changed */
     CHANGED: 'settings:changed',
@@ -475,6 +479,7 @@ export const SettingsChannels = {
 
 export type SettingsInvokeChannel =
   (typeof SettingsChannels.invoke)[keyof typeof SettingsChannels.invoke]
+export type SettingsSyncChannel = (typeof SettingsChannels.sync)[keyof typeof SettingsChannels.sync]
 export type SettingsEventChannel =
   (typeof SettingsChannels.events)[keyof typeof SettingsChannels.events]
 

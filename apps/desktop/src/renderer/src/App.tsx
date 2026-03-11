@@ -42,8 +42,10 @@ import { notesService } from '@/services/notes-service'
 import { VaultOnboarding } from '@/components/vault-onboarding'
 import { useThemeSync } from '@/hooks/use-theme-sync'
 import { createLogger } from '@/lib/logger'
+import { getStartupTheme, THEME_STORAGE_KEY } from '@/lib/startup-theme'
 
 const log = createLogger('App')
+const startupTheme = getStartupTheme()
 
 // Base pages (non-task)
 export type BasePage = 'inbox' | 'home' | 'journal' | 'graph'
@@ -505,7 +507,12 @@ function App(): React.JSX.Element {
 
   if (!isVaultOpen) {
     return (
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme={startupTheme}
+        enableSystem
+        storageKey={THEME_STORAGE_KEY}
+      >
         <VaultOnboarding />
         <Toaster />
       </ThemeProvider>
@@ -513,7 +520,12 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme={startupTheme}
+      enableSystem
+      storageKey={THEME_STORAGE_KEY}
+    >
       <ThemeSyncManager>
         <SidebarProvider>
           <DragProvider

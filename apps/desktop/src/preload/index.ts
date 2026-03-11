@@ -56,6 +56,60 @@ function invoke<C extends MainIpcInvokeChannel>(
   return ipcRenderer.invoke(channel, ...args) as Promise<MainIpcInvokeResult<C>>
 }
 
+type StartupTheme = 'light' | 'dark' | 'system'
+const THEME_STORAGE_KEY = 'memry-theme'
+
+function getStartupThemeSync(): StartupTheme {
+  try {
+    return ipcRenderer.sendSync(SettingsChannels.sync.GET_STARTUP_THEME) as StartupTheme
+  } catch {
+    return 'system'
+  }
+}
+
+function resolveStartupTheme(theme: StartupTheme): 'light' | 'dark' {
+  if (theme === 'system') {
+    return typeof globalThis.window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light'
+  }
+
+  return theme
+}
+
+function applyStartupTheme(savedTheme: StartupTheme): void {
+  const resolvedTheme = resolveStartupTheme(savedTheme)
+
+  const applyToRoot = (): boolean => {
+    const root = document.documentElement
+    if (!root) return false
+
+    root.classList.toggle('dark', resolvedTheme === 'dark')
+    root.style.colorScheme = resolvedTheme
+    return true
+  }
+
+  if (!applyToRoot()) {
+    window.addEventListener(
+      'DOMContentLoaded',
+      () => {
+        applyToRoot()
+      },
+      { once: true }
+    )
+  }
+}
+
+const startupTheme = getStartupThemeSync()
+try {
+  window.localStorage.setItem(THEME_STORAGE_KEY, startupTheme)
+} catch {
+  // localStorage may be unavailable in some test or restricted environments
+}
+applyStartupTheme(startupTheme)
+
 // Custom APIs for renderer
 export const api = {
   // Window controls for custom traffic lights
@@ -487,6 +541,7 @@ export const api = {
     setNoteEditorSettings: (settings: { toolbarMode?: 'floating' | 'sticky' }) =>
       invoke(SettingsChannels.invoke.SET_NOTE_EDITOR_SETTINGS, settings),
     // General Settings (theme, font, accent, etc.)
+    getStartupThemeSync: (): StartupTheme => startupTheme,
     getGeneralSettings: () => invoke(SettingsChannels.invoke.GET_GENERAL_SETTINGS),
     setGeneralSettings: (settings: Record<string, unknown>) =>
       invoke(SettingsChannels.invoke.SET_GENERAL_SETTINGS, settings),

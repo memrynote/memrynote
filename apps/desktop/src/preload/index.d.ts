@@ -2120,6 +2120,7 @@ export interface SettingsClientAPI {
     settings: Partial<NoteEditorSettings>
   ): Promise<{ success: boolean; error?: string }>
   // General Settings
+  getStartupThemeSync(): 'light' | 'dark' | 'system'
   getGeneralSettings(): Promise<GeneralSettingsDTO>
   setGeneralSettings(
     settings: Partial<GeneralSettingsDTO>
