@@ -157,6 +157,10 @@ function readGroupSettings<T extends Record<string, unknown>>(groupKey: string, 
   }
 }
 
+function getStartupTheme(): GeneralSettings['theme'] {
+  return readGroupSettings('general', GENERAL_SETTINGS_DEFAULTS).theme
+}
+
 /**
  * Write a partial update to a JSON-blob settings group.
  * Merges with existing values and broadcasts change event.
@@ -191,6 +195,10 @@ function writeGroupSettings<T extends Record<string, unknown>>(
  * Register all settings-related IPC handlers.
  */
 export function registerSettingsHandlers(): void {
+  ipcMain.on(SettingsChannels.sync.GET_STARTUP_THEME, (event) => {
+    event.returnValue = getStartupTheme()
+  })
+
   // Get a setting by key
   ipcMain.handle(SettingsChannels.invoke.GET, (_event, key: string) => {
     const db = getDbOrNull()
@@ -601,6 +609,7 @@ export function registerSettingsHandlers(): void {
  * Unregister all settings-related IPC handlers.
  */
 export function unregisterSettingsHandlers(): void {
+  ipcMain.removeAllListeners(SettingsChannels.sync.GET_STARTUP_THEME)
   ipcMain.removeHandler(SettingsChannels.invoke.GET)
   ipcMain.removeHandler(SettingsChannels.invoke.SET)
   ipcMain.removeHandler(SettingsChannels.invoke.GET_JOURNAL_SETTINGS)
