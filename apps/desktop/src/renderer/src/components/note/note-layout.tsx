@@ -1,7 +1,7 @@
 import { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
-import { OutlineInfoPanel, type DocumentStats } from '@/components/shared'
 import { useActiveHeading } from '@/hooks/use-active-heading'
+import { OutlineInfoPanel } from '../shared/outline-info-panel'
 
 interface HeadingItem {
   id: string
@@ -15,8 +15,7 @@ interface NoteLayoutProps {
   headings?: HeadingItem[]
   onHeadingClick?: (headingId: string) => void
   className?: string
-  /** Document statistics for the Info tab */
-  stats?: DocumentStats
+  actions?: ReactNode
 }
 
 const EMPTY_HEADINGS: HeadingItem[] = []
@@ -26,30 +25,23 @@ export function NoteLayout({
   headings = EMPTY_HEADINGS,
   onHeadingClick,
   className,
-  stats
+  actions
 }: NoteLayoutProps) {
-  // T078: Track active heading based on scroll position
   const { activeHeadingId } = useActiveHeading({
     headings,
-    offset: 120 // Account for header/toolbar height
+    offset: 120
   })
 
   return (
-    <div className={cn('h-full w-full overflow-hidden flex', className)}>
-      {/* Main content area with floating outline edge */}
-      <div className="flex-1 relative">
-        {/* Main content zone */}
-        <div className="h-full overflow-y-auto overflow-x-visible">
-          {/* Centered content wrapper */}
-          <div className="mx-auto w-full max-w-5xl px-6 md:px-12 lg:px-16 py-8">{children}</div>
-        </div>
+    <div className={cn('h-full w-full overflow-hidden flex flex-col', className)}>
+      <div className="flex-1 overflow-y-auto overflow-x-visible relative">
+        {actions && <div className="flex justify-end px-4 pt-3 pb-0">{actions}</div>}
+        <div className="mx-auto w-full max-w-4xl px-20 pt-6 pb-10">{children}</div>
 
-        {/* Floating outline panel with Info tab - positioned at right of viewport */}
         <OutlineInfoPanel
           headings={headings}
-          onHeadingClick={onHeadingClick}
           activeHeadingId={activeHeadingId ?? undefined}
-          stats={stats}
+          onHeadingClick={onHeadingClick}
         />
       </div>
     </div>
