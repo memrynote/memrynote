@@ -1,7 +1,7 @@
 import { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { useActiveHeading } from '@/hooks/use-active-heading'
-import { OutlineInfoPanel } from '../shared/outline-info-panel'
+import { OutlineInfoPanel, type OutlineInfoPanelProps } from '../shared/outline-info-panel'
 
 interface HeadingItem {
   id: string
@@ -16,6 +16,7 @@ interface NoteLayoutProps {
   onHeadingClick?: (headingId: string) => void
   className?: string
   actions?: ReactNode
+  stats?: OutlineInfoPanelProps['stats']
 }
 
 const EMPTY_HEADINGS: HeadingItem[] = []
@@ -25,7 +26,8 @@ export function NoteLayout({
   headings = EMPTY_HEADINGS,
   onHeadingClick,
   className,
-  actions
+  actions,
+  stats
 }: NoteLayoutProps) {
   const { activeHeadingId } = useActiveHeading({
     headings,
@@ -42,6 +44,7 @@ export function NoteLayout({
           headings={headings}
           activeHeadingId={activeHeadingId ?? undefined}
           onHeadingClick={onHeadingClick}
+          stats={stats}
         />
       </div>
     </div>

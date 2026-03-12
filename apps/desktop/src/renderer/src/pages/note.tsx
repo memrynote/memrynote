@@ -172,6 +172,16 @@ export function NotePage({ noteId }: NotePageProps) {
   const { settings: editorSettings } = useNoteEditorSettings()
 
   // Content tracking for change detection
+  const documentStats = useMemo(() => {
+    if (!note) return undefined
+    return {
+      wordCount: note.wordCount ?? 0,
+      characterCount: note.content?.length ?? 0,
+      createdAt: note.created ?? null,
+      modifiedAt: note.modified ?? null
+    }
+  }, [note])
+
   const lastSavedContent = useRef<string>('')
 
   // Refs for debouncing
@@ -784,7 +794,12 @@ export function NotePage({ noteId }: NotePageProps) {
   )
 
   return (
-    <NoteLayout headings={headings} onHeadingClick={handleHeadingClick} actions={actionIcons}>
+    <NoteLayout
+      headings={headings}
+      onHeadingClick={handleHeadingClick}
+      actions={actionIcons}
+      stats={documentStats}
+    >
       {/* Note content */}
       <div className="flex flex-col gap-6">
         {/* Title + Tags */}
