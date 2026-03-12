@@ -47,6 +47,7 @@ import { extractErrorMessage } from '@/lib/ipc-error'
 import { createLogger } from '@/lib/logger'
 import { LocalGraphPanel } from '@/components/graph/local-graph-panel'
 import { graphKeys } from '@/hooks/use-graph-data'
+import { NoteBreadcrumb } from '@/components/note/note-breadcrumb'
 
 const log = createLogger('Page:Note')
 
@@ -802,6 +803,8 @@ export function NotePage({ noteId }: NotePageProps) {
     >
       {/* Note content */}
       <div className="flex flex-col gap-6">
+        <NoteBreadcrumb notePath={note.path} noteTitle={note.title} />
+
         {/* Title + Tags */}
         <div className="flex flex-col gap-4">
           <NoteTitle
