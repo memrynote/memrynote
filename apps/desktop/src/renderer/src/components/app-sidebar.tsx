@@ -90,12 +90,12 @@ function SidebarHeaderContent() {
   const isCollapsed = state === 'collapsed'
 
   return (
-    <SidebarHeader className="py-5 px-4">
+    <SidebarHeader className="pt-3 pb-0 px-2 gap-1">
       {/* Drag region + Traffic lights for macOS */}
       <div
         className={cn(
-          'drag-region flex items-center h-8 shrink-0 transition-all duration-200',
-          isCollapsed ? 'justify-center px-0' : 'justify-start px-2'
+          'drag-region flex items-center shrink-0',
+          isCollapsed ? 'justify-center' : 'justify-start px-2.5'
         )}
       >
         <TrafficLights compact={isCollapsed} />
@@ -261,14 +261,14 @@ function AppSidebarInner({ currentPage, viewCounts, ...props }: AppSidebarProps)
       {/* FIXED SECTION - Quick Actions & Main Nav (doesn't scroll) */}
       <div className="flex-shrink-0">
         {/* Quick Actions: Search & New */}
-        <SidebarGroup className="px-2">
+        <SidebarGroup className="px-2 pt-1 pb-0">
           <SidebarMenu>
             {quickActions.map((action) => (
               <SidebarMenuItem key={action.title}>
                 <SidebarMenuButton
                   tooltip={action.title}
                   className={cn(
-                    'rounded-md h-auto py-2 px-2.5 gap-2.5',
+                    'rounded-md h-auto py-[7px] px-2.5 gap-2.5',
                     action.action === 'search' && 'bg-black/[0.04] dark:bg-white/[0.04]'
                   )}
                   onClick={
@@ -293,7 +293,7 @@ function AppSidebarInner({ currentPage, viewCounts, ...props }: AppSidebarProps)
         </SidebarGroup>
 
         {/* Main Navigation: Inbox, Home, Journal, Tasks */}
-        <SidebarGroup className="px-4">
+        <SidebarGroup className="px-2 pt-1 pb-0">
           <SidebarMenu>
             {mainNav.map((item) => {
               const sidebarItem: SidebarItem = {
@@ -314,7 +314,7 @@ function AppSidebarInner({ currentPage, viewCounts, ...props }: AppSidebarProps)
                       {item.title}
                     </span>
                     {item.page === 'inbox' && inboxCount > 0 && (
-                      <>
+                      <span className="ml-auto flex items-center gap-1">
                         <button
                           type="button"
                           onClick={(e) => {
@@ -324,15 +324,15 @@ function AppSidebarInner({ currentPage, viewCounts, ...props }: AppSidebarProps)
                               window.dispatchEvent(new CustomEvent('memry:enter-triage'))
                             })
                           }}
-                          className="ml-auto opacity-0 group-hover/menu-item:opacity-100 transition-opacity rounded p-0.5 hover:bg-accent"
+                          className="opacity-0 group-hover/menu-item:opacity-100 transition-opacity rounded p-0.5 hover:bg-accent"
                           title="Process Inbox"
                         >
                           <Play className="size-3 text-muted-foreground" />
                         </button>
-                        <span className="ml-auto size-[18px] flex items-center justify-center rounded-full bg-sidebar-terracotta/15 text-sidebar-terracotta text-[10px] font-semibold leading-none">
+                        <span className="size-[18px] flex items-center justify-center rounded-full bg-sidebar-terracotta/15 text-sidebar-terracotta text-[10px] font-semibold leading-none">
                           {inboxCount}
                         </span>
-                      </>
+                      </span>
                     )}
                     {item.page === 'tasks' && todayTasksCount > 0 && (
                       <span className="ml-auto size-[18px] flex items-center justify-center rounded-full bg-sidebar-terracotta/15 text-sidebar-terracotta text-[10px] font-semibold leading-none">
@@ -417,7 +417,7 @@ function AppSidebarInner({ currentPage, viewCounts, ...props }: AppSidebarProps)
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeaderContent />
-      <SidebarContent className="flex flex-col overflow-hidden gap-6">
+      <SidebarContent className="flex flex-col overflow-hidden gap-0">
         <SidebarDrillDownContainer>{mainContent}</SidebarDrillDownContainer>
       </SidebarContent>
       <SidebarFooter>
