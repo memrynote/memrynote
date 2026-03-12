@@ -103,18 +103,18 @@ export function VaultSwitcher() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
-              size="lg"
-              className="rounded-lg gap-2.5 hover:bg-sidebar-accent/50 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
+              size="default"
+              className="rounded-md gap-2 h-auto py-1.5 px-2 hover:bg-sidebar-accent/50 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
             >
-              <div className="flex aspect-square size-7 shrink-0 items-center justify-center rounded-lg bg-sidebar-terracotta text-white">
+              <div className="flex aspect-square size-6 shrink-0 items-center justify-center rounded-md bg-sidebar-terracotta text-white">
                 {isLoading ? (
-                  <Loader2 className="size-3.5 animate-spin" />
+                  <Loader2 className="size-3 animate-spin" />
                 ) : (
-                  <HardDrive className="size-3.5" />
+                  <HardDrive className="size-3" />
                 )}
               </div>
               <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-                <span className="truncate text-[15px] font-semibold text-sidebar-primary tracking-[-0.01em] leading-[18px]">
+                <span className="truncate text-[13px] font-semibold text-sidebar-primary tracking-[-0.01em] leading-4">
                   {currentVaultName}
                 </span>
                 {status?.isIndexing && (
