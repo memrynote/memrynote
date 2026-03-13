@@ -306,6 +306,75 @@
     /* Elements moving/transforming */
   }
 
+  .white {
+    /* ===== BASE COLORS - White Mode (Notion-inspired Clean White) ===== */
+    --background: #ffffff;
+    --foreground: #37352f;
+    --surface: #f7f6f3;
+    --surface-active: #efedea;
+
+    /* ===== SEMANTIC PASTELS - White Mode ===== */
+    --card-sage: #dbeddb;
+    --card-rose: #ffe2dd;
+    --card-sand: #fdecc8;
+    --card-lavender: #e8deee;
+    --card-grey: #e3e2e0;
+
+    /* ===== TYPOGRAPHY COLORS - White Mode ===== */
+    --text-primary: #37352f;
+    --text-secondary: #6b6966;
+    --text-tertiary: #9b9a97;
+
+    /* ===== ACCENT COLORS ===== */
+    --accent-cyan: #0891b2;
+    --accent-purple: #7c3aed;
+    --accent-green: #16a34a;
+    --accent-orange: #ea580c;
+
+    /* ===== UI SEMANTIC COLORS - White Mode ===== */
+    --muted: #f7f6f3;
+    --muted-foreground: #6b6966;
+    --popover: #ffffff;
+    --popover-foreground: #37352f;
+    --border: #e3e2e0;
+    --input: #e3e2e0;
+    --card: #ffffff;
+    --card-foreground: #37352f;
+    --primary: #37352f;
+    --primary-foreground: #ffffff;
+    --secondary: #f7f6f3;
+    --secondary-foreground: #37352f;
+    --accent: #f7f6f3;
+    --accent-foreground: #37352f;
+    --destructive: #e03e3e;
+    --destructive-foreground: #ffffff;
+    --ring: #9b9a97;
+
+    /* ===== SHADOWS - White Mode (crisper than warm) ===== */
+    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 3px 0 rgb(0 0 0 / 0.06);
+    --shadow-card-hover: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+
+    /* ===== GRAPH VIEW COLORS - White Mode ===== */
+    --graph-node-note: #448c7c;
+    --graph-node-journal: #7c3aed;
+    --graph-node-task: #c87533;
+    --graph-node-project: #4a7a4a;
+    --graph-node-tag: #b07040;
+    --graph-edge-default: #9b9a97;
+    --graph-edge-wikilink: #9b9a97;
+    --graph-edge-task-note: #c4a46a;
+    --graph-edge-project-task: #9a8abd;
+    --graph-edge-tag-cooccurrence: #c4c2bc;
+    --graph-ghost-node: #d4d2cc;
+    --graph-dimmed-node: #e3e2e0;
+    --graph-edge-soft: #bfbdb6;
+    --graph-bg: #ffffff;
+
+    /* ===== QUEUE LIST - White Mode ===== */
+    --queue-bg: #f7f6f3;
+    --queue-number-bg: #e3e2e0;
+  }
+
   .dark {
     /* ===== TYPOGRAPHY - Font Families (same in dark mode) ===== */
     --font-sans:
@@ -923,6 +992,23 @@ del.bn-inline-content {
   --sidebar-text-folder: #3d3a35;
   --sidebar-text-child: #5c5850;
   --sidebar-dot-inactive: #d9d5ce;
+}
+
+.white {
+  /* ===== SIDEBAR THEME - Clean White Palette ===== */
+  --sidebar: #fbfbfa;
+  --sidebar-foreground: #9b9a97;
+  --sidebar-primary: #37352f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(35, 131, 226, 0.08);
+  --sidebar-accent-foreground: #2383e2;
+  --sidebar-border: #e9e9e7;
+  --sidebar-ring: #2383e2;
+  --sidebar-muted: #b0afab;
+  --sidebar-terracotta: #2383e2;
+  --sidebar-text-folder: #37352f;
+  --sidebar-text-child: #6b6966;
+  --sidebar-dot-inactive: #e3e2e0;
 }
 
 .dark {
