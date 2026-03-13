@@ -14,8 +14,7 @@ export function createLanguageModel(settings: AIInlineSettings): LanguageModel {
     case 'ollama':
       return createOpenAI({
         baseURL: settings.baseUrl || 'http://localhost:11434/v1',
-        apiKey: 'ollama',
-        compatibility: 'compatible'
+        apiKey: 'ollama'
       })(settings.model)
 
     case 'openai':
