@@ -281,6 +281,7 @@
     --graph-dimmed-node: #e4e4de;
     --graph-edge-soft: #a8a6a0;
     --graph-bg: #f6f5f0;
+    --graph-label-color: #1a1a1a;
 
     /* ===== QUEUE LIST ===== */
     --queue-bg: #eae8e1;
@@ -369,6 +370,7 @@
     --graph-dimmed-node: #e3e2e0;
     --graph-edge-soft: #bfbdb6;
     --graph-bg: #ffffff;
+    --graph-label-color: #37352f;
 
     /* ===== QUEUE LIST - White Mode ===== */
     --queue-bg: #f7f6f3;
@@ -386,13 +388,13 @@
     --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
 
     /* ===== BASE COLORS - Dark Mode (Warm Dark Variant) ===== */
-    --background: #1c1b19;
-    /* Warm Dark */
+    --background: #191919;
+    /* Neutral Dark */
     --foreground: #e8e6e1;
     /* Light warm text */
-    --surface: #252420;
+    --surface: #202020;
     /* Dark panels */
-    --surface-active: #2e2d28;
+    --surface-active: #2a2a2a;
     /* Dark hover */
 
     /* ===== SEMANTIC PASTELS - Dark Mode (Muted versions) ===== */
@@ -414,19 +416,19 @@
     --accent-orange: #fb923c;
 
     /* ===== UI SEMANTIC COLORS - Dark Mode ===== */
-    --muted: #252420;
+    --muted: #202020;
     --muted-foreground: #a8a6a1;
-    --popover: #1c1b19;
+    --popover: #191919;
     --popover-foreground: #e8e6e1;
-    --border: #3a3935;
-    --input: #3a3935;
-    --card: #252420;
+    --border: #3a3a3a;
+    --input: #3a3a3a;
+    --card: #202020;
     --card-foreground: #e8e6e1;
     --primary: #e8e6e1;
-    --primary-foreground: #1c1b19;
-    --secondary: #252420;
+    --primary-foreground: #191919;
+    --secondary: #202020;
     --secondary-foreground: #e8e6e1;
-    --accent: #2e2d28;
+    --accent: #2a2a2a;
     --accent-foreground: #e8e6e1;
     --destructive: #dc2626;
     --destructive-foreground: #fafafa;
@@ -464,11 +466,12 @@
     --graph-ghost-node: #4a4845;
     --graph-dimmed-node: #3a3835;
     --graph-edge-soft: #6b6966;
-    --graph-bg: #1c1b19;
+    --graph-bg: #191919;
+    --graph-label-color: #e8e6e1;
 
     /* ===== QUEUE LIST - Dark Mode ===== */
-    --queue-bg: #252420;
-    --queue-number-bg: #3a3935;
+    --queue-bg: #202020;
+    --queue-number-bg: #3a3a3a;
 
     /* ===== ANIMATION TOKENS (Same in dark mode) ===== */
     --duration-instant: 100ms;
@@ -996,7 +999,7 @@ del.bn-inline-content {
 
 .white {
   /* ===== SIDEBAR THEME - Clean White Palette ===== */
-  --sidebar: #fbfbfa;
+  --sidebar: #f9f8f7;
   --sidebar-foreground: #9b9a97;
   --sidebar-primary: #37352f;
   --sidebar-primary-foreground: #ffffff;
@@ -1013,19 +1016,19 @@ del.bn-inline-content {
 
 .dark {
   /* ===== SIDEBAR THEME - Warm Dark Palette ===== */
-  --sidebar: #1e1d1a;
-  --sidebar-foreground: #8a857a;
+  --sidebar: #202020;
+  --sidebar-foreground: #b5b3ae;
   --sidebar-primary: #e8e5df;
-  --sidebar-primary-foreground: #1e1d1a;
+  --sidebar-primary-foreground: #202020;
   --sidebar-accent: rgba(224, 122, 92, 0.15);
   --sidebar-accent-foreground: #e07a5c;
-  --sidebar-border: #3a3835;
+  --sidebar-border: #3a3a3a;
   --sidebar-ring: #e07a5c;
-  --sidebar-muted: #6b6862;
+  --sidebar-muted: #6b6b6b;
   --sidebar-terracotta: #e07a5c;
   --sidebar-text-folder: #c5c0b8;
   --sidebar-text-child: #9a958d;
-  --sidebar-dot-inactive: #4a4742;
+  --sidebar-dot-inactive: #4a4a4a;
 }
 
 @theme inline {
